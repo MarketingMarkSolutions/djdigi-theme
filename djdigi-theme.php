@@ -4,7 +4,7 @@
  * Description: Site styling, Avada menu restyle and the [djdigi_hero] homepage hero for djdigimark.com.
  * Version: 1.0.1
  * Author: DJ DigiMark
- * Update URI: https://github.com/GITHUB-USERNAME/djdigi-theme
+ * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: djdigi-theme
@@ -18,7 +18,7 @@ define( 'DJDT_VERSION', '1.0.1' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
-define( 'DJDT_GITHUB_REPO', 'https://github.com/GITHUB-USERNAME/djdigi-theme/' );
+define( 'DJDT_GITHUB_REPO', 'https://github.com/MarketingMarkSolutions/djdigi-theme/' );
 
 /* -------------------------------------------------------------------------
  * Updates from GitHub releases (Plugin Update Checker)
