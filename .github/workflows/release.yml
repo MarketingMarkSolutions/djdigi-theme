@@ -1,0 +1,43 @@
+name: Release
+
+# Push a tag like v1.0.2 and this builds djdigi-theme.zip and publishes a GitHub release.
+# WordPress then shows "Update available" for DJ DigiMark Theme.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the plugin version matches the tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          HEADER=$(grep -m1 -E '^\s*\*\s*Version:' djdigi-theme.php | sed -E 's/.*Version:\s*//' | tr -d '[:space:]')
+          CONST=$(grep -m1 "DJDT_VERSION'" djdigi-theme.php | sed -E "s/.*'DJDT_VERSION',\s*'([^']+)'.*/\1/")
+          echo "tag=$TAG header=$HEADER const=$CONST"
+          if [ "$TAG" != "$HEADER" ] || [ "$TAG" != "$CONST" ]; then
+            echo "Version mismatch. Update the Version header and DJDT_VERSION to $TAG."
+            exit 1
+          fi
+
+      - name: Build djdigi-theme.zip
+        run: |
+          mkdir -p build/djdigi-theme
+          rsync -a ./ build/djdigi-theme/ \
+            --exclude .git --exclude .github --exclude build \
+            --exclude CLAUDE.md --exclude .gitignore
+          cd build && zip -qr ../djdigi-theme.zip djdigi-theme
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: djdigi-theme.zip
+          generate_release_notes: true
