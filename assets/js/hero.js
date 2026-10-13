@@ -1,28 +1,152 @@
-/* [djdigi_hero] behavior: short intro on repeat visits, and the Mixcloud player. */
+/* [djdigi_hero] behavior: opening sequence timing, photo rotation, scroll depth,
+   and the Mixcloud player. */
 (function () {
 	'use strict';
 
 	var hero = document.querySelector('.djd-hero');
 	if (!hero) return;
 
-	// Full opening sequence once per browser session, a quick version after that.
-	try {
-		if (sessionStorage.getItem('djdHeroSeen')) {
-			hero.classList.add('is-quick');
-		} else {
-			sessionStorage.setItem('djdHeroSeen', '1');
-		}
-	} catch (e) { /* storage blocked: always show the full intro */ }
+	var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+	var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
+	/* -----------------------------------------------------------------------
+	 * Full intro once per session, quick after that. ?intro=1 forces the full
+	 * sequence for testing, but still marks the session as seen afterward, so
+	 * normal navigation right after a forced preview goes back to quick.
+	 * -------------------------------------------------------------------- */
+	(function introTiming() {
+		var forceFull = /(^|[?&])intro=1(&|$)/.test(location.search);
+		var seen = false;
+		try { seen = !!sessionStorage.getItem('djdHeroSeen'); } catch (e) { /* storage blocked */ }
+		if (!forceFull && seen) {
+			document.body.classList.add('djd-quick-intro');
+		}
+		try { sessionStorage.setItem('djdHeroSeen', '1'); } catch (e) { /* ignore */ }
+	})();
+
+	/* -----------------------------------------------------------------------
+	 * Real header height, since Avada's header is not a fixed size across
+	 * browsers or zoom levels. The CSS value is only the fallback for the
+	 * instant before this runs.
+	 * -------------------------------------------------------------------- */
+	(function headerHeight() {
+		var wrapper = document.querySelector('.fusion-header-wrapper');
+		if (!wrapper) return;
+		function measure() {
+			var h = wrapper.getBoundingClientRect().height;
+			if (h > 0) document.body.style.setProperty('--djd-head-h', h + 'px');
+		}
+		measure();
+		var resizeTimer;
+		window.addEventListener('resize', function () {
+			clearTimeout(resizeTimer);
+			resizeTimer = setTimeout(measure, 150);
+		});
+		// The header can change height after fonts/images load or the sticky
+		// state kicks in; one more pass once everything has settled.
+		window.addEventListener('load', measure);
+	})();
+
+	/* -----------------------------------------------------------------------
+	 * Rotating hero photos: cross-fade, Ken Burns per photo, pause when the
+	 * tab is hidden, and only ever warm the one photo coming up next.
+	 * -------------------------------------------------------------------- */
+	(function photoRotation() {
+		var wrap = hero.querySelector('.djd-hero__photos');
+		if (!wrap) return;
+		var photos = Array.prototype.slice.call(wrap.querySelectorAll('.djd-hero__photo'));
+		if (!photos.length) return;
+
+		function restartKenBurns(img) {
+			img.classList.remove('is-kenburns');
+			void img.offsetWidth; // force reflow so the animation restarts
+			img.classList.add('is-kenburns');
+		}
+
+		var active = photos.filter(function (p) { return p.classList.contains('is-active'); })[0] || photos[0];
+		restartKenBurns(active);
+
+		if (photos.length < 2) return;
+
+		var index = photos.indexOf(active);
+		var timer = null;
+		var SLOT = 6500;
+
+		function warm(i) {
+			var src = photos[i].getAttribute('srcset') ? photos[i].currentSrc : photos[i].src;
+			if (src) { var img = new Image(); img.src = src; }
+		}
+
+		function advance() {
+			var next = (index + 1) % photos.length;
+			photos[index].classList.remove('is-active');
+			photos[next].classList.add('is-active');
+			restartKenBurns(photos[next]);
+			index = next;
+			warm((index + 1) % photos.length);
+		}
+
+		function start() {
+			if (timer) return;
+			timer = setInterval(advance, SLOT);
+		}
+		function stop() {
+			clearInterval(timer);
+			timer = null;
+		}
+
+		warm((index + 1) % photos.length);
+		start();
+		document.addEventListener('visibilitychange', function () {
+			if (document.hidden) stop(); else start();
+		});
+	})();
+
+	/* -----------------------------------------------------------------------
+	 * Scroll depth: photo and name move at different rates as the hero
+	 * scrolls past. Transform only, rAF throttled, off for touch and
+	 * reduced motion.
+	 * -------------------------------------------------------------------- */
+	(function scrollDepth() {
+		if (reduceMotion || isTouch) return;
+		var stage = hero.querySelector('.djd-hero__stage');
+		var photos = hero.querySelector('.djd-hero__photos');
+		if (!stage && !photos) return;
+
+		var ticking = false;
+		function update() {
+			ticking = false;
+			var heroHeight = hero.offsetHeight || 1;
+			var progress = Math.max(0, Math.min(1, -hero.getBoundingClientRect().top / heroHeight));
+			if (photos) hero.style.setProperty('--djd-scroll-photo', (progress * heroHeight * 0.18).toFixed(1) + 'px');
+			if (stage) {
+				hero.style.setProperty('--djd-scroll-name', (-progress * heroHeight * 0.1).toFixed(1) + 'px');
+				hero.style.setProperty('--djd-scroll-name-op', Math.max(0.25, 1 - progress * 1.3).toFixed(2));
+			}
+		}
+		window.addEventListener('scroll', function () {
+			if (ticking) return;
+			ticking = true;
+			requestAnimationFrame(update);
+		}, { passive: true });
+		update();
+	})();
+
+	/* -----------------------------------------------------------------------
+	 * Mixcloud player
+	 * -------------------------------------------------------------------- */
 	var player = hero.querySelector('.djd-player');
 	if (!player) return;
 
 	var btn = player.querySelector('.djd-player__btn');
 	var status = player.querySelector('.djd-player__status');
-	var meta = player.querySelector('.djd-player__meta');
+	var scrub = player.querySelector('.djd-player__scrub');
+	var tooltip = player.querySelector('.djd-player__tooltip');
+	var posEl = player.querySelector('.djd-player__pos');
 	var title = btn.getAttribute('data-label') || 'this mix';
 	var feed = player.getAttribute('data-feed');
-	var totalText = meta ? meta.textContent : '';
+	var knownLength = parseInt(player.getAttribute('data-length'), 10) || 0;
+	var lastDuration = knownLength;
 
 	var widget = null;
 	var loading = null;
@@ -75,8 +199,11 @@
 				w.events.ended.on(function () { setPlaying(false); });
 				w.events.progress.on(function (position, duration) {
 					if (!duration) return;
-					player.style.setProperty('--djd-p', (position / duration * 100).toFixed(2) + '%');
-					if (meta) meta.textContent = fmt(position) + ' / ' + fmt(duration);
+					lastDuration = duration;
+					var pct = (position / duration * 100).toFixed(2);
+					player.style.setProperty('--djd-p', pct + '%');
+					if (posEl) posEl.textContent = fmt(position);
+					if (scrub) scrub.setAttribute('aria-valuenow', Math.round(position));
 				});
 				return w;
 			});
@@ -117,5 +244,89 @@
 		idle(function () { prepare().catch(function () {}); });
 	});
 
-	if (meta && !totalText) meta.textContent = '';
+	// Back / forward 30 seconds.
+	player.querySelectorAll('.djd-player__skipbtn').forEach(function (skipBtn) {
+		skipBtn.addEventListener('click', function () {
+			var delta = parseInt(skipBtn.getAttribute('data-skip'), 10) || 0;
+			if (widget) {
+				widget.getPosition().then(function (pos) {
+					widget.seek(Math.max(0, Math.min(lastDuration, pos + delta)));
+				});
+			} else {
+				openOnMixcloud();
+			}
+		});
+	});
+
+	// Scrub bar: click or drag to seek, keyboard arrows, hover tooltip.
+	if (scrub) {
+		function fractionFromEvent(e) {
+			var rect = scrub.getBoundingClientRect();
+			var x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+			return Math.max(0, Math.min(1, x / rect.width));
+		}
+		function showPreview(fraction) {
+			var dur = lastDuration || knownLength;
+			player.style.setProperty('--djd-p', (fraction * 100).toFixed(2) + '%');
+			if (tooltip) {
+				tooltip.style.left = (fraction * 100).toFixed(2) + '%';
+				tooltip.textContent = fmt(fraction * dur);
+			}
+		}
+		function commitSeek(fraction) {
+			var dur = lastDuration || knownLength;
+			var target = fraction * dur;
+			if (widget) {
+				widget.seek(target);
+			} else {
+				wantPlay = true;
+				player.classList.add('is-loading');
+				prepare().then(function (w) {
+					w.seek(target);
+					w.play();
+				}).catch(function () {
+					player.classList.remove('is-loading');
+					openOnMixcloud();
+				});
+			}
+		}
+
+		var dragging = false;
+		scrub.addEventListener('pointerdown', function (e) {
+			dragging = true;
+			showPreview(fractionFromEvent(e));
+			e.preventDefault();
+		});
+		window.addEventListener('pointermove', function (e) {
+			if (!dragging) return;
+			showPreview(fractionFromEvent(e));
+		});
+		window.addEventListener('pointerup', function (e) {
+			if (!dragging) return;
+			dragging = false;
+			commitSeek(fractionFromEvent(e));
+		});
+		scrub.addEventListener('mousemove', function (e) {
+			if (dragging) return;
+			var dur = lastDuration || knownLength;
+			if (tooltip) {
+				var fraction = fractionFromEvent(e);
+				tooltip.style.left = (fraction * 100).toFixed(2) + '%';
+				tooltip.textContent = fmt(fraction * dur);
+			}
+		});
+		scrub.addEventListener('keydown', function (e) {
+			var dur = lastDuration || knownLength;
+			if (!dur) return;
+			if ('ArrowLeft' === e.key || 'ArrowRight' === e.key) {
+				e.preventDefault();
+				var step = 10 * ('ArrowLeft' === e.key ? -1 : 1);
+				if (widget) {
+					widget.getPosition().then(function (pos) {
+						widget.seek(Math.max(0, Math.min(dur, pos + step)));
+					});
+				}
+			}
+		});
+	}
 })();

@@ -34,12 +34,30 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 "Live for everyone" is checked. Keep every new feature behind this check.
 
 ## Files
-- `djdigi-theme.php`: settings page, asset loading (filemtime versions, Cloudflare-safe), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), `[djdigi_hero]`.
-- `assets/css/site.css`: site-wide, scoped to `body.djdigi-theme`. Avada header and menu selectors: `.fusion-header-wrapper`, `.fusion-secondary-header` (social bar), `.fusion-header`, `.fusion-main-menu > ul.fusion-menu`, `.sub-menu`, `.fusion-mobile-selector` (classic mobile menu), `.fusion-is-sticky` (sticky state).
-- `assets/css/hero.css`: hero only, loaded only when the shortcode renders.
-- `assets/js/hero.js`: quick intro on repeat visits (sessionStorage), Mixcloud Widget API player.
-- `assets/img/hero-photo.jpg`: color-graded hero photo. `wave.svg`: player waveform.
-- `assets/fonts/`: Archivo (variable, wdth + wght) and Big Shoulders Display 800, self-hosted, OFL.
+- `djdigi-theme.php`: settings page (including the hero photo picker), asset loading (filemtime versions, Cloudflare-safe), body classes, the "Book me" `wp_nav_menu_items` filter, Mixcloud API (cached 6h in transient `djdt_mix`), `[djdigi_hero]`.
+- `assets/css/site.css`: site-wide, scoped to `body.djdigi-theme`. Avada header and menu selectors: `.fusion-header-wrapper`, `.fusion-secondary-header` (social bar), `.fusion-header`, `.fusion-main-menu` (now the pill bar itself) `> ul.fusion-menu`, `.sub-menu`, `.fusion-mobile-selector` (classic mobile menu), `.fusion-is-sticky` (sticky state). Also owns the footer dock's styling and the opening sequence's shared timing custom properties (on `body.djdigi-has-hero`, see below).
+- `assets/css/hero.css`: hero only, loaded only when the shortcode renders. Rotating photos, the letter-by-letter name reveal, the player, the ticker.
+- `assets/css/admin.css`, `assets/js/admin.js`: Settings > DigiMark Theme only, the hero photo picker (wp.media, drag to reorder, click to set focal point).
+- `assets/js/hero.js`: opening sequence timing (session quick-intro, `?intro=1` override), header height measurement, hero photo rotation, scroll depth, the Mixcloud Widget API player.
+- `assets/js/menu.js`: the sliding pill behind the current menu item, carried across page loads via `sessionStorage`. Also the JS fallback for the "Book me" button, used only if the PHP filter's menu slug or theme location did not match.
+- `assets/js/dock.js`: the footer social dock. Reads Avada's own rendered social link hrefs rather than owning them, and hides the footer widget area when it has no widgets.
+- `assets/img/hero-photo.jpg`: the bundled fallback hero photo, used when no photos are picked in Settings. `wave.svg`: player waveform.
+- `assets/fonts/`: Archivo (variable, wdth + wght) and Saira Extra Condensed (700, 800), self-hosted, OFL.
+
+## The opening sequence's timing
+Lives as custom properties on `body.djdigi-has-hero` (site.css), not on `.djd-hero`, because the
+header's drop-in animation is a sibling of the hero section, not a descendant of it, and a custom
+property only cascades to descendants. `body.djdigi-has-hero.djd-quick-intro` (set by hero.js for a
+repeat view in the session, or cleared by `?intro=1`) overrides the same properties to shorten
+every dependent `animation-delay` at once. Add a new step by adding one `--djd-t-*` variable here,
+not by hardcoding a delay where it's used.
+
+## Reduced motion scope
+The blanket reduced-motion rule in site.css matches `[class*="djd-"]` and `[class*="djdt-"]`, on
+purpose, so it only ever disables animations and transitions on elements we built, never Avada's
+own. The one exception is the header drop-in animation, which we put directly on `.fusion-header-wrapper`
+(an Avada class) because that's the element that needs to drop in; it has its own narrow
+reduced-motion override naming it specifically, right next to where the animation is defined.
 
 ## Body classes
 - `djdigi-theme`: plugin active for this viewer.
@@ -48,9 +66,10 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 
 ## Design tokens
 - Paper `#f1ece2`, violet `#5a2e91`, ink `#2a1450`, night `#0b0820`, logo cyan `#24a9e0`, International Orange `#f04e23` (sparingly).
-- "DigiMark" in the hero uses logo cyan. "DJ" is off-white on the dark hero.
-- Display font: Big Shoulders Display 800, uppercase. Text font: Archivo, wide uppercase tracking for labels.
-- Hero intro: glows fade in, photo un-blurs, name rises, then UI. Respect `prefers-reduced-motion`.
+- "DigiMark" in the hero uses logo cyan and is mixed case, not all caps, matching the logo. "DJ" is off-white on the dark hero.
+- Display font: Saira Extra Condensed, 700/800. Text font: Archivo. Buttons, hero labels and the player status tag are sentence case now, not wide-tracked uppercase, except the ticker and the name, which stay uppercase display type.
+- Hero intro (about 3.5s, see "The opening sequence's timing" above): glows bloom, the photo sharpens in, "DJ" then "DigiMark" rise letter by letter from a mask, slogan and EQ, buttons and the player, then the menu drops in and the ticker slides up. Quick version on a repeat view in the session; `?intro=1` forces the full one. Respect `prefers-reduced-motion`.
+- Hero photo: rotates through whatever is picked in Settings > DigiMark Theme (each with its own focal point), cross fading with a slow zoom, or the bundled photo if none are picked. A CSS duotone (grayscale + a violet to cyan color blend) is applied to every photo uniformly, including the bundled one, so any photo Mark adds reads as part of the same look without manual editing.
 
 ## Hero copy (approved)
 - Labels: "Video DJ since 2008" / "San Francisco". No "Castro", no "Remix Producer".
@@ -61,8 +80,10 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 ## Navigation
 - The menu is the real WordPress menu (Appearance > Menus). Do not rebuild it in code.
 - Blog is being removed from the menu (Mark's call, Oct 12 2026). That is a menu edit in WordPress, not code.
+- Mark's real menu is named "digimenu" (desktop `ul#menu-digimenu.fusion-menu`, mobile `ul#mobile-menu-digimenu`). The "Book me" button is added by a `wp_nav_menu_items` filter matched on that menu slug or the `main_navigation` theme location, whichever the current `wp_nav_menu()` call used, so it works with no JS and shows in the mobile menu too. menu.js only adds it itself if neither matched.
 
 ## Open items
 - Mark's test of v1.0.0/1.0.1 on a private "Home v2" page (or the staging install at djdigimark.com/staging/).
-- Restyle remaining homepage sections and pages (New Stuff, Music, Mailchimp, footer, library, PMPro with inline hex only).
+- v1.1.0 is built against assumed Avada markup beyond what Mark already confirmed by testing (header/menu selectors) and the real footer markup Mark supplied (social links). The footer widget area emptiness check and the exact header background image source are the two places most likely to need a selector adjustment after a real test.
+- Restyle remaining homepage sections and pages (New Stuff, Music, Mailchimp, footer, library, PMPro with inline hex only). Avada's own `.fusion-button` sitewide is part of that later pass, not touched in 1.1.0.
 - The homepage Blog section in the mockup goes away with the Blog menu item.

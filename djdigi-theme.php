@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle and the [djdigi_hero] homepage hero for djdigimark.com.
- * Version: 1.0.1
+ * Version: 1.1.0
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.0.1' );
+define( 'DJDT_VERSION', '1.1.0' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -43,7 +43,8 @@ function djdt_defaults() {
 		'mixcloud_user' => 'djdigimark',
 		'mix_mode'      => 'latest',
 		'mix_url'       => '',
-		'hero_photo'    => '',
+		'hero_photos'   => array(),
+		'booking_url'   => '#booking',
 		'sets_url'      => '/upcoming-events/',
 		'videos_url'    => '/video-gallery/',
 		'ticker'        => "House\nEDM\nTop 40 Remixes\n70s · 80s · 90s · 00s Dance\nPride/Queer Pop & Dance\nLive Video DJ Sets",
@@ -86,6 +87,21 @@ add_action( 'admin_init', function () {
 	) );
 } );
 
+/**
+ * Only our own settings screen needs the media frame and the picker script.
+ */
+add_action( 'admin_enqueue_scripts', function ( $hook ) {
+	if ( 'settings_page_djdigi-theme' !== $hook ) {
+		return;
+	}
+	wp_enqueue_media();
+	wp_enqueue_style( 'djdt-admin', DJDT_URL . 'assets/css/admin.css', array(), djdt_ver( 'assets/css/admin.css' ) );
+	wp_enqueue_script( 'djdt-admin', DJDT_URL . 'assets/js/admin.js', array( 'jquery' ), djdt_ver( 'assets/js/admin.js' ), true );
+	wp_localize_script( 'djdt-admin', 'djdtAdmin', array(
+		'photos' => array_values( djdt_get( 'hero_photos' ) ),
+	) );
+} );
+
 function djdt_sanitize( $in ) {
 	$d   = djdt_defaults();
 	$out = array();
@@ -93,10 +109,31 @@ function djdt_sanitize( $in ) {
 	$out['mixcloud_user'] = sanitize_title( isset( $in['mixcloud_user'] ) ? $in['mixcloud_user'] : $d['mixcloud_user'] );
 	$out['mix_mode']      = ( isset( $in['mix_mode'] ) && 'pinned' === $in['mix_mode'] ) ? 'pinned' : 'latest';
 	$out['mix_url']       = esc_url_raw( isset( $in['mix_url'] ) ? trim( $in['mix_url'] ) : '' );
-	$out['hero_photo']    = esc_url_raw( isset( $in['hero_photo'] ) ? trim( $in['hero_photo'] ) : '' );
+	$out['booking_url']   = isset( $in['booking_url'] ) && '' !== trim( $in['booking_url'] )
+		? ( '#' === $in['booking_url'][0] ? sanitize_text_field( $in['booking_url'] ) : esc_url_raw( $in['booking_url'] ) )
+		: $d['booking_url'];
 	$out['sets_url']      = sanitize_text_field( isset( $in['sets_url'] ) ? $in['sets_url'] : $d['sets_url'] );
 	$out['videos_url']    = sanitize_text_field( isset( $in['videos_url'] ) ? $in['videos_url'] : $d['videos_url'] );
 	$out['ticker']        = sanitize_textarea_field( isset( $in['ticker'] ) ? $in['ticker'] : $d['ticker'] );
+
+	// Hero photos: one hidden field carrying JSON built by admin.js (order, focal points).
+	// Each row is re-validated here rather than trusted, same as anything else arriving by POST.
+	$out['hero_photos'] = array();
+	$raw = isset( $in['hero_photos_json'] ) ? json_decode( wp_unslash( $in['hero_photos_json'] ), true ) : array();
+	if ( is_array( $raw ) ) {
+		foreach ( array_slice( $raw, 0, 20 ) as $row ) {
+			$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+			if ( $id <= 0 || ! wp_attachment_is_image( $id ) ) {
+				continue;
+			}
+			$out['hero_photos'][] = array(
+				'id' => $id,
+				'x'  => isset( $row['x'] ) ? max( 0, min( 100, (float) $row['x'] ) ) : 50,
+				'y'  => isset( $row['y'] ) ? max( 0, min( 100, (float) $row['y'] ) ) : 50,
+			);
+		}
+	}
+
 	delete_transient( 'djdt_mix' );
 	return $out;
 }
@@ -121,6 +158,17 @@ function djdt_render_settings() {
 					</td>
 				</tr>
 				<tr>
+					<th scope="row">Hero photos</th>
+					<td>
+						<div id="djdt-hero-photos" class="djdt-photo-grid"></div>
+						<p>
+							<button type="button" class="button" id="djdt-add-photos">Add photos</button>
+						</p>
+						<input type="hidden" id="djdt-hero-photos-json" name="<?php echo esc_attr( $n ); ?>[hero_photos_json]" value="<?php echo esc_attr( wp_json_encode( array_values( $s['hero_photos'] ) ) ); ?>">
+						<p class="description">Drag a photo to reorder. Click a photo once to pick its focal point, then click where the subject is. The x removes it from rotation only, it stays in the Media Library. Leave empty to use the built in photo. One photo plays with no rotation.</p>
+					</td>
+				</tr>
+				<tr>
 					<th scope="row"><label for="djdt-user">Mixcloud username</label></th>
 					<td><input id="djdt-user" class="regular-text" name="<?php echo esc_attr( $n ); ?>[mixcloud_user]" value="<?php echo esc_attr( $s['mixcloud_user'] ); ?>"></td>
 				</tr>
@@ -133,10 +181,10 @@ function djdt_render_settings() {
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="djdt-photo">Hero photo URL</label></th>
+					<th scope="row"><label for="djdt-booking">Booking link</label></th>
 					<td>
-						<input id="djdt-photo" class="large-text" name="<?php echo esc_attr( $n ); ?>[hero_photo]" value="<?php echo esc_attr( $s['hero_photo'] ); ?>" placeholder="Leave blank to use the built-in photo">
-						<p class="description">Paste a Media Library image URL to swap the photo. Portrait shots with club lighting work best.</p>
+						<input id="djdt-booking" class="regular-text" name="<?php echo esc_attr( $n ); ?>[booking_url]" value="<?php echo esc_attr( $s['booking_url'] ); ?>">
+						<p class="description">Where the "Book me" button in the menu goes. Default is a placeholder until the booking page exists.</p>
 					</td>
 				</tr>
 				<tr>
@@ -157,7 +205,7 @@ function djdt_render_settings() {
 			</table>
 			<?php submit_button(); ?>
 		</form>
-		<p>Hero shortcode: <code>[djdigi_hero]</code>. Put it alone in a 100% width container with no padding, at the top of the page.</p>
+		<p>Hero shortcode: <code>[djdigi_hero]</code>. Put it alone in a 100% width container with no padding, at the top of the page. Add <code>?intro=1</code> to any hero page URL to force the full opening sequence while testing.</p>
 	</div>
 	<?php
 }
@@ -180,12 +228,24 @@ add_action( 'wp_enqueue_scripts', function () {
 
 	wp_register_style( 'djdt-hero', DJDT_URL . 'assets/css/hero.css', array( 'djdt-site' ), djdt_ver( 'assets/css/hero.css' ) );
 	wp_register_script( 'djdt-hero', DJDT_URL . 'assets/js/hero.js', array(), djdt_ver( 'assets/js/hero.js' ), true );
+
+	// Menu and footer dock run on every themed page, hero or not.
+	wp_enqueue_script( 'djdt-menu', DJDT_URL . 'assets/js/menu.js', array(), djdt_ver( 'assets/js/menu.js' ), true );
+	wp_add_inline_script( 'djdt-menu', 'window.djdtMenu = ' . wp_json_encode( array(
+		'bookingUrl' => djdt_get( 'booking_url' ),
+	) ) . ';', 'before' );
+
+	wp_enqueue_script( 'djdt-dock', DJDT_URL . 'assets/js/dock.js', array(), djdt_ver( 'assets/js/dock.js' ), true );
+	wp_add_inline_script( 'djdt-dock', 'window.djdtDock = ' . wp_json_encode( array(
+		'mixcloudUrl' => 'https://www.mixcloud.com/' . rawurlencode( djdt_get( 'mixcloud_user' ) ) . '/',
+	) ) . ';', 'before' );
 }, 20 );
 
 function djdt_font_face_css() {
 	$f = DJDT_URL . 'assets/fonts/';
 	return "@font-face{font-family:'DJD Archivo';src:url('{$f}archivo-wdth.woff2') format('woff2');font-weight:100 900;font-stretch:62% 125%;font-display:swap;}"
-		. "@font-face{font-family:'DJD Big Shoulders';src:url('{$f}big-shoulders-800.woff2') format('woff2');font-weight:800;font-display:swap;}";
+		. "@font-face{font-family:'DJD Saira';src:url('{$f}saira-extra-condensed-700.woff2') format('woff2');font-weight:700;font-display:swap;}"
+		. "@font-face{font-family:'DJD Saira';src:url('{$f}saira-extra-condensed-800.woff2') format('woff2');font-weight:800;font-display:swap;}";
 }
 
 add_action( 'wp_head', function () {
@@ -193,7 +253,7 @@ add_action( 'wp_head', function () {
 		return;
 	}
 	$f = DJDT_URL . 'assets/fonts/';
-	echo '<link rel="preload" href="' . esc_url( $f . 'big-shoulders-800.woff2' ) . '" as="font" type="font/woff2" crossorigin>' . "\n";
+	echo '<link rel="preload" href="' . esc_url( $f . 'saira-extra-condensed-800.woff2' ) . '" as="font" type="font/woff2" crossorigin>' . "\n";
 	echo '<link rel="preload" href="' . esc_url( $f . 'archivo-wdth.woff2' ) . '" as="font" type="font/woff2" crossorigin>' . "\n";
 }, 2 );
 
@@ -215,6 +275,38 @@ add_filter( 'body_class', function ( $classes ) {
 } );
 
 /* -------------------------------------------------------------------------
+ * "Book me" menu item
+ *
+ * Added in PHP so it works with no JS and shows in Avada's mobile menu too,
+ * matched the way Mark's real menu is set up: the menu slug "digimenu", or
+ * the "main_navigation" theme location, whichever the current wp_nav_menu()
+ * call used. menu.js adds the same button only if neither matched here.
+ * ---------------------------------------------------------------------- */
+
+add_filter( 'wp_nav_menu_items', function ( $items, $args ) {
+	if ( ! djdt_is_active() ) {
+		return $items;
+	}
+
+	$is_target = false;
+	if ( ! empty( $args->menu ) ) {
+		$menu = is_object( $args->menu ) ? $args->menu : wp_get_nav_menu_object( $args->menu );
+		if ( $menu && ! is_wp_error( $menu ) && 'digimenu' === $menu->slug ) {
+			$is_target = true;
+		}
+	}
+	if ( ! $is_target && ! empty( $args->theme_location ) && 'main_navigation' === $args->theme_location ) {
+		$is_target = true;
+	}
+	if ( ! $is_target ) {
+		return $items;
+	}
+
+	$url = djdt_get( 'booking_url' );
+	return $items . '<li id="djdt-book-me" class="menu-item djdt-book-me"><a href="' . esc_url( $url ) . '"><span class="djdt-book-me__text">Book me</span><span class="djdt-book-me__arrow" aria-hidden="true">↗</span></a></li>';
+}, 10, 2 );
+
+/* -------------------------------------------------------------------------
  * Mixcloud
  * ---------------------------------------------------------------------- */
 
@@ -228,7 +320,8 @@ function djdt_mixcloud_get( $path ) {
 }
 
 /**
- * Returns array( key, name, length ) for the hero player, cached for 6 hours.
+ * Returns the hero player's mix data, cached for 6 hours: key, name, length
+ * (seconds), picture (artwork URL) and url (the mix's own Mixcloud page).
  */
 function djdt_get_mix() {
 	$cached = get_transient( 'djdt_mix' );
@@ -242,27 +335,37 @@ function djdt_get_mix() {
 		if ( $path ) {
 			$key  = '/' . trim( $path, '/' ) . '/';
 			$data = djdt_mixcloud_get( $key );
-			$mix  = array(
-				'key'    => $key,
-				'name'   => $data && ! empty( $data['name'] ) ? $data['name'] : '',
-				'length' => $data && ! empty( $data['audio_length'] ) ? (int) $data['audio_length'] : 0,
-			);
+			$mix  = $data ? djdt_mix_from_api( $key, $data ) : null;
 		}
 	} else {
 		$user = djdt_get( 'mixcloud_user' );
 		$data = djdt_mixcloud_get( '/' . rawurlencode( $user ) . '/cloudcasts/?limit=1' );
 		if ( $data && ! empty( $data['data'][0]['key'] ) ) {
 			$c   = $data['data'][0];
-			$mix = array(
-				'key'    => $c['key'],
-				'name'   => isset( $c['name'] ) ? $c['name'] : '',
-				'length' => isset( $c['audio_length'] ) ? (int) $c['audio_length'] : 0,
-			);
+			$mix = djdt_mix_from_api( $c['key'], $c );
 		}
 	}
 	// Cache failures briefly so a Mixcloud outage never slows every page.
 	set_transient( 'djdt_mix', $mix ? $mix : array(), $mix ? 6 * HOUR_IN_SECONDS : 10 * MINUTE_IN_SECONDS );
 	return $mix ? $mix : array();
+}
+
+function djdt_mix_from_api( $key, $data ) {
+	$pictures = isset( $data['pictures'] ) && is_array( $data['pictures'] ) ? $data['pictures'] : array();
+	$picture  = '';
+	foreach ( array( 'extra_large', 'large' ) as $size ) {
+		if ( ! empty( $pictures[ $size ] ) ) {
+			$picture = $pictures[ $size ];
+			break;
+		}
+	}
+	return array(
+		'key'     => $key,
+		'name'    => isset( $data['name'] ) ? $data['name'] : '',
+		'length'  => isset( $data['audio_length'] ) ? (int) $data['audio_length'] : 0,
+		'picture' => $picture,
+		'url'     => ! empty( $data['url'] ) ? $data['url'] : 'https://www.mixcloud.com' . $key,
+	);
 }
 
 function djdt_format_length( $sec ) {
@@ -273,6 +376,47 @@ function djdt_format_length( $sec ) {
 	$m = floor( ( $sec % 3600 ) / 60 );
 	$s = $sec % 60;
 	return $h ? sprintf( '%d:%02d:%02d', $h, $m, $s ) : sprintf( '%d:%02d', $m, $s );
+}
+
+/* -------------------------------------------------------------------------
+ * Hero photo rotation: the attachments picked in Settings, each with its
+ * own focal point, or the bundled photo when none are picked.
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Returns an array of render-ready photos: src, srcset, sizes, x, y.
+ * Always returns at least one row (the bundled photo as a fallback).
+ */
+function djdt_hero_photos() {
+	$rows = djdt_get( 'hero_photos' );
+	$out  = array();
+	if ( is_array( $rows ) ) {
+		foreach ( $rows as $row ) {
+			$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+			if ( $id <= 0 || ! wp_attachment_is_image( $id ) ) {
+				continue;
+			}
+			$src = wp_get_attachment_image_url( $id, 'full' );
+			if ( ! $src ) {
+				continue;
+			}
+			$out[] = array(
+				'src'    => $src,
+				'srcset' => (string) wp_get_attachment_image_srcset( $id, 'full' ),
+				'x'      => isset( $row['x'] ) ? (float) $row['x'] : 50,
+				'y'      => isset( $row['y'] ) ? (float) $row['y'] : 50,
+			);
+		}
+	}
+	if ( empty( $out ) ) {
+		$out[] = array(
+			'src'    => DJDT_URL . 'assets/img/hero-photo.jpg',
+			'srcset' => '',
+			'x'      => 50,
+			'y'      => 50,
+		);
+	}
+	return $out;
 }
 
 /* -------------------------------------------------------------------------
@@ -288,7 +432,7 @@ function djdt_hero_shortcode() {
 	wp_enqueue_style( 'djdt-hero' );
 	wp_enqueue_script( 'djdt-hero' );
 
-	$photo  = djdt_get( 'hero_photo' ) ? djdt_get( 'hero_photo' ) : DJDT_URL . 'assets/img/hero-photo.jpg';
+	$photos = djdt_hero_photos();
 	$wave   = DJDT_URL . 'assets/img/wave.svg';
 	$mix    = djdt_get_mix();
 	$sets   = djdt_get( 'sets_url' );
@@ -300,11 +444,23 @@ function djdt_hero_shortcode() {
 
 	ob_start();
 	?>
-	<section class="djd-hero" aria-label="DJ DigiMark">
+	<section class="djd-hero" aria-label="DJ DigiMark" data-photo-count="<?php echo (int) count( $photos ); ?>">
 		<div class="djd-hero__glow djd-hero__glow--a djd-in-glow" aria-hidden="true"></div>
 		<div class="djd-hero__glow djd-hero__glow--b djd-in-glow" aria-hidden="true"></div>
 		<div class="djd-hero__glow djd-hero__glow--c djd-in-glow" aria-hidden="true"></div>
-		<img class="djd-hero__photo djd-in-photo" src="<?php echo esc_url( $photo ); ?>" alt="DJ DigiMark mixing under club lights" fetchpriority="high">
+
+		<div class="djd-hero__photos djd-in-photo">
+			<?php foreach ( $photos as $i => $p ) : ?>
+				<img
+					class="djd-hero__photo<?php echo ( 0 === $i ) ? ' is-active' : ''; ?>"
+					src="<?php echo esc_url( $p['src'] ); ?>"
+					<?php if ( $p['srcset'] ) : ?>srcset="<?php echo esc_attr( $p['srcset'] ); ?>" sizes="100vw"<?php endif; ?>
+					style="object-position: <?php echo esc_attr( $p['x'] ); ?>% <?php echo esc_attr( $p['y'] ); ?>%"
+					alt="DJ DigiMark mixing under club lights"
+					<?php echo ( 0 === $i ) ? 'fetchpriority="high"' : 'loading="lazy"'; ?>
+				>
+			<?php endforeach; ?>
+		</div>
 
 		<?php if ( $next_up ) : ?>
 			<div class="djd-hero__strip djd-in-ui"><?php echo $next_up; // phpcs:ignore WordPress.Security.EscapeOutput -- trusted shortcode output ?></div>
@@ -317,11 +473,11 @@ function djdt_hero_shortcode() {
 			</div>
 
 			<div class="djd-hero__stage">
-				<h1 class="djd-hero__name djd-in-head" aria-label="DJ DigiMark">
-					<span class="djd-hero__dj" aria-hidden="true">DJ</span>
+				<h1 class="djd-hero__name" aria-label="DJ DigiMark">
+					<span class="djd-hero__mask djd-hero__mask--dj" aria-hidden="true"><span class="djd-hero__dj djd-in-dj">DJ</span></span>
 					<span class="djd-hero__digimark" aria-hidden="true">
 						<span class="djd-hero__echo">DigiMark</span>
-						<span class="djd-hero__main">DigiMark</span>
+						<span class="djd-hero__mask djd-hero__mask--main"><span class="djd-hero__main"><?php echo djdt_split_letters( 'DigiMark' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></span></span>
 					</span>
 				</h1>
 			</div>
@@ -336,19 +492,35 @@ function djdt_hero_shortcode() {
 				</div>
 
 				<?php if ( ! empty( $mix['key'] ) ) : ?>
-					<div class="djd-player" data-feed="<?php echo esc_attr( $mix['key'] ); ?>">
-						<button type="button" class="djd-player__btn" aria-label="<?php echo esc_attr( 'Play ' . $mix['name'] ); ?>" data-label="<?php echo esc_attr( $mix['name'] ); ?>">
-							<svg class="djd-player__play" width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 L20 12 L7 20 Z" fill="currentColor"/></svg>
-							<svg class="djd-player__pause" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="5" height="16" fill="currentColor"/><rect x="14" y="4" width="5" height="16" fill="currentColor"/></svg>
-						</button>
+					<div class="djd-player<?php echo $mix['picture'] ? ' has-artwork' : ''; ?>" data-feed="<?php echo esc_attr( $mix['key'] ); ?>" data-length="<?php echo (int) $mix['length']; ?>">
+						<div class="djd-player__art">
+							<?php if ( $mix['picture'] ) : ?>
+								<img class="djd-player__artimg" src="<?php echo esc_url( $mix['picture'] ); ?>" alt="">
+							<?php endif; ?>
+							<button type="button" class="djd-player__btn" aria-label="<?php echo esc_attr( 'Play ' . $mix['name'] ); ?>" data-label="<?php echo esc_attr( $mix['name'] ); ?>">
+								<svg class="djd-player__play" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 L20 12 L7 20 Z" fill="currentColor"/></svg>
+								<svg class="djd-player__pause" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="5" height="16" fill="currentColor"/><rect x="14" y="4" width="5" height="16" fill="currentColor"/></svg>
+							</button>
+						</div>
 						<div class="djd-player__body">
-							<div class="djd-player__top"><span class="djd-player__status">Latest live set</span><span>Mixcloud</span></div>
-							<div class="djd-player__title"><?php echo esc_html( $mix['name'] ); ?></div>
-							<div class="djd-player__wave">
-								<img src="<?php echo esc_url( $wave ); ?>" alt="">
-								<div class="djd-player__progress"><img src="<?php echo esc_url( $wave ); ?>" alt=""></div>
+							<div class="djd-player__top">
+								<span class="djd-player__status">Latest live set</span>
+								<div class="djd-player__skip">
+									<button type="button" class="djd-player__skipbtn" data-skip="-30" aria-label="Back 30 seconds">-30</button>
+									<button type="button" class="djd-player__skipbtn" data-skip="30" aria-label="Forward 30 seconds">+30</button>
+								</div>
 							</div>
-							<div class="djd-player__meta"><?php echo esc_html( djdt_format_length( $mix['length'] ) ); ?></div>
+							<div class="djd-player__title"><?php echo esc_html( $mix['name'] ); ?></div>
+							<div class="djd-player__scrub" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="<?php echo (int) $mix['length']; ?>" aria-valuenow="0">
+								<img class="djd-player__wave" src="<?php echo esc_url( $wave ); ?>" alt="">
+								<div class="djd-player__progress"><img src="<?php echo esc_url( $wave ); ?>" alt=""></div>
+								<div class="djd-player__tooltip" aria-hidden="true"></div>
+							</div>
+							<div class="djd-player__meta"><span class="djd-player__pos">0:00</span> / <span class="djd-player__dur"><?php echo esc_html( djdt_format_length( $mix['length'] ) ); ?></span></div>
+							<div class="djd-player__links">
+								<a href="<?php echo esc_url( 'https://www.mixcloud.com/' . rawurlencode( djdt_get( 'mixcloud_user' ) ) . '/' ); ?>" target="_blank" rel="noopener">Follow &amp; all mixes on Mixcloud ↗</a>
+								<a href="<?php echo esc_url( $mix['url'] ); ?>" target="_blank" rel="noopener">Tracklist ↗</a>
+							</div>
 						</div>
 					</div>
 				<?php endif; ?>
@@ -356,7 +528,7 @@ function djdt_hero_shortcode() {
 		</div>
 
 		<?php if ( $items ) : ?>
-			<div class="djd-ticker" aria-label="What I play">
+			<div class="djd-ticker djd-in-ticker" aria-label="What I play">
 				<div class="djd-ticker__bulbs" aria-hidden="true"></div>
 				<div class="djd-ticker__window">
 					<div class="djd-ticker__track">
@@ -382,4 +554,19 @@ function djdt_hero_shortcode() {
 function djdt_ticker_item( $text ) {
 	$parts = array_map( 'esc_html', array_map( 'trim', explode( '·', $text ) ) );
 	return implode( '<span class="djd-ticker__sub" aria-hidden="true">·</span>', $parts );
+}
+
+/**
+ * Splits a word into one span per letter, each carrying its index in --i so
+ * the CSS stagger can read it. aria-hidden: the parent heading already
+ * carries the readable name in its own aria-label.
+ */
+function djdt_split_letters( $word ) {
+	$out = '';
+	$i   = 0;
+	foreach ( preg_split( '//u', $word, -1, PREG_SPLIT_NO_EMPTY ) as $ch ) {
+		$out .= '<span class="djd-letter" style="--i:' . (int) $i . '">' . esc_html( $ch ) . '</span>';
+		$i++;
+	}
+	return $out;
 }

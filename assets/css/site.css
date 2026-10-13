@@ -10,8 +10,8 @@ body.djdigi-theme {
 	--djd-cyan: #24a9e0;
 	--djd-orange: #f04e23;
 	--djd-sans: 'DJD Archivo', 'Archivo', system-ui, sans-serif;
-	--djd-display: 'DJD Big Shoulders', 'Big Shoulders Display', Impact, sans-serif;
-	--djd-head-h: 108px; /* secondary bar (39) + main header (69) */
+	--djd-display: 'DJD Saira', 'Saira Extra Condensed', Impact, sans-serif;
+	--djd-head-h: 92px; /* fallback for the instant before hero.js measures the real header */
 
 	/* Avada 7 typography variables */
 	--body_typography-font-family: var(--djd-sans);
@@ -21,6 +21,19 @@ body.djdigi-theme {
 
 	background-color: var(--djd-paper);
 	font-family: var(--djd-sans);
+	/* Belt and suspenders on the no-horizontal-scroll requirement: the real
+	   fixes are the letter spans wrapping instead of forcing width and the
+	   tighter phone-size DigiMark clamp, both in hero.css. This only clips
+	   anything neither of those caught, rather than relying on getting both
+	   exactly right on the first pass. */
+	overflow-x: hidden;
+}
+
+/* html has no body class to key off, so the paper color is set directly here.
+   Without this, a page shorter than the viewport shows the browser's default
+   behind the body, which reads as a gray strip under the footer. */
+html:has(body.djdigi-theme) {
+	background-color: #f1ece2;
 }
 
 body.djdigi-theme #boxed-wrapper,
@@ -40,6 +53,15 @@ body.djdigi-theme h3 {
 	letter-spacing: 0.005em;
 }
 
+/* ---------- Header: every layer that can carry Avada's background image ---------- */
+
+body.djdigi-theme .fusion-header-wrapper,
+body.djdigi-theme .fusion-header-wrapper .fusion-row,
+body.djdigi-theme .fusion-header,
+body.djdigi-theme .fusion-secondary-header {
+	background-image: none !important;
+}
+
 /* ---------- Secondary header (social icon bar) ---------- */
 
 body.djdigi-theme .fusion-secondary-header {
@@ -54,23 +76,55 @@ body.djdigi-theme .fusion-secondary-header .fusion-social-network-icon:hover:bef
 	color: var(--djd-cyan) !important;
 }
 
-/* ---------- Main header + menu ---------- */
+/* ---------- Main header ---------- */
 
 body.djdigi-theme .fusion-header {
 	background-color: var(--djd-paper) !important;
 	border-bottom: 2px solid var(--djd-violet);
 }
 
+/* ---------- Pill menu ---------- */
+
+body.djdigi-theme .fusion-main-menu {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	width: fit-content;
+	height: 40px;
+	padding: 0 6px;
+	border-radius: 999px;
+	background: rgba(90, 46, 145, 0.08);
+	transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+body.djdigi-theme .fusion-main-menu > ul.fusion-menu {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	height: 100%;
+}
+
+body.djdigi-theme .fusion-main-menu > ul > li { display: flex; align-items: center; height: 100%; }
 body.djdigi-theme .fusion-main-menu > ul > li > a {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	height: 40px;
+	padding: 0 18px !important;
 	font-family: var(--djd-sans) !important;
-	font-weight: 700 !important;
-	font-stretch: 118%;
-	font-size: 13px !important;
-	letter-spacing: 0.22em !important;
-	text-transform: uppercase !important;
+	font-weight: 600 !important;
+	font-size: 15px !important;
+	letter-spacing: normal !important;
+	text-transform: none !important;
+	border-radius: 999px;
 	color: var(--djd-violet) !important;
 	border-color: transparent !important;
+	text-decoration: none !important;
+	transition: color 0.2s ease;
 }
+body.djdigi-theme .fusion-main-menu > ul > li > a:focus-visible { text-decoration: underline !important; }
 body.djdigi-theme .fusion-main-menu > ul > li > a:hover,
 body.djdigi-theme .fusion-main-menu > ul > li:hover > a {
 	color: var(--djd-cyan) !important;
@@ -78,16 +132,62 @@ body.djdigi-theme .fusion-main-menu > ul > li:hover > a {
 body.djdigi-theme .fusion-main-menu > ul > li.current-menu-item > a,
 body.djdigi-theme .fusion-main-menu > ul > li.current-menu-ancestor > a {
 	color: var(--djd-violet) !important;
-	box-shadow: inset 0 -3px 0 var(--djd-orange);
 }
 
-/* Dropdowns */
+/* The sliding highlight behind the current/clicked item. menu.js sets its
+   left/top/width/height; the easing lives here so JS only ever sets targets. */
+.djd-menu-pill {
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: 40px;
+	width: 0;
+	border-radius: 999px;
+	background: rgba(36, 169, 224, 0.22);
+	pointer-events: none;
+	transition: transform 0.35s cubic-bezier(.34, 1.4, .4, 1), width 0.35s cubic-bezier(.34, 1.4, .4, 1);
+	z-index: 0;
+}
+.djd-menu-pill.is-ready { opacity: 1; }
+.djd-menu-pill:not(.is-ready) { opacity: 0; }
+
+/* "Book me" pill button, appended as the last menu item.
+   Matched on #djdt-book-me, not .djdt-book-me, on purpose: the general menu
+   item color rules above chain through ul > li > a and so outrank a class of
+   equal count on element specificity alone. An ID always wins regardless, and
+   both the PHP filter and the menu.js fallback give the item that same ID. */
+body.djdigi-theme .djdt-book-me { margin-left: 6px; }
+body.djdigi-theme #djdt-book-me > a {
+	display: flex !important;
+	align-items: center;
+	gap: 6px;
+	height: 36px !important;
+	padding: 0 20px !important;
+	border-radius: 999px;
+	background: var(--djd-violet) !important;
+	color: var(--djd-paper) !important;
+	font-weight: 600 !important;
+	text-decoration: none !important;
+}
+body.djdigi-theme #djdt-book-me > a:hover { background: var(--djd-cyan) !important; color: var(--djd-night) !important; }
+body.djdigi-theme #djdt-book-me > a:focus-visible { text-decoration: underline !important; }
+body.djdigi-theme .djdt-book-me__arrow { font-size: 0.9em; }
+
+/* Dropdowns, including nested flyouts (Downloads > Membership Account). A
+   nested .sub-menu opens to the right of its parent row rather than
+   stacking inline, styled the same as the top-level panel. */
 body.djdigi-theme .fusion-main-menu .sub-menu {
 	background-color: var(--djd-paper) !important;
-	border: 2px solid var(--djd-violet) !important;
-	box-shadow: 6px 6px 0 rgba(36, 169, 224, 0.35) !important;
-	padding: 8px 0 !important;
+	border: 1px solid rgba(90, 46, 145, 0.18) !important;
+	border-radius: 16px !important;
+	box-shadow: 0 16px 40px rgba(42, 20, 80, 0.18) !important;
+	padding: 10px !important;
 	min-width: 240px;
+}
+body.djdigi-theme .fusion-main-menu .sub-menu .sub-menu {
+	left: 100%;
+	top: -10px;
+	margin-left: 6px;
 }
 body.djdigi-theme .fusion-main-menu .sub-menu li,
 body.djdigi-theme .fusion-main-menu .sub-menu li a {
@@ -96,66 +196,75 @@ body.djdigi-theme .fusion-main-menu .sub-menu li a {
 }
 body.djdigi-theme .fusion-main-menu .sub-menu li a {
 	font-family: var(--djd-sans) !important;
-	font-weight: 700 !important;
-	font-stretch: 112%;
-	font-size: 12px !important;
-	letter-spacing: 0.16em !important;
-	text-transform: uppercase !important;
+	font-weight: 600 !important;
+	font-size: 14px !important;
+	letter-spacing: normal !important;
+	text-transform: none !important;
+	text-decoration: none !important;
+	border-radius: 10px;
 	color: var(--djd-violet) !important;
-	padding-top: 10px !important;
-	padding-bottom: 10px !important;
+	padding: 10px 18px !important;
 }
 body.djdigi-theme .fusion-main-menu .sub-menu li a:hover,
 body.djdigi-theme .fusion-main-menu .sub-menu li:hover > a {
 	background-color: rgba(36, 169, 224, 0.12) !important;
 	color: var(--djd-violet) !important;
 }
+body.djdigi-theme .fusion-main-menu .sub-menu li a:focus-visible { text-decoration: underline !important; }
 
 /* Search icon in the menu, if shown */
 body.djdigi-theme .fusion-main-menu .fusion-main-menu-icon:after,
 body.djdigi-theme .fusion-main-menu .fusion-icon-search:after { color: var(--djd-violet) !important; }
 
-/* Mobile menu (classic "Go to..." selector) */
+/* Mobile menu (classic "Go to..." selector). No sliding pill here, just the palette. */
 body.djdigi-theme .fusion-mobile-selector {
 	background-color: var(--djd-paper) !important;
 	border: 2px solid var(--djd-violet) !important;
 	color: var(--djd-violet) !important;
 	font-family: var(--djd-sans) !important;
-	font-weight: 700;
-	letter-spacing: 0.16em;
-	text-transform: uppercase;
-	font-size: 12px !important;
+	font-weight: 600;
+	letter-spacing: normal;
+	text-transform: none;
+	font-size: 15px !important;
 	min-height: 44px;
+	border-radius: 10px;
 }
 body.djdigi-theme .fusion-mobile-nav-holder li a {
 	background-color: var(--djd-paper) !important;
 	border-color: rgba(90, 46, 145, 0.25) !important;
 	color: var(--djd-violet) !important;
 	font-family: var(--djd-sans) !important;
-	font-weight: 700;
-	letter-spacing: 0.12em;
-	text-transform: uppercase;
-	font-size: 12px !important;
+	font-weight: 600;
+	letter-spacing: normal;
+	text-transform: none;
+	text-decoration: none !important;
+	font-size: 15px !important;
 }
 body.djdigi-theme .fusion-mobile-nav-holder li a:hover { background-color: rgba(36, 169, 224, 0.12) !important; }
+body.djdigi-theme .fusion-mobile-nav-holder #djdt-book-me > a {
+	background-color: var(--djd-violet) !important;
+	color: var(--djd-paper) !important;
+}
 
 /* Sticky header (Avada adds .fusion-is-sticky on scroll) */
 body.djdigi-theme .fusion-is-sticky .fusion-header {
 	background-color: rgba(241, 236, 226, 0.96) !important;
+	background-image: none !important;
 }
 
-/* ---------- Buttons ---------- */
+/* ---------- Buttons (Avada's own .fusion-button, unchanged from v1.0.1) ----------
+   The new pill/sentence-case button style only applies to the hero's own .djd-btn
+   for now, in hero.css. Avada buttons sitewide get their own pass later, together
+   with djdigi-library and PMPro, once colors and buttons move into Avada's global
+   options. */
 
-body.djdigi-theme .fusion-button,
-body.djdigi-theme .djd-btn {
+body.djdigi-theme .fusion-button {
 	font-family: var(--djd-sans) !important;
 	font-weight: 700 !important;
 	font-stretch: 118%;
 	letter-spacing: 0.22em !important;
 	text-transform: uppercase !important;
 	border-radius: 0 !important;
-}
-body.djdigi-theme .fusion-button {
 	background: var(--djd-violet) !important;
 	color: var(--djd-paper) !important;
 	border-color: var(--djd-violet) !important;
@@ -167,9 +276,97 @@ body.djdigi-theme .fusion-button:hover {
 	color: var(--djd-night) !important;
 }
 
+/* ---------- Footer: magnetic social dock ---------- */
+
+/* Avada's own rendered icons are hidden by dock.js once it has read their
+   hrefs, not hidden unconditionally here: if dock.js never runs (no JS),
+   the original icons stay exactly as Avada renders them. */
+
+.djd-dock {
+	display: flex;
+	align-items: flex-end;
+	gap: 14px;
+	flex-wrap: wrap;
+}
+/* color is !important: body.djdigi-theme a {color: var(--djd-violet)} is an
+   element plus a class, which outranks a bare .djd-dock__btn class alone, and
+   without it the icon silently inherits violet text on its own violet circle. */
+.djd-dock__btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 48px;
+	height: 48px;
+	border-radius: 50%;
+	background: var(--djd-violet, #5a2e91);
+	color: var(--djd-paper, #f1ece2) !important;
+	flex: 0 0 auto;
+	transition: transform 0.25s ease, background-color 0.25s ease;
+	transform: scale(var(--djd-dock-scale, 1));
+	transform-origin: bottom center;
+}
+.djd-dock__btn svg { width: 22px; height: 22px; fill: currentColor; pointer-events: none; }
+.djd-dock__btn.is-near { background: var(--djd-cyan, #24a9e0); }
+.djd-dock__btn:hover { color: var(--djd-paper, #f1ece2) !important; }
+.djd-dock__btn:focus-visible {
+	outline: 3px solid var(--djd-cyan, #24a9e0);
+	outline-offset: 3px;
+}
+
+/* Touch devices and reduced motion: a static row, no magnification. */
+.djd-dock.is-static .djd-dock__btn { transform: none !important; }
+
+body.djdigi-theme .fusion-footer-widget-area.djdt-is-empty { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+	.djd-hero *,
+	.djd-hero *::before,
+	.djd-hero *::after,
+	body.djdigi-theme [class*="djd-"],
+	body.djdigi-theme [class*="djd-"]::before,
+	body.djdigi-theme [class*="djd-"]::after,
+	body.djdigi-theme [class*="djdt-"],
+	body.djdigi-theme [class*="djdt-"]::before,
+	body.djdigi-theme [class*="djdt-"]::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}
+
 /* =========================================================================
    Pages with the [djdigi_hero]: header floats over the dark hero
    ====================================================================== */
+
+/* The opening sequence's timing lives here, on body, rather than on .djd-hero,
+   because the header (the menu's drop-in) is a sibling of the hero section,
+   not a descendant of it. A custom property only cascades to descendants, so
+   anything both the header and the hero need to read has to start at least
+   this high. hero.js toggles djd-quick-intro for repeat views in the session. */
+body.djdigi-has-hero {
+	--djd-t-glow: 0s;
+	--djd-t-photo: 0.25s;
+	--djd-t-dj: 0.7s;
+	--djd-t-name: 1.0s;
+	--djd-t-slogan: 1.9s;
+	--djd-t-eq: 2.5s;
+	--djd-t-buttons: 2.1s;
+	--djd-t-player: 2.3s;
+	--djd-t-menu: 2.6s;
+	--djd-t-ticker: 2.8s;
+}
+body.djdigi-has-hero.djd-quick-intro {
+	--djd-t-glow: 0s;
+	--djd-t-photo: 0s;
+	--djd-t-dj: 0.1s;
+	--djd-t-name: 0.2s;
+	--djd-t-slogan: 0.3s;
+	--djd-t-eq: 0.45s;
+	--djd-t-buttons: 0.3s;
+	--djd-t-player: 0.35s;
+	--djd-t-menu: 0.3s;
+	--djd-t-ticker: 0.4s;
+}
 
 body.djdigi-has-hero .fusion-header-wrapper {
 	position: absolute !important;
@@ -178,15 +375,50 @@ body.djdigi-has-hero .fusion-header-wrapper {
 	right: 0;
 	z-index: 50;
 	width: 100% !important;
+	background-color: transparent !important;
+	background-image: none !important;
+	animation: djd-header-drop 0.6s cubic-bezier(.2, .7, .2, 1) var(--djd-t-menu, 2.6s) both;
+}
+@keyframes djd-header-drop { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: translateY(0); } }
+
+/* The broad reduced-motion rule further down only matches our own djd-/djdt-
+   prefixed classes, on purpose, so it never touches Avada's own animations.
+   This is the one animation we put directly on an Avada class, so it needs
+   naming here instead. */
+@media (prefers-reduced-motion: reduce) {
+	body.djdigi-has-hero .fusion-header-wrapper { animation: none !important; }
 }
 body.djdigi-has-hero.djdigi-hero-strip .fusion-header-wrapper { top: 46px; }
 
+/* Past 1680px wide (1600px box + 40px padding each side) the hero's own
+   content stays inside that box while an unconstrained header would keep
+   stretching to the window edge. Matching the box and its padding here is
+   what lines the logo up with "Video DJ since 2008" and the menu up with
+   "San Francisco". Applies whether or not the header is currently sticky,
+   so nothing shifts sideways on scroll. */
+body.djdigi-has-hero .fusion-header {
+	max-width: 1600px;
+	margin-left: auto;
+	margin-right: auto;
+	padding-left: 40px !important;
+	padding-right: 40px !important;
+}
+
 body.djdigi-has-hero .fusion-secondary-header {
 	background-color: transparent !important;
+	background-image: none !important;
 }
-body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-header {
+body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-header,
+body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-row {
 	background-color: transparent !important;
+	background-image: none !important;
 	border-bottom-color: transparent;
+}
+body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu {
+	background: rgba(20, 15, 51, 0.55);
+	border: 1px solid rgba(241, 236, 226, 0.16);
+	-webkit-backdrop-filter: blur(10px);
+	backdrop-filter: blur(10px);
 }
 body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu > ul > li > a,
 body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu > ul > li.current-menu-item > a,
@@ -196,10 +428,14 @@ body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-
 body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu > ul > li > a:hover {
 	color: var(--djd-cyan) !important;
 }
+body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) #djdt-book-me > a {
+	background: var(--djd-paper) !important;
+	color: var(--djd-violet) !important;
+}
 body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu .sub-menu {
 	background-color: #140f33 !important;
-	border-color: rgba(241, 236, 226, 0.25) !important;
-	box-shadow: 6px 6px 0 rgba(36, 169, 224, 0.3) !important;
+	border-color: rgba(241, 236, 226, 0.18) !important;
+	box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4) !important;
 }
 body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu .sub-menu li a {
 	color: var(--djd-paper) !important;
@@ -210,23 +446,22 @@ body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-mobil
 	color: var(--djd-paper) !important;
 }
 
-/* Sticky header over the hero switches to night */
+/* Sticky header over the hero switches to night, and stays dark glass */
 body.djdigi-has-hero .fusion-is-sticky .fusion-header {
 	background-color: rgba(11, 8, 32, 0.94) !important;
+	background-image: none !important;
 	border-bottom-color: transparent;
 }
 body.djdigi-has-hero .fusion-is-sticky .fusion-main-menu > ul > li > a { color: var(--djd-paper) !important; }
+body.djdigi-has-hero .fusion-is-sticky .fusion-main-menu {
+	background: rgba(20, 15, 51, 0.55);
+	border: 1px solid rgba(241, 236, 226, 0.16);
+}
+body.djdigi-has-hero .fusion-is-sticky #djdt-book-me > a {
+	background: var(--djd-paper) !important;
+	color: var(--djd-violet) !important;
+}
 
 /* Remove gaps Avada leaves above the first container on hero pages */
 body.djdigi-has-hero #main { padding-top: 0 !important; }
 body.djdigi-has-hero .post-content > .fusion-fullwidth:first-child { padding-top: 0 !important; }
-
-@media (prefers-reduced-motion: reduce) {
-	body.djdigi-theme *,
-	body.djdigi-theme *::before,
-	body.djdigi-theme *::after {
-		animation-duration: 0.01ms !important;
-		animation-iteration-count: 1 !important;
-		transition-duration: 0.01ms !important;
-	}
-}

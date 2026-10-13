@@ -1,0 +1,79 @@
+/* DJ DigiMark Theme: Settings > DigiMark Theme admin page only. */
+
+.djdt-photo-grid {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 14px;
+	margin-bottom: 12px;
+}
+
+.djdt-photo-item {
+	position: relative;
+	width: 160px;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	background: #fff;
+	cursor: grab;
+	user-select: none;
+}
+.djdt-photo-item.is-dragging { opacity: 0.4; }
+.djdt-photo-item.is-picking-focal { cursor: crosshair; }
+
+.djdt-photo-item__frame {
+	position: relative;
+	width: 100%;
+	height: 100px;
+	overflow: hidden;
+	border-radius: 4px 4px 0 0;
+	background: #e0e0e0;
+}
+.djdt-photo-item__frame img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	pointer-events: none;
+}
+
+.djdt-photo-item__focal {
+	position: absolute;
+	width: 16px;
+	height: 16px;
+	margin: -8px 0 0 -8px;
+	border: 2px solid #fff;
+	border-radius: 50%;
+	background: rgba(214, 54, 56, 0.85);
+	box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+	pointer-events: none;
+}
+
+.djdt-photo-item__row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 6px 8px;
+	font-size: 11px;
+	color: #50575e;
+}
+
+.djdt-photo-item__remove {
+	border: 0;
+	background: none;
+	color: #a00;
+	font-size: 14px;
+	line-height: 1;
+	cursor: pointer;
+	padding: 2px 4px;
+}
+.djdt-photo-item__remove:hover { color: #dc3232; }
+
+.djdt-photo-item__hint {
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.djdt-photo-item.is-picking-focal .djdt-photo-item__hint { color: #d63638; font-weight: 600; }
