@@ -82,8 +82,19 @@ reduced-motion override naming it specifically, right next to where the animatio
 - Blog is being removed from the menu (Mark's call, Oct 12 2026). That is a menu edit in WordPress, not code.
 - Mark's real menu is named "digimenu" (desktop `ul#menu-digimenu.fusion-menu`, mobile `ul#mobile-menu-digimenu`). The "Book me" button is added by a `wp_nav_menu_items` filter matched on that menu slug or the `main_navigation` theme location, whichever the current `wp_nav_menu()` call used, so it works with no JS and shows in the mobile menu too. menu.js only adds it itself if neither matched.
 
+## Testing in the static harness
+Use Playwright (`page.setViewportSize`, or a mobile device preset), not headless Chrome's own
+`--screenshot` CLI flag. That flag has a hard floor around 500px regardless of the requested
+window size (confirmed against both new and legacy headless modes and a device-scale-factor
+workaround), so it cannot render a true phone width. Playwright also has `page.clock` and can
+pause a Web Animations API animation at an exact `currentTime`, which the CLI flag's single-shot
+capture could not do reliably, for pulling an exact intro-timestamp or mid-crossfade frame.
+Headless Chrome also reports `prefers-reduced-motion: reduce` by default, which silently settles
+every CSS animation to its end state regardless of any seeking; check for that before trusting a
+timed capture.
+
 ## Open items
-- Mark's test of v1.0.0/1.0.1 on a private "Home v2" page (or the staging install at djdigimark.com/staging/).
+- Mark's test of v1.0.0 through v1.1.0, tagged and released, on a private "Home v2" page (or the staging install at djdigimark.com/staging/). v1.1.0's phone width fix (removing the name's forced `white-space: nowrap`, a tighter DigiMark clamp under 800px) could not be confirmed below 500px in the harness, see "Testing in the static harness" above; a real phone or DevTools responsive mode is the first thing to check.
 - v1.1.0 is built against assumed Avada markup beyond what Mark already confirmed by testing (header/menu selectors) and the real footer markup Mark supplied (social links). The footer widget area emptiness check and the exact header background image source are the two places most likely to need a selector adjustment after a real test.
 - Restyle remaining homepage sections and pages (New Stuff, Music, Mailchimp, footer, library, PMPro with inline hex only). Avada's own `.fusion-button` sitewide is part of that later pass, not touched in 1.1.0.
 - The homepage Blog section in the mockup goes away with the Blog menu item.
