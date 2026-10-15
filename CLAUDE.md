@@ -41,11 +41,11 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 ## Files
 - `djdigi-theme.php`: settings page (including the hero photo picker), asset loading (filemtime versions, Cloudflare-safe), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]`.
 - `assets/css/site.css`: site-wide, scoped to `body.djdigi-theme`. Avada header and menu selectors: `.fusion-header-wrapper`, `.fusion-secondary-header` (small plain social icons, aligned to the 1600px box, NOT the dock), `.fusion-header`, `.fusion-main-menu` (the pill bar) `> ul.fusion-menu`, `.sub-menu` (including explicit dropdown/flyout positioning and the `djd-flip-right` class menu.js adds near the viewport edge), `.fusion-mobile-selector` (classic mobile menu), `.fusion-is-sticky` (sticky state). Also owns the footer dock's styling and the opening sequence's shared timing custom properties (on `body.djdigi-has-hero`, see below).
-- `assets/css/hero.css`: hero only, loaded only when the shortcode renders. The large right side photo panel and its edge fade, the photo wall, the scroll shrink transform, the grid-stacked name layers, the player, the ticker, the Pride EQ wave.
+- `assets/css/hero.css`: hero only, loaded only when the shortcode renders. The large right side photo panel and its edge fade, the scroll shrink transform, the grid-stacked name layers, the player, the ticker, the Pride EQ wave, the intro's pause-until-ready gate (see "Intro: fast, overlapping, waits for the photo and fonts" below).
 - `assets/css/admin.css`, `assets/js/admin.js`: Settings > DigiMark Theme only, the hero photo picker (wp.media, drag to reorder, click to set focal point).
-- `assets/js/hero.js`: opening sequence timing (session quick-intro, `?intro=1` override), header height measurement (the taller of the header wrapper and the mobile nav holder, so the hero always starts below whichever actually extends further down), hero photo rotation, the scroll shrink and photo wall driver, the Mixcloud Widget API player (iframe at player-widget.mixcloud.com, see below).
+- `assets/js/hero.js`: opening sequence timing (session quick-intro, `?intro=1` override, the ready gate), header height measurement (the taller of the header wrapper and the mobile nav holder, so the hero always starts below whichever actually extends further down), hero photo rotation, the scroll shrink driver, the ticker's speed, the Mixcloud Widget API player (iframe at player-widget.mixcloud.com, see below).
 - `assets/js/menu.js`: the sliding pill behind the current menu item (the only highlight in the menu now), carried across page loads via `sessionStorage`. Also keeps dropdown panels inside the viewport near the right edge.
-- `assets/js/dock.js`: the magnetic social dock, built once for the footer (full size, plus Mixcloud) and once for the header (small, `.djd-dock--small`, whatever Avada icons are actually there). Each is strictly scoped to its own wrapper's full ancestor path, see "Dock scoping" below. Reads Avada's own rendered social link hrefs rather than owning them, and hides the footer widget area when it has no widgets.
+- `assets/js/dock.js`: the magnetic social dock, footer only (Mark's call, v1.2.2: the header tried a small one in v1.2.1, removed). Reads Avada's own rendered social link hrefs rather than owning them, hides the footer widget area when it has no widgets, and hides the header's own small social bar entirely if it ends up with none configured.
 - `assets/img/hero-photo.jpg`: the bundled fallback hero photo, used when no photos are picked in Settings. `wave.svg`: player waveform, inlined by PHP rather than loaded as an image, see below.
 - `assets/fonts/`: Archivo (variable, wdth + wght) and Saira Extra Condensed (700, 800), self-hosted, OFL.
 
@@ -53,12 +53,11 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 Avada reuses the exact same `.fusion-social-networks-wrapper` class for the header's small icon
 bar and the footer's. An unscoped query for that class finds whichever comes first in the
 document, which is what v1.2.0's dock.js fix was for (it was building the footer's dock from the
-header's icons). Both docks are built now (v1.2.1 adds a small one to the header, see "Design
-tokens"), each from its own full real path, scoped by the distinct middle class Avada gives each
-context:
-- Footer: `footer#footer.fusion-footer-copyright-area .fusion-social-links-footer .fusion-social-networks-wrapper`
-- Header: `.fusion-secondary-header .fusion-social-links-header .fusion-social-networks-wrapper`
-Do not shorten either one back to the bare class.
+header's icons). The footer's dock is strictly scoped to its own full real path for exactly that
+reason, do not shorten it back to the bare class:
+`footer#footer.fusion-footer-copyright-area .fusion-social-links-footer .fusion-social-networks-wrapper`.
+v1.2.1 also gave the header a small version of the same dock; Mark's call in v1.2.2 was to remove
+it and keep only the footer one, so the header is back to Avada's own plain icons, untouched.
 
 ## The waveform is inlined, not an `<img src>`
 `djdt_inline_wave()` reads `assets/img/wave.svg` once per request and echoes it directly into the
@@ -85,11 +84,48 @@ repeat view in the session, or cleared by `?intro=1`) overrides the same propert
 every dependent `animation-delay` at once. Add a new step by adding one `--djd-t-*` variable here,
 not by hardcoding a delay where it's used.
 
+## Intro: fast, overlapping, waits for the photo and fonts
+Rebuilt in v1.2.2. About 1.6 to 1.8s total now (down from 3.6s), and the steps overlap rather than
+running one after another, see the schedule comment above `body.djdigi-has-hero` in site.css.
+Entrance animations are transform and opacity only, no filter or blur (a blur animation forces a
+repaint every frame, which is what made the photo's old pull-focus slow); the photo now does a
+short fade with a slight scale in (1.04 to 1) instead. Easing is `cubic-bezier(0.22, 1, 0.36, 1)`
+throughout the entrance, no linear.
+
+The whole entrance is held paused until the hero photo and the fonts are ready (`img.decode()` and
+`document.fonts.ready`, hero.js, capped at 1.2s so a slow load never blocks it for long), so nothing
+plays against a blank photo or a fallback font. This works by matching every entrance-animated
+element with `body:not(.djd-intro-ready) { animation-play-state: paused; }` (hero.css, near the
+keyframes): pausing from the very first paint freezes an animation's timeline before its own delay
+has even started counting, so the delay only starts once hero.js adds `djd-intro-ready` to body,
+not from raw page load. Each element also carries `will-change: transform, opacity` for that same
+wait, which hero.js clears afterward, but only on the purely one-shot elements (the slogan, buttons,
+player, ticker, DJ, each letter): the glow, the photo, the echo and each EQ bar all keep an infinite
+companion animation (drift, Ken Burns, the wave) running forever, so will-change stays on those
+rather than coming off while they are still actively animating.
+
+Adding a new entrance-animated element: give it its own `--djd-t-*` delay as usual, and add its
+selector to both the `body:not(.djd-intro-ready) ...` pause list and the plain `will-change` list
+right after it in hero.css, or it will play immediately on page load instead of waiting.
+
+## Ticker speed and smoothness
+Rebuilt in v1.2.2 after it read as choppy. The track holds the ticker items twice in a row (PHP)
+and animates `transform: translate3d()` from `0` to `-50%`, linear, infinite; since both copies are
+identical, the loop point is seamless. `--djd-ticker-dur` (hero.js) is worked out from the track's
+own rendered width divided by a steady 60 to 80px per second, instead of a fixed duration that was a
+different, inconsistent speed depending on item count and viewport width. The ticker bulbs read as
+chasing lights the same way, but via a repeating background slid by one tile's width with
+`transform: translate3d()`, not by animating `background-position`, which forces a full repaint on
+every frame; that was the actual cause of the choppiness, since it sat right next to the track and
+competed with its otherwise compositor-only transform animation for frame time. Do not animate
+`left`, `margin`, or `background-position` anywhere in the ticker, and do not drive its position
+from JS; transform only, same as everything else in the intro.
+
 ## Motion: always on, by design
 Nothing on this site checks `prefers-reduced-motion`, anywhere: not in CSS, not in JS, no setting
 or toggle. This was removed entirely in v1.2.1 (it previously froze the intro, photo rotation,
-ticker, EQ wave, scroll shrink, sliding pill, and both docks for any visitor with that OS setting
-on, which is not what Mark wants for this site) and must not be added back. If a future feature is
+ticker, EQ wave, scroll shrink, sliding pill, and the dock for any visitor with that OS setting on,
+which is not what Mark wants for this site) and must not be added back. If a future feature is
 tempted to add a `@media (prefers-reduced-motion: reduce)` block or a `matchMedia('(prefers-reduced-motion: reduce)')`
 check, that is a regression of this decision, not a reasonable default.
 
@@ -110,12 +146,11 @@ is correct whether or not the animation happens to be running at that instant.
 - "DigiMark" in the hero uses logo cyan and is mixed case, not all caps, matching the logo. "DJ" is off-white on the dark hero.
 - Display font: Saira Extra Condensed, 700/800. Text font: Archivo. Buttons and the player status tag are sentence case now, not wide-tracked uppercase, except the ticker and the name, which stay uppercase display type.
 - Hero layout: the photo is large, the right 55 to 60% of the hero, full height, bleeding to the right edge, with the name overlapping into it on the left. A dedicated fade layer (not the duotone layer) washes the left and bottom edges into night so the photo never shows a hard rectangle. Phone: the photo goes full bleed behind everything with a stronger dark wash for text contrast. No hero labels: the name and slogan carry the hero alone (removed entirely in v1.2.1, markup and CSS, Mark's call).
-- Hero intro (about 3.6s, see "The opening sequence's timing" above): glows bloom alone first, then the photo pulls into focus from a heavy zoom and blur, then "DJ" and "DigiMark" sweep up letter by letter from a full height mask, then slogan, buttons, player, menu and ticker land together at the end. Quick version on a repeat view in the session; `?intro=1` forces the full one. Always plays in full motion, see "Motion: always on, by design".
+- Hero intro (about 1.6 to 1.8s, see "Intro: fast, overlapping, waits for the photo and fonts" above): glows bloom first, then the photo fades in with a slight scale in, then "DJ" and "DigiMark" sweep up letter by letter from a full height mask, then slogan, buttons, player, menu and ticker land together, all heavily overlapping rather than running in sequence. Quick version on a repeat view in the session; `?intro=1` forces the full one. Always plays in full motion, see "Motion: always on, by design".
 - Hero photo: rotates through whatever is picked in Settings > DigiMark Theme (each with its own focal point), cross fading with a slow zoom, or the bundled photo if none are picked. A CSS duotone (grayscale + a violet to cyan color blend) is applied to every photo uniformly, including the bundled one, so any photo Mark adds reads as part of the same look without manual editing.
 - Name layers: echo (the drifting violet ghost) and main (the cyan letters) are stacked with CSS Grid, both in the same grid cell, not positioned by hand. Grid items never margin collapse with their container or each other, which is what actually caused v1.2.0's doubled name bug (the padding and negative margin used to make room for descenders collapsed through on one layer and not the other). Keep them grid stacked rather than going back to relative/absolute arithmetic.
-- Scroll: past the hero, it shrinks toward scale 0.85 with growing corner radius (toward 28px), while the same rotation photos slide in around it as a loose photo wall (large tiles, not a dense grid, since there are usually only 3 or 4). One scroll driven progress value (0 to 1) feeds both; see hero.js. Off for touch devices only.
+- Scroll: past the hero, it shrinks toward scale 0.85 with growing corner radius (toward 28px). One scroll driven progress value (0 to 1) feeds it; see hero.js. Off for touch devices only. The photo wall that used to slide in around it (v1.2.0 and v1.2.1) was removed entirely in v1.2.2, Mark's call (nothing showed below the hero live, and he had not actually asked for it); if tiles come back later they need rebuilding from scratch, not un-reverting this.
 - Pride EQ: a shared sine wave drives all 6 bars (`djd-eq-wave`), each with its own `animation-delay` so the motion rolls left to right through the colors, plus a small separate drift animation for a fabric feel, rather than each bar bouncing independently.
-- Header dock: the header's own social icons (`.fusion-secondary-header`) get the same magnetic dock as the footer, at a smaller size (`.djd-dock--small`, 28px growing toward 40px near the cursor). Same icons Avada already renders there, no Mixcloud added (that is footer only). Left aligned to the same 1600px box as the logo, since the dock replaces the original icons in place.
 
 ## Hero copy (approved)
 - Slogan: "Bringing positive vibes to the dance floor" + pride-colored EQ bars (rainbow flag and music in one mark).
@@ -182,19 +217,21 @@ JS do not fully initialize against a static file, so the mobile selector and all
 can render in the wrong state regardless of anything in this plugin.
 
 ## Open items
-- Resolved in v1.2.1, confirm live after purge: third-level dropdown overlap and colors (position
-  on every nested li, flip inheritance down the chain, always-dark panels), mobile header
-  overlapping hero content (now measures the taller of the header wrapper and the mobile nav
-  holder), and reduced motion freezing everything for visitors with that OS setting on (removed
-  entirely). The header-solid-over-hero item from the v1.2.0 round was confirmed fine live; it only
-  ever showed solid in the Playwright test fixture, not on the real site. Closed, no code change.
-- Confirm the hero photo rotation actually advances on a fresh (uncached) load with the 3 saved
-  photos, now that reduced motion (which was also killing the crossfade transition and Ken Burns
-  zoom on Mark's own machine) is gone. If `data-photo-count` in the page source still reads wrong
-  after a purge, see "Hero photo rotation depends on a fresh page cache" below.
-- Confirm the new small header dock looks right at its grown size (28px toward 40px) within the
-  secondary header's actual height on the live site; `.djd-dock--small` has some padding as a guess
-  at clearance, not measured against the real bar.
+- Queued for live review after v1.2.2, not confirmed yet:
+  1. Intro should finish in about 1.6 to 1.8s with overlapping steps, hold 60fps in Chrome DevTools
+     Performance (no long layout or paint tasks), and still play in full with OS reduce motion on.
+  2. Ticker should read as smooth at a steady 60 to 80px per second, no visible stutter.
+  3. Header and menu should be fully transparent over the hero at the top of the page, not a solid
+     dark band; check both the plain and the sticky (scrolled) state.
+  4. Header's small social icons are back to Avada's own plain icons, no dock; footer dock unchanged.
+  5. Nothing shows below the hero on scroll anymore (the photo wall was removed entirely).
+  6. Confirm the hero photo rotation actually advances on a fresh (uncached) load with the 3 saved
+     photos. If `data-photo-count` in the page source still reads wrong after a purge, see "Hero
+     photo rotation depends on a fresh page cache" below.
+- Resolved in v1.2.1, confirmed live: third-level dropdown overlap and colors, mobile header
+  overlapping hero content, reduced motion freezing everything (though v1.2.2 found and fixed the
+  deeper cause: the ready-gate pause worked, but the entrance itself was still too slow and
+  sequential, and the ticker had its own separate choppiness bug, see "Intro" and "Ticker" above).
 - After updating, purge Asset CleanUp, Bluehost's cache, and Cloudflare (see "Caching, every time
   something changes") before judging anything on the live page. Most "it didn't change" reports in
   past rounds turned out to be a stale cached copy, not a code issue.

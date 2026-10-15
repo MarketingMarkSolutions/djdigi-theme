@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle and the [djdigi_hero] homepage hero for djdigimark.com.
- * Version: 1.2.1
+ * Version: 1.2.2
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.2.1' );
+define( 'DJDT_VERSION', '1.2.2' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -161,7 +161,7 @@ function djdt_render_settings() {
 							<button type="button" class="button" id="djdt-add-photos">Add photos</button>
 						</p>
 						<input type="hidden" id="djdt-hero-photos-json" name="<?php echo esc_attr( $n ); ?>[hero_photos_json]" value="<?php echo esc_attr( wp_json_encode( array_values( $s['hero_photos'] ) ) ); ?>">
-						<p class="description">Drag a photo to reorder. Click a photo once to pick its focal point, then click where the subject is. The x removes it from rotation only, it stays in the Media Library. Leave empty to use the built in photo. One photo plays with no rotation. 3 to 4 photos also appear as a small photo wall once a visitor scrolls past the hero.</p>
+						<p class="description">Drag a photo to reorder. Click a photo once to pick its focal point, then click where the subject is. The x removes it from rotation only, it stays in the Media Library. Leave empty to use the built in photo. One photo plays with no rotation.</p>
 					</td>
 				</tr>
 				<tr>
@@ -402,26 +402,6 @@ function djdt_hero_photos() {
 	return $out;
 }
 
-/**
- * Fixed scatter slots for the scroll photo wall: large, loosely placed
- * tiles rather than a dense grid, since there are usually only 3 or 4
- * photos. Each tile anchors to one corner outside the shrinking card
- * (hero.css computes its actual position from the corner and the live
- * shrink progress, so it always tracks the card's real edges rather than
- * a fixed guess); w/h/r are its size and a little rotation for variety.
- * Bottom corners come first: they sit in the most reliably clear margin
- * (below the card, where nothing else renders), so a count of 2 or 3
- * still looks intentional rather than lopsided.
- */
-function djdt_wall_slots() {
-	return array(
-		array( 'corner' => 'bl', 'w' => '180px', 'h' => '230px', 'r' => '4deg' ),
-		array( 'corner' => 'br', 'w' => '200px', 'h' => '250px', 'r' => '-5deg' ),
-		array( 'corner' => 'tl', 'w' => '190px', 'h' => '240px', 'r' => '-6deg' ),
-		array( 'corner' => 'tr', 'w' => '170px', 'h' => '220px', 'r' => '5deg' ),
-	);
-}
-
 /* -------------------------------------------------------------------------
  * [djdigi_hero]
  * ---------------------------------------------------------------------- */
@@ -444,12 +424,8 @@ function djdt_hero_shortcode() {
 
 	$items = array_filter( array_map( 'trim', explode( "\n", (string) djdt_get( 'ticker' ) ) ) );
 
-	$wall_slots = djdt_wall_slots();
-	$wall_count = min( count( $photos ), count( $wall_slots ) );
-
 	ob_start();
 	?>
-	<div class="djd-hero-scene">
 	<section class="djd-hero" aria-label="DJ DigiMark" data-photo-count="<?php echo (int) count( $photos ); ?>">
 		<div class="djd-hero__glows" aria-hidden="true">
 			<div class="djd-hero__glow djd-hero__glow--a djd-in-glow"></div>
@@ -549,17 +525,6 @@ function djdt_hero_shortcode() {
 			</div>
 		<?php endif; ?>
 	</section>
-
-	<?php if ( $wall_count > 1 ) : ?>
-		<div class="djd-hero__wall" aria-hidden="true">
-			<?php for ( $i = 0; $i < $wall_count; $i++ ) : $slot = $wall_slots[ $i ]; $p = $photos[ $i ]; ?>
-				<div class="djd-hero__wall-tile djd-hero__wall-tile--<?php echo esc_attr( $slot['corner'] ); ?>" style="--wall-w: <?php echo esc_attr( $slot['w'] ); ?>; --wall-h: <?php echo esc_attr( $slot['h'] ); ?>; --wall-r: <?php echo esc_attr( $slot['r'] ); ?>;">
-					<img src="<?php echo esc_url( $p['src'] ); ?>" style="object-position: <?php echo esc_attr( $p['x'] ); ?>% <?php echo esc_attr( $p['y'] ); ?>%" alt="" loading="lazy">
-				</div>
-			<?php endfor; ?>
-		</div>
-	<?php endif; ?>
-	</div>
 	<?php
 	return ob_get_clean();
 }

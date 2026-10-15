@@ -1,7 +1,8 @@
-/* Footer and header: swaps Avada's rendered social icons for a magnetic dock
-   built from the same hrefs, and hides the footer widget area when it has no
-   widgets. Avada keeps owning the actual social link settings; this only
-   reads them. */
+/* Footer: swaps Avada's rendered social icons for a magnetic dock built from
+   the same hrefs, and hides the footer widget area when it has no widgets.
+   The header keeps its own plain Avada icons untouched (Mark's call, v1.2.2:
+   only the footer gets a dock), hidden entirely if empty on hero pages.
+   Avada keeps owning the actual social link settings; this only reads them. */
 (function () {
 	'use strict';
 
@@ -33,17 +34,12 @@
 		return null;
 	}
 
-	// Builds one dock from one wrapper. Called once for the footer (its own
-	// full size, plus Mixcloud, which is not one of Avada's own social
-	// network options) and once for the header (small size, whatever Avada
-	// icons are actually there, nothing added).
-	function buildDockFrom(selector, opts) {
-		opts = opts || {};
-		// Scoped to each wrapper's own full ancestor path: Avada reuses the
-		// exact same .fusion-social-networks-wrapper class in both the header
-		// and the footer, and an unscoped query previously grabbed whichever
-		// came first in the document regardless of which one was wanted.
-		var wrapper = document.querySelector(selector);
+	(function buildDock() {
+		// Scoped strictly to the footer's own copy of this markup: Avada
+		// reuses the exact same .fusion-social-networks-wrapper class for the
+		// header's small icon bar too, and an unscoped query here previously
+		// grabbed that one instead, since it comes first in the document.
+		var wrapper = document.querySelector('footer#footer.fusion-footer-copyright-area .fusion-social-links-footer .fusion-social-networks-wrapper');
 		if (!wrapper) return;
 
 		var found = {};
@@ -51,12 +47,11 @@
 			var network = detectNetwork(a);
 			if (network && !found[network]) found[network] = a.href;
 		});
-		if (opts.mixcloudUrl) found.mixcloud = opts.mixcloudUrl;
+		if (cfg.mixcloudUrl) found.mixcloud = cfg.mixcloudUrl;
 
 		var order = ['instagram', 'tiktok', 'facebook', 'bluesky', 'snapchat', 'mixcloud'];
 		var dock = document.createElement('div');
 		dock.className = 'djd-dock';
-		if (opts.extraClass) dock.classList.add(opts.extraClass);
 		if (isTouch) dock.classList.add('is-static');
 
 		order.forEach(function (key) {
@@ -95,15 +90,23 @@
 				btn.classList.toggle('is-near', btn === nearest && nearestDist < NEAR);
 			});
 		});
-	}
-
-	buildDockFrom('footer#footer.fusion-footer-copyright-area .fusion-social-links-footer .fusion-social-networks-wrapper', { mixcloudUrl: cfg.mixcloudUrl });
-	buildDockFrom('.fusion-secondary-header .fusion-social-links-header .fusion-social-networks-wrapper', { extraClass: 'djd-dock--small' });
+	})();
 
 	(function hideEmptyWidgetArea() {
 		var area = document.querySelector('.fusion-footer-widget-area');
 		if (!area) return;
 		var hasContent = area.textContent.trim() !== '' || area.querySelector('img, a, svg, iframe, form, input, textarea');
 		if (!hasContent) area.classList.add('djdt-is-empty');
+	})();
+
+	// The header keeps Avada's own plain icons now, no dock (Mark's call,
+	// v1.2.2). If that bar ends up with none configured, hide it on hero
+	// pages so it does not leave an empty gap above the hero.
+	(function hideEmptySecondaryHeader() {
+		if (!document.body.classList.contains('djdigi-has-hero')) return;
+		var bar = document.querySelector('.fusion-secondary-header');
+		if (!bar) return;
+		var hasLinks = bar.querySelector('.fusion-social-networks-wrapper a[href]');
+		if (!hasLinks) bar.classList.add('djdt-is-empty');
 	})();
 })();

@@ -62,10 +62,11 @@ body.djdigi-theme .fusion-secondary-header {
 	background-image: none !important;
 }
 
-/* ---------- Secondary header (small magnetic dock) ----------
-   dock.js builds a small version of the same dock here from this bar's own
-   social links, left aligned to the same 1600px box as the logo below it
-   via the row rule right after this. See the dock rules further down. */
+/* ---------- Secondary header (small plain social icons) ----------
+   Not a dock: Mark's call in v1.2.2, footer keeps the only magnetic dock.
+   Avada's own plain icons render here untouched, aligned to the same
+   1600px box as the logo below it. Hidden entirely on hero pages if
+   empty (dock.js adds djdt-is-empty), so it does not leave a gap. */
 
 body.djdigi-theme .fusion-secondary-header {
 	background-color: var(--djd-ink) !important;
@@ -85,6 +86,7 @@ body.djdigi-theme .fusion-secondary-header .fusion-social-network-icon:before {
 body.djdigi-theme .fusion-secondary-header .fusion-social-network-icon:hover:before {
 	color: var(--djd-cyan) !important;
 }
+body.djdigi-has-hero .fusion-secondary-header.djdt-is-empty { display: none !important; }
 
 /* ---------- Main header ---------- */
 
@@ -300,14 +302,14 @@ body.djdigi-theme .fusion-button:hover {
 	color: var(--djd-night) !important;
 }
 
-/* ---------- Magnetic social dock: header (small) and footer (full size) ----------
-   dock.js builds one from each wrapper's own distinct ancestor path
-   (footer: fusion-social-links-footer, header: fusion-social-links-header),
-   so one can never pick up the other's icons by accident, the exact bug a
-   bare, unscoped class query caused in an earlier version. Avada's own
-   rendered icons are hidden only once dock.js has read their hrefs, not
-   hidden unconditionally here: if dock.js never runs, the originals stay
-   exactly as Avada renders them. */
+/* ---------- Magnetic social dock: footer only ----------
+   dock.js builds this from the footer's own distinct ancestor path
+   (fusion-social-links-footer), never a bare unscoped class query, which
+   in an earlier version let it pick up the header's icons by accident.
+   Avada's own rendered icons are hidden only once dock.js has read their
+   hrefs, not hidden unconditionally here: if dock.js never runs, the
+   originals stay exactly as Avada renders them. The header keeps its
+   plain Avada icons untouched, see "Secondary header" above. */
 
 .djd-dock {
 	display: flex;
@@ -343,13 +345,6 @@ body.djdigi-theme .fusion-button:hover {
 /* Touch devices: a static row, no magnification. */
 .djd-dock.is-static .djd-dock__btn { transform: none !important; }
 
-/* Header's small version of the same dock: smaller buttons, same colors and
-   magnetic behavior (dock.js reuses the same math; the size difference
-   alone keeps the grow-near-the-cursor ratio reading right). */
-.djd-dock--small { gap: 8px; padding-block: 6px; }
-.djd-dock--small .djd-dock__btn { width: 28px; height: 28px; }
-.djd-dock--small .djd-dock__btn svg { width: 13px; height: 13px; }
-
 body.djdigi-theme .fusion-footer-widget-area.djdt-is-empty { display: none !important; }
 
 /* =========================================================================
@@ -360,24 +355,30 @@ body.djdigi-theme .fusion-footer-widget-area.djdt-is-empty { display: none !impo
    because the header (the menu's drop-in) is a sibling of the hero section,
    not a descendant of it. A custom property only cascades to descendants, so
    anything both the header and the hero need to read has to start at least
-   this high. hero.js toggles djd-quick-intro for repeat views in the session.
+   this high. hero.js toggles djd-quick-intro for repeat views in the session,
+   and holds the whole entrance paused (see hero.css) until the hero photo and
+   the fonts are ready, so these delays count from that moment, not raw page
+   load; a 1.2s cap means a slow load never blocks it for long.
 
-   Schedule (about 3.6s):
-   1. 0 to 1s     glow only, everything else hidden
-   2. 0.6 to 2.4s photo pulls into focus
-   3. 1.8 to 3s   DJ then DigiMark sweep up letter by letter
-   4. 3 to 3.6s   slogan, buttons, player, menu drop, ticker rise */
+   Schedule (about 1.6 to 1.8s total once ready; steps overlap rather than
+   running one after another):
+   0s            glow begins
+   0.15s         photo begins (fade plus a slight scale in), overlapping the glow
+   0.35s         DJ sweeps up, overlapping the photo
+   0.45s         DigiMark sweeps up letter by letter, overlapping DJ
+   0.9s to 1.2s  menu drops, slogan, buttons, player, EQ and ticker land
+                 together, overlapping the end of the name */
 body.djdigi-has-hero {
 	--djd-t-glow: 0s;
-	--djd-t-photo: 0.6s;
-	--djd-t-dj: 1.8s;
-	--djd-t-name: 2.0s;
-	--djd-t-slogan: 3.0s;
-	--djd-t-buttons: 3.15s;
-	--djd-t-player: 3.2s;
-	--djd-t-menu: 3.1s;
-	--djd-t-eq: 3.3s;
-	--djd-t-ticker: 3.35s;
+	--djd-t-photo: 0.15s;
+	--djd-t-dj: 0.35s;
+	--djd-t-name: 0.45s;
+	--djd-t-slogan: 1.0s;
+	--djd-t-buttons: 1.1s;
+	--djd-t-player: 1.1s;
+	--djd-t-menu: 0.9s;
+	--djd-t-eq: 1.15s;
+	--djd-t-ticker: 1.2s;
 }
 body.djdigi-has-hero.djd-quick-intro {
 	--djd-t-glow: 0s;
@@ -401,9 +402,11 @@ body.djdigi-has-hero .fusion-header-wrapper {
 	width: 100% !important;
 	background-color: transparent !important;
 	background-image: none !important;
-	animation: djd-header-drop 0.6s cubic-bezier(.2, .7, .2, 1) var(--djd-t-menu, 3.1s) both;
+	will-change: transform, opacity;
+	animation: djd-header-drop 0.4s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-menu, 0.9s) both;
 }
-@keyframes djd-header-drop { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: translateY(0); } }
+body:not(.djd-intro-ready) .fusion-header-wrapper { animation-play-state: paused !important; }
+@keyframes djd-header-drop { from { opacity: 0; transform: translate3d(0, -100%, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
 
 body.djdigi-has-hero.djdigi-hero-strip .fusion-header-wrapper { top: 46px; }
 
@@ -425,8 +428,20 @@ body.djdigi-has-hero .fusion-secondary-header {
 	background-color: transparent !important;
 	background-image: none !important;
 }
-body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-header,
-body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-row {
+/* Transparent by default, not gated behind :not(.fusion-is-sticky)
+   anymore. Also covers Avada's separate clone of the header it renders
+   for the sticky state (.fusion-sticky-header-wrapper), which v1.2.1
+   never targeted at all, the likely source of the solid band Mark saw
+   live: whichever wrapper actually carries the markup at a given moment,
+   this now matches both. .fusion-row is deliberately scoped to inside
+   one of these two wrappers, not bare, since Avada reuses that class as
+   a generic content width row all over the page, well beyond the
+   header. The more specific .fusion-is-sticky rule further down still
+   wins once genuinely scrolled. */
+body.djdigi-has-hero .fusion-header-wrapper .fusion-header,
+body.djdigi-has-hero .fusion-header-wrapper .fusion-row,
+body.djdigi-has-hero .fusion-sticky-header-wrapper .fusion-header,
+body.djdigi-has-hero .fusion-sticky-header-wrapper .fusion-row {
 	background-color: transparent !important;
 	background-image: none !important;
 	border-bottom-color: transparent;

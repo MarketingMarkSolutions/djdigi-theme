@@ -1,11 +1,10 @@
 /* [djdigi_hero] behavior: opening sequence timing, photo rotation, scroll
-   shrink with the photo wall, and the Mixcloud player. */
+   shrink, the ticker's speed, and the Mixcloud player. */
 (function () {
 	'use strict';
 
 	var hero = document.querySelector('.djd-hero');
 	if (!hero) return;
-	var scene = document.querySelector('.djd-hero-scene');
 
 	var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
@@ -111,16 +110,14 @@
 	})();
 
 	/* -----------------------------------------------------------------------
-	 * Scroll: the hero shrinks into a rounded card while the photo wall
-	 * slides in around it, then normal scrolling continues below. One
-	 * progress value (0 to 1) across a zone the height of the hero itself
-	 * drives both: transform/opacity only, rAF throttled, off for touch.
+	 * Scroll: the hero shrinks into a rounded card, then normal scrolling
+	 * continues below. One progress value (0 to 1) across a zone the
+	 * height of the hero itself drives it: transform/opacity only, rAF
+	 * throttled, off for touch.
 	 * -------------------------------------------------------------------- */
 	(function scrollShrink() {
 		if (isTouch) return;
-		if (!scene) return;
 		var stage = hero.querySelector('.djd-hero__stage');
-		var photos = hero.querySelector('.djd-hero__photos');
 
 		var SCALE_MIN = 0.85;
 		var RADIUS_MAX = 28; // px
@@ -133,9 +130,7 @@
 
 			hero.style.setProperty('--djd-shrink-scale', (1 - progress * (1 - SCALE_MIN)).toFixed(3));
 			hero.style.setProperty('--djd-shrink-radius', (progress * RADIUS_MAX).toFixed(1) + 'px');
-			scene.style.setProperty('--djd-shrink-progress', progress.toFixed(3));
 
-			if (photos) hero.style.setProperty('--djd-scroll-photo', (progress * zone * 0.06).toFixed(1) + 'px');
 			if (stage) {
 				hero.style.setProperty('--djd-scroll-name', (-progress * zone * 0.08).toFixed(1) + 'px');
 				hero.style.setProperty('--djd-scroll-name-op', Math.max(0.2, 1 - progress * 1.4).toFixed(2));
@@ -147,6 +142,69 @@
 			requestAnimationFrame(update);
 		}, { passive: true });
 		update();
+	})();
+
+	/* -----------------------------------------------------------------------
+	 * Intro: waits for the hero photo and the fonts to be ready (capped at
+	 * 1.2s so a slow load never blocks it) before letting the entrance
+	 * animations start, so nothing plays against a blank photo or a
+	 * fallback font. hero.css pauses every entrance animation until body
+	 * carries djd-intro-ready; adding it here is what starts each one's
+	 * own delay counting. Once the whole entrance is done, will-change
+	 * comes back off those elements, since leaving it on forever just
+	 * reserves GPU memory nothing is still animating.
+	 * -------------------------------------------------------------------- */
+	(function introReady() {
+		var activePhoto = hero.querySelector('.djd-hero__photo.is-active') || hero.querySelector('.djd-hero__photo');
+		var photoReady = (activePhoto && activePhoto.decode) ? activePhoto.decode().catch(function () {}) : Promise.resolve();
+		var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready.catch(function () {}) : Promise.resolve();
+		var timeout = new Promise(function (resolve) { setTimeout(resolve, 1200); });
+
+		Promise.race([Promise.all([photoReady, fontsReady]), timeout]).then(function () {
+			document.body.classList.add('djd-intro-ready');
+			var introDone = document.body.classList.contains('djd-quick-intro') ? 900 : 1800;
+			setTimeout(function () {
+				// Only the purely one-shot elements: the glow, the photo,
+				// the echo and each EQ bar all keep an infinite companion
+				// animation running forever (drift, Ken Burns, the wave),
+				// so will-change stays on those rather than coming off
+				// right as they are still actively animating.
+				var animated = hero.querySelectorAll(
+					'.djd-in-dj, .djd-letter, .djd-hero__slogan, .djd-eq, .djd-btn, .djd-player, .djd-ticker'
+				);
+				animated.forEach(function (el) { el.style.willChange = 'auto'; });
+				var headerWrapper = document.querySelector('.fusion-header-wrapper');
+				if (headerWrapper) headerWrapper.style.willChange = 'auto';
+			}, introDone);
+		});
+	})();
+
+	/* -----------------------------------------------------------------------
+	 * Ticker speed: works out how long one full loop should take from the
+	 * track's own rendered width, so it reads at a steady 60 to 80px per
+	 * second regardless of item count or viewport width, instead of a
+	 * fixed duration that is a different speed on every screen.
+	 * -------------------------------------------------------------------- */
+	(function tickerSpeed() {
+		var track = hero.querySelector('.djd-ticker__track');
+		if (!track) return;
+		var PX_PER_SECOND = 70;
+		function measure() {
+			var setWidth = track.scrollWidth / 2;
+			if (!setWidth) return;
+			var duration = Math.max(8, setWidth / PX_PER_SECOND);
+			track.style.setProperty('--djd-ticker-dur', duration.toFixed(2) + 's');
+		}
+		measure();
+		window.addEventListener('load', measure);
+		if (document.fonts && document.fonts.ready) {
+			document.fonts.ready.then(measure).catch(function () {});
+		}
+		var resizeTimer;
+		window.addEventListener('resize', function () {
+			clearTimeout(resizeTimer);
+			resizeTimer = setTimeout(measure, 150);
+		});
 	})();
 
 	/* -----------------------------------------------------------------------
