@@ -7,7 +7,6 @@
 	if (!hero) return;
 	var scene = document.querySelector('.djd-hero-scene');
 
-	var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 	var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
 	/* -----------------------------------------------------------------------
@@ -28,13 +27,21 @@
 	/* -----------------------------------------------------------------------
 	 * Real header height, since Avada's header is not a fixed size across
 	 * browsers or zoom levels. The CSS value is only the fallback for the
-	 * instant before this runs.
+	 * instant before this runs. On phones this also has to clear the mobile
+	 * nav holder (the "Go to..." selector), not just the wrapper itself: the
+	 * wrapper's own box does not always already include it, which is what
+	 * let the mobile menu button sit on top of the hero content.
 	 * -------------------------------------------------------------------- */
 	(function headerHeight() {
 		var wrapper = document.querySelector('.fusion-header-wrapper');
 		if (!wrapper) return;
+		var mobileNav = document.querySelector('.fusion-mobile-nav-holder');
 		function measure() {
-			var h = wrapper.getBoundingClientRect().height;
+			var h = wrapper.getBoundingClientRect().bottom;
+			if (mobileNav) {
+				var mr = mobileNav.getBoundingClientRect();
+				if (mr.height > 0) h = Math.max(h, mr.bottom);
+			}
 			if (h > 0) document.body.style.setProperty('--djd-head-h', h + 'px');
 		}
 		measure();
@@ -107,11 +114,10 @@
 	 * Scroll: the hero shrinks into a rounded card while the photo wall
 	 * slides in around it, then normal scrolling continues below. One
 	 * progress value (0 to 1) across a zone the height of the hero itself
-	 * drives both: transform/opacity only, rAF throttled, off for touch
-	 * and reduced motion (hero.css also hard disables it there).
+	 * drives both: transform/opacity only, rAF throttled, off for touch.
 	 * -------------------------------------------------------------------- */
 	(function scrollShrink() {
-		if (reduceMotion || isTouch) return;
+		if (isTouch) return;
 		if (!scene) return;
 		var stage = hero.querySelector('.djd-hero__stage');
 		var photos = hero.querySelector('.djd-hero__photos');

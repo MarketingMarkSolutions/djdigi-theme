@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle and the [djdigi_hero] homepage hero for djdigimark.com.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.2.0' );
+define( 'DJDT_VERSION', '1.2.1' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -475,11 +475,6 @@ function djdt_hero_shortcode() {
 		<?php endif; ?>
 
 		<div class="djd-hero__inner">
-			<div class="djd-hero__labels">
-				<span class="djd-hero__label"><span class="djd-hero__rule" aria-hidden="true"></span>Video DJ since 2008</span>
-				<span>San Francisco</span>
-			</div>
-
 			<div class="djd-hero__stage">
 				<h1 class="djd-hero__name" aria-label="DJ DigiMark">
 					<span class="djd-hero__mask djd-hero__mask--dj" aria-hidden="true"><span class="djd-hero__dj djd-in-dj">DJ</span></span>

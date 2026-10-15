@@ -192,20 +192,6 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	padding: 24px 40px 0;
 }
 
-.djd-hero__labels {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: space-between;
-	gap: 12px;
-	font-weight: 700;
-	font-size: 12px;
-	letter-spacing: 0.18em;
-	text-transform: uppercase;
-	opacity: 0;
-}
-.djd-hero__label { display: flex; align-items: center; gap: 14px; }
-.djd-hero__rule { display: block; width: 32px; height: 3px; background: var(--djd-orange); }
-
 /* ---------------------------------------------------------------------
    Name. DJ and DigiMark overlap the photo on the left side of the hero.
    Echo and main are stacked with CSS Grid, both children of the same
@@ -258,7 +244,19 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
    showing as plain text from the very first frame. The drift only starts
    once the last letter (index 7) has landed, so it never jitters mid
    reveal: 8 letters * 50ms stagger + the 0.6s rise itself. */
-.djd-hero__echo { display: block; color: #8a5cf0; opacity: 0.6; mix-blend-mode: screen; animation: djd-drift 7s ease-in-out infinite; animation-delay: calc(var(--djd-t-name, 2.0s) + 7 * 50ms + 0.6s); }
+.djd-hero__echo {
+	display: block;
+	color: #8a5cf0;
+	opacity: 0.6;
+	mix-blend-mode: screen;
+	/* The drift animation only reaches its own first keyframe once it
+	   starts, so the offset needs a static baseline of its own too
+	   (matching that keyframe's value), or the echo sits with zero offset,
+	   exactly on top of the cyan letters, until the animation begins. */
+	transform: translate(7px, 4px);
+	animation: djd-drift 7s ease-in-out infinite;
+	animation-delay: calc(var(--djd-t-name, 2.0s) + 7 * 50ms + 0.6s);
+}
 .djd-hero__main { display: block; color: var(--djd-cyan); }
 .djd-letter {
 	display: inline-block;
@@ -547,9 +545,6 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 }
 @keyframes djd-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @keyframes djd-chase { from { background-position: 0 center; } to { background-position: 20px center; } }
-@keyframes djd-labels-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
-
-.djd-hero__labels { animation: djd-labels-in 0.6s ease-out var(--djd-t-slogan, 3.0s) both; }
 
 .djd-hero__glow { animation: djd-glow-in 1.2s ease-out var(--djd-t-glow, 0s) both, djd-glow-drift 16s ease-in-out calc(var(--djd-t-glow, 0s) + 1.2s) infinite alternate; }
 
@@ -578,33 +573,5 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	.djd-player__btn,
 	.djd-player__art { flex-basis: 56px; width: 56px; height: 56px; }
 	.djd-player__title { font-size: 20px; }
-	.djd-hero__labels { font-size: 11px; letter-spacing: 0.16em; }
 	.djd-hero__wall { display: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.djd-hero__glow,
-	.djd-hero__photo,
-	.djd-hero__dj,
-	.djd-letter,
-	.djd-hero__slogan,
-	.djd-hero__labels,
-	.djd-eq,
-	.djd-eq span,
-	.djd-btn,
-	.djd-player,
-	.djd-ticker,
-	.djd-ticker__bulbs,
-	.djd-ticker__track,
-	.djd-hero__echo,
-	.djd-hero__wall-tile {
-		animation: none !important;
-		opacity: 1 !important;
-		transform: none !important;
-		filter: none !important;
-	}
-	.djd-eq span { height: 100% !important; }
-	.djd-hero__photo.is-active { filter: grayscale(1) contrast(1.05) !important; }
-	.djd-hero { transform: none !important; border-radius: 0 !important; }
-	.djd-hero__wall { display: none !important; }
 }

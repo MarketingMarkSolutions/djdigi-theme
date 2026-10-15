@@ -62,9 +62,10 @@ body.djdigi-theme .fusion-secondary-header {
 	background-image: none !important;
 }
 
-/* ---------- Secondary header (small plain social icons) ----------
-   Not the magnetic dock: that is footer only, scoped strictly in dock.js
-   to the footer's own social links so it can never pick up this bar. */
+/* ---------- Secondary header (small magnetic dock) ----------
+   dock.js builds a small version of the same dock here from this bar's own
+   social links, left aligned to the same 1600px box as the logo below it
+   via the row rule right after this. See the dock rules further down. */
 
 body.djdigi-theme .fusion-secondary-header {
 	background-color: var(--djd-ink) !important;
@@ -209,7 +210,15 @@ body.djdigi-theme .fusion-main-menu .sub-menu li a {
 	background-color: transparent !important;
 	border-bottom: 0 !important;
 }
+/* position: relative on every nested li, not just the top level ones (see
+   the rule above .fusion-main-menu > ul > li): without it, a nested
+   .sub-menu's absolute position resolves against the nearest positioned
+   ancestor, which without this rule is the TOP level li for every depth,
+   not that panel's own immediate parent row. That is what let a third
+   level flyout land on top of the first panel instead of beside its own
+   row: it was never actually positioned relative to its own parent. */
 body.djdigi-theme .fusion-main-menu .sub-menu li {
+	position: relative;
 	list-style: none !important;
 	margin: 0 !important;
 }
@@ -291,13 +300,14 @@ body.djdigi-theme .fusion-button:hover {
 	color: var(--djd-night) !important;
 }
 
-/* ---------- Footer: magnetic social dock ----------
-   dock.js scopes its lookup strictly to the footer's own social links
-   (footer#footer.fusion-footer-copyright-area .fusion-social-links-footer),
-   so it can never pick up the header's small icon bar above. Avada's own
-   rendered footer icons are hidden only once dock.js has read their hrefs,
-   not hidden unconditionally here: if dock.js never runs, the original
-   icons stay exactly as Avada renders them. */
+/* ---------- Magnetic social dock: header (small) and footer (full size) ----------
+   dock.js builds one from each wrapper's own distinct ancestor path
+   (footer: fusion-social-links-footer, header: fusion-social-links-header),
+   so one can never pick up the other's icons by accident, the exact bug a
+   bare, unscoped class query caused in an earlier version. Avada's own
+   rendered icons are hidden only once dock.js has read their hrefs, not
+   hidden unconditionally here: if dock.js never runs, the originals stay
+   exactly as Avada renders them. */
 
 .djd-dock {
 	display: flex;
@@ -330,26 +340,17 @@ body.djdigi-theme .fusion-button:hover {
 	outline-offset: 3px;
 }
 
-/* Touch devices and reduced motion: a static row, no magnification. */
+/* Touch devices: a static row, no magnification. */
 .djd-dock.is-static .djd-dock__btn { transform: none !important; }
 
-body.djdigi-theme .fusion-footer-widget-area.djdt-is-empty { display: none !important; }
+/* Header's small version of the same dock: smaller buttons, same colors and
+   magnetic behavior (dock.js reuses the same math; the size difference
+   alone keeps the grow-near-the-cursor ratio reading right). */
+.djd-dock--small { gap: 8px; padding-block: 6px; }
+.djd-dock--small .djd-dock__btn { width: 28px; height: 28px; }
+.djd-dock--small .djd-dock__btn svg { width: 13px; height: 13px; }
 
-@media (prefers-reduced-motion: reduce) {
-	.djd-hero *,
-	.djd-hero *::before,
-	.djd-hero *::after,
-	body.djdigi-theme [class*="djd-"],
-	body.djdigi-theme [class*="djd-"]::before,
-	body.djdigi-theme [class*="djd-"]::after,
-	body.djdigi-theme [class*="djdt-"],
-	body.djdigi-theme [class*="djdt-"]::before,
-	body.djdigi-theme [class*="djdt-"]::after {
-		animation-duration: 0.01ms !important;
-		animation-iteration-count: 1 !important;
-		transition-duration: 0.01ms !important;
-	}
-}
+body.djdigi-theme .fusion-footer-widget-area.djdt-is-empty { display: none !important; }
 
 /* =========================================================================
    Pages with the [djdigi_hero]: header floats over the dark hero
@@ -404,21 +405,14 @@ body.djdigi-has-hero .fusion-header-wrapper {
 }
 @keyframes djd-header-drop { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: translateY(0); } }
 
-/* The broad reduced-motion rule further down only matches our own djd-/djdt-
-   prefixed classes, on purpose, so it never touches Avada's own animations.
-   This is the one animation we put directly on an Avada class, so it needs
-   naming here instead. */
-@media (prefers-reduced-motion: reduce) {
-	body.djdigi-has-hero .fusion-header-wrapper { animation: none !important; }
-}
 body.djdigi-has-hero.djdigi-hero-strip .fusion-header-wrapper { top: 46px; }
 
 /* Past 1680px wide (1600px box + 40px padding each side) the hero's own
    content stays inside that box while an unconstrained header would keep
    stretching to the window edge. Matching the box and its padding here is
-   what lines the logo up with "Video DJ since 2008" and the menu up with
-   "San Francisco". Applies whether or not the header is currently sticky,
-   so nothing shifts sideways on scroll. */
+   what lines the logo and menu up with the hero content and the small
+   header dock below. Applies whether or not the header is currently
+   sticky, so nothing shifts sideways on scroll. */
 body.djdigi-has-hero .fusion-header {
 	max-width: 1600px;
 	margin-left: auto;
@@ -451,12 +445,22 @@ body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-
 body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu > ul > li > a:hover {
 	color: var(--djd-cyan) !important;
 }
-body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu .sub-menu {
+/* Dropdown panels on the hero are always dark (night with paper text), not
+   just while the header floats non-sticky: unlike the glass menu bar and
+   link color above, which only make sense over the photo, a dropdown panel
+   has its own solid background regardless, so there is no reason for it to
+   revert to the cream/violet default once the header goes sticky. */
+body.djdigi-has-hero .fusion-main-menu .sub-menu {
 	background-color: #140f33 !important;
 	border-color: rgba(241, 236, 226, 0.18) !important;
 	box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4) !important;
 }
-body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu .sub-menu li a {
+body.djdigi-has-hero .fusion-main-menu .sub-menu li a {
+	color: var(--djd-paper) !important;
+}
+body.djdigi-has-hero .fusion-main-menu .sub-menu li a:hover,
+body.djdigi-has-hero .fusion-main-menu .sub-menu li:hover > a {
+	background-color: rgba(36, 169, 224, 0.2) !important;
 	color: var(--djd-paper) !important;
 }
 body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-mobile-selector {

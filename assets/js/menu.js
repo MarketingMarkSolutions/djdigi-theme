@@ -3,8 +3,6 @@
 (function () {
 	'use strict';
 
-	var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 	/* -----------------------------------------------------------------------
 	 * Sliding pill
 	 * -------------------------------------------------------------------- */
@@ -52,7 +50,7 @@
 		var fromHref = null;
 		try { fromHref = sessionStorage.getItem('djdMenuFrom'); sessionStorage.removeItem('djdMenuFrom'); } catch (e) { /* ignore */ }
 
-		if (fromHref && !reduceMotion) {
+		if (fromHref) {
 			var fromLink = topLevelLinks().filter(function (a) { return a.href === fromHref; })[0];
 			if (fromLink) {
 				place(fromLink, false);
@@ -73,8 +71,8 @@
 
 		topLevelLinks().forEach(function (a) {
 			a.addEventListener('click', function (e) {
-				if (e.metaKey || e.ctrlKey || e.shiftKey || 1 === e.button || reduceMotion) {
-					return; // new tab, or motion is off: let it navigate plainly
+				if (e.metaKey || e.ctrlKey || e.shiftKey || 1 === e.button) {
+					return; // new tab: let it navigate plainly
 				}
 				e.preventDefault();
 				place(a, true);
@@ -91,28 +89,38 @@
 	 * Dropdown panels: CSS positions every panel below and left aligned to
 	 * its own trigger (or to the right for a nested flyout). This only adds
 	 * djd-flip-right when that would run the panel past the viewport's right
-	 * edge, which plain CSS has no way to detect on its own.
+	 * edge, which plain CSS has no way to detect on its own. A trigger whose
+	 * own parent has already flipped left inherits that regardless of its
+	 * own fit, so a chain of nested flyouts keeps moving the same direction
+	 * instead of zigzagging back toward the panel it is trying to clear.
 	 * -------------------------------------------------------------------- */
 	(function keepDropdownsOnscreen() {
-		var triggers = document.querySelectorAll('.fusion-main-menu li.menu-item-has-children, .fusion-main-menu li.fusion-dropdown-menu');
+		var triggerSelector = '.fusion-main-menu li.menu-item-has-children, .fusion-main-menu li.fusion-dropdown-menu';
+		var triggers = document.querySelectorAll(triggerSelector);
 		if (!triggers.length) return;
 
 		function checkOne(li) {
 			var panel = li.querySelector(':scope > ul.sub-menu');
 			if (!panel) return;
+			var parentLi = li.parentElement ? li.parentElement.closest(triggerSelector) : null;
+			var ancestorFlipped = !!(parentLi && parentLi.classList.contains('djd-flip-right'));
 			li.classList.remove('djd-flip-right');
-			var wasHidden = panel.style.visibility;
-			// A closed panel (display:none via Avada, or just not hovered) can
-			// still be measured by briefly forcing it visible off the clickable
-			// path, since getBoundingClientRect on a non-rendered box is 0.
-			panel.style.visibility = 'hidden';
-			panel.style.display = 'block';
-			var r = panel.getBoundingClientRect();
-			if (r.right > window.innerWidth - 8) {
+			var overflowsRight = false;
+			if (!ancestorFlipped) {
+				var wasHidden = panel.style.visibility;
+				// A closed panel (display:none via Avada, or just not hovered) can
+				// still be measured by briefly forcing it visible off the clickable
+				// path, since getBoundingClientRect on a non-rendered box is 0.
+				panel.style.visibility = 'hidden';
+				panel.style.display = 'block';
+				var r = panel.getBoundingClientRect();
+				overflowsRight = r.right > window.innerWidth - 8;
+				panel.style.display = '';
+				panel.style.visibility = wasHidden;
+			}
+			if (ancestorFlipped || overflowsRight) {
 				li.classList.add('djd-flip-right');
 			}
-			panel.style.display = '';
-			panel.style.visibility = wasHidden;
 		}
 
 		function checkAll() {

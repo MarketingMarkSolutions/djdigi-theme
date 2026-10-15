@@ -1,11 +1,11 @@
-/* Footer: swaps Avada's rendered social icons for a magnetic dock built from
-   the same hrefs, and hides the footer widget area when it has no widgets.
-   Avada keeps owning the actual social link settings; this only reads them. */
+/* Footer and header: swaps Avada's rendered social icons for a magnetic dock
+   built from the same hrefs, and hides the footer widget area when it has no
+   widgets. Avada keeps owning the actual social link settings; this only
+   reads them. */
 (function () {
 	'use strict';
 
 	var cfg = window.djdtDock || {};
-	var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 	var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
 	var ICONS = {
@@ -33,12 +33,17 @@
 		return null;
 	}
 
-	(function buildDock() {
-		// Scoped strictly to the footer's own copy of this markup: Avada
-		// reuses the exact same .fusion-social-networks-wrapper class for the
-		// header's small icon bar, and an unscoped query here previously
-		// grabbed that one instead, since it comes first in the document.
-		var wrapper = document.querySelector('footer#footer.fusion-footer-copyright-area .fusion-social-links-footer .fusion-social-networks-wrapper');
+	// Builds one dock from one wrapper. Called once for the footer (its own
+	// full size, plus Mixcloud, which is not one of Avada's own social
+	// network options) and once for the header (small size, whatever Avada
+	// icons are actually there, nothing added).
+	function buildDockFrom(selector, opts) {
+		opts = opts || {};
+		// Scoped to each wrapper's own full ancestor path: Avada reuses the
+		// exact same .fusion-social-networks-wrapper class in both the header
+		// and the footer, and an unscoped query previously grabbed whichever
+		// came first in the document regardless of which one was wanted.
+		var wrapper = document.querySelector(selector);
 		if (!wrapper) return;
 
 		var found = {};
@@ -46,12 +51,13 @@
 			var network = detectNetwork(a);
 			if (network && !found[network]) found[network] = a.href;
 		});
-		if (cfg.mixcloudUrl) found.mixcloud = cfg.mixcloudUrl;
+		if (opts.mixcloudUrl) found.mixcloud = opts.mixcloudUrl;
 
 		var order = ['instagram', 'tiktok', 'facebook', 'bluesky', 'snapchat', 'mixcloud'];
 		var dock = document.createElement('div');
 		dock.className = 'djd-dock';
-		if (reduceMotion || isTouch) dock.classList.add('is-static');
+		if (opts.extraClass) dock.classList.add(opts.extraClass);
+		if (isTouch) dock.classList.add('is-static');
 
 		order.forEach(function (key) {
 			if (!found[key]) return;
@@ -89,7 +95,10 @@
 				btn.classList.toggle('is-near', btn === nearest && nearestDist < NEAR);
 			});
 		});
-	})();
+	}
+
+	buildDockFrom('footer#footer.fusion-footer-copyright-area .fusion-social-links-footer .fusion-social-networks-wrapper', { mixcloudUrl: cfg.mixcloudUrl });
+	buildDockFrom('.fusion-secondary-header .fusion-social-links-header .fusion-social-networks-wrapper', { extraClass: 'djd-dock--small' });
 
 	(function hideEmptyWidgetArea() {
 		var area = document.querySelector('.fusion-footer-widget-area');
