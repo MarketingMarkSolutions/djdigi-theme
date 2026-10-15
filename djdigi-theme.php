@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: DJ DigiMark Theme
- * Description: Site styling, Avada menu restyle and the [djdigi_hero] homepage hero for djdigimark.com.
- * Version: 1.2.3
+ * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, and [djdigi_venues] for djdigimark.com.
+ * Version: 1.3.0
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.2.3' );
+define( 'DJDT_VERSION', '1.3.0' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -39,14 +39,20 @@ if ( false === strpos( DJDT_GITHUB_REPO, 'GITHUB-USERNAME' ) && file_exists( DJD
 
 function djdt_defaults() {
 	return array(
-		'live'          => 0,
-		'mixcloud_user' => 'djdigimark',
-		'mix_mode'      => 'latest',
-		'mix_url'       => '',
-		'hero_photos'   => array(),
-		'sets_url'      => '/upcoming-events/',
-		'videos_url'    => '/video-gallery/',
-		'ticker'        => "House\nEDM\nTop 40 Remixes\n70s · 80s · 90s · 00s Dance\nPride/Queer Pop & Dance\nLive Video DJ Sets",
+		'live'           => 0,
+		'mixcloud_user'  => 'djdigimark',
+		'mix_mode'       => 'latest',
+		'mix_url'        => '',
+		'hero_photos'    => array(),
+		'sets_url'       => '/upcoming-events/',
+		'videos_url'     => '/video-gallery/',
+		// Reused for the static genre list below the venues card (v1.3.0);
+		// the key is still called "ticker" since it is the same setting,
+		// just no longer a scrolling marquee. Do not rename the key, that
+		// would silently drop whatever Mark already has saved.
+		'ticker'         => "House\nEDM\nTop 40 Remixes\n70s · 80s · 90s · 00s Dance\nPride/Queer Pop & Dance\nLive Video DJ Sets",
+		'venues'         => array(),
+		'venues_heading' => "Where I've played",
 	);
 }
 
@@ -98,6 +104,7 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 	wp_enqueue_script( 'djdt-admin', DJDT_URL . 'assets/js/admin.js', array( 'jquery' ), djdt_ver( 'assets/js/admin.js' ), true );
 	wp_localize_script( 'djdt-admin', 'djdtAdmin', array(
 		'photos' => array_values( djdt_get( 'hero_photos' ) ),
+		'venues' => array_values( djdt_get( 'venues' ) ),
 	) );
 } );
 
@@ -111,6 +118,7 @@ function djdt_sanitize( $in ) {
 	$out['sets_url']      = sanitize_text_field( isset( $in['sets_url'] ) ? $in['sets_url'] : $d['sets_url'] );
 	$out['videos_url']    = sanitize_text_field( isset( $in['videos_url'] ) ? $in['videos_url'] : $d['videos_url'] );
 	$out['ticker']        = sanitize_textarea_field( isset( $in['ticker'] ) ? $in['ticker'] : $d['ticker'] );
+	$out['venues_heading'] = sanitize_text_field( isset( $in['venues_heading'] ) && '' !== trim( (string) $in['venues_heading'] ) ? $in['venues_heading'] : $d['venues_heading'] );
 
 	// Hero photos: one hidden field carrying JSON built by admin.js (order, focal points).
 	// Each row is re-validated here rather than trusted, same as anything else arriving by POST.
@@ -126,6 +134,31 @@ function djdt_sanitize( $in ) {
 				'id' => $id,
 				'x'  => isset( $row['x'] ) ? max( 0, min( 100, (float) $row['x'] ) ) : 50,
 				'y'  => isset( $row['y'] ) ? max( 0, min( 100, (float) $row['y'] ) ) : 50,
+			);
+		}
+	}
+
+	// Venues: same hidden JSON field pattern as hero photos, see admin.js.
+	// The logo is optional (a row can be caption and link only), unlike a
+	// hero photo, which is why id is not required here.
+	$out['venues'] = array();
+	$raw = isset( $in['venues_json'] ) ? json_decode( wp_unslash( $in['venues_json'] ), true ) : array();
+	if ( is_array( $raw ) ) {
+		foreach ( array_slice( $raw, 0, 60 ) as $row ) {
+			$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+			if ( $id > 0 && ! wp_attachment_is_image( $id ) ) {
+				$id = 0;
+			}
+			$caption = isset( $row['caption'] ) ? sanitize_text_field( $row['caption'] ) : '';
+			$link    = isset( $row['link'] ) ? esc_url_raw( trim( $row['link'] ) ) : '';
+			if ( ! $id && '' === $caption ) {
+				continue; // nothing to show for this row at all
+			}
+			$out['venues'][] = array(
+				'id'      => $id,
+				'caption' => $caption,
+				'link'    => $link,
+				'on'      => empty( $row['on'] ) ? 0 : 1,
 			);
 		}
 	}
@@ -185,17 +218,33 @@ function djdt_render_settings() {
 					<td><input id="djdt-videos" class="regular-text" name="<?php echo esc_attr( $n ); ?>[videos_url]" value="<?php echo esc_attr( $s['videos_url'] ); ?>"></td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="djdt-ticker">Ticker items</label></th>
+					<th scope="row"><label for="djdt-venues-heading">Venues section heading</label></th>
+					<td><input id="djdt-venues-heading" class="regular-text" name="<?php echo esc_attr( $n ); ?>[venues_heading]" value="<?php echo esc_attr( $s['venues_heading'] ); ?>"></td>
+				</tr>
+				<tr>
+					<th scope="row">Venues</th>
+					<td>
+						<div id="djdt-venues" class="djdt-venue-grid"></div>
+						<p>
+							<button type="button" class="button" id="djdt-add-venue">Add venue</button>
+						</p>
+						<input type="hidden" id="djdt-venues-json" name="<?php echo esc_attr( $n ); ?>[venues_json]" value="<?php echo esc_attr( wp_json_encode( array_values( $s['venues'] ) ) ); ?>">
+						<p class="description">Drag a row to reorder. Logo is optional, a row with no logo shows its caption in the display font instead. The switch turns a venue on or off without losing its logo or caption.</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="djdt-ticker">Genres ("What I play")</label></th>
 					<td>
 						<textarea id="djdt-ticker" class="large-text" rows="7" name="<?php echo esc_attr( $n ); ?>[ticker]"><?php echo esc_textarea( $s['ticker'] ); ?></textarea>
-						<p class="description">One item per line. Use " · " inside a line to group things into one item (like the decades).</p>
+						<p class="description">Shown as a static list below the venues card. One item per line. Use " · " inside a line to group things into one item (like the decades).</p>
 					</td>
 				</tr>
 			</table>
 			<?php submit_button(); ?>
 		</form>
 		<p>Hero shortcode: <code>[djdigi_hero]</code>. Put it alone in a 100% width container with no padding, at the top of the page. Add <code>?intro=1</code> to any hero page URL to force the full opening sequence while testing.</p>
-		<p><strong>After saving:</strong> if a caching plugin or your host's cache is active, purge the cached copy of any page carrying <code>[djdigi_hero]</code>, or changes here (hero photos especially) can keep showing the old version. See the plugin's CLAUDE.md for exact steps.</p>
+		<p>Venues shortcode: <code>[djdigi_venues]</code>. Put it right below the hero shortcode on Home v2.</p>
+		<p><strong>After saving:</strong> if a caching plugin or your host's cache is active, purge the cached copy of any page carrying <code>[djdigi_hero]</code> or <code>[djdigi_venues]</code>, or changes here (hero photos and venues especially) can keep showing the old version. See the plugin's CLAUDE.md for exact steps.</p>
 	</div>
 	<?php
 }
@@ -218,6 +267,9 @@ add_action( 'wp_enqueue_scripts', function () {
 
 	wp_register_style( 'djdt-hero', DJDT_URL . 'assets/css/hero.css', array( 'djdt-site' ), djdt_ver( 'assets/css/hero.css' ) );
 	wp_register_script( 'djdt-hero', DJDT_URL . 'assets/js/hero.js', array(), djdt_ver( 'assets/js/hero.js' ), true );
+
+	wp_register_style( 'djdt-venues', DJDT_URL . 'assets/css/venues.css', array( 'djdt-site' ), djdt_ver( 'assets/css/venues.css' ) );
+	wp_register_script( 'djdt-venues', DJDT_URL . 'assets/js/venues.js', array(), djdt_ver( 'assets/js/venues.js' ), true );
 
 	// Menu and footer dock run on every themed page, hero or not.
 	wp_enqueue_script( 'djdt-menu', DJDT_URL . 'assets/js/menu.js', array(), djdt_ver( 'assets/js/menu.js' ), true );
@@ -422,8 +474,6 @@ function djdt_hero_shortcode() {
 
 	$next_up = shortcode_exists( 'djdigi_next_up' ) ? do_shortcode( '[djdigi_next_up]' ) : '';
 
-	$items = array_filter( array_map( 'trim', explode( "\n", (string) djdt_get( 'ticker' ) ) ) );
-
 	ob_start();
 	?>
 	<section class="djd-hero" aria-label="DJ DigiMark" data-photo-count="<?php echo (int) count( $photos ); ?>">
@@ -505,47 +555,140 @@ function djdt_hero_shortcode() {
 				<?php endif; ?>
 			</div>
 		</div>
-
-		<?php if ( $items ) : ?>
-			<div class="djd-ticker" aria-label="What I play">
-				<div class="djd-ticker__bulbs" aria-hidden="true"></div>
-				<div class="djd-ticker__window">
-					<div class="djd-ticker__track">
-						<?php for ( $copy = 0; $copy < 2; $copy++ ) : ?>
-							<span class="djd-ticker__set"<?php echo $copy ? ' aria-hidden="true"' : ''; ?>>
-								<?php foreach ( array_values( $items ) as $i => $item ) : ?>
-									<span class="djd-ticker__item<?php echo ( 2 === $i % 3 ) ? ' is-accent' : ''; ?>"><?php echo djdt_ticker_item( $item ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></span>
-									<span class="djd-ticker__dot" aria-hidden="true">●</span>
-								<?php endforeach; ?>
-							</span>
-						<?php endfor; ?>
-					</div>
-				</div>
-				<div class="djd-ticker__bulbs" aria-hidden="true"></div>
-			</div>
-		<?php endif; ?>
 	</section>
 	<?php
 	return ob_get_clean();
 }
 
-/** Escapes a ticker line and softens any " · " grouping dots inside it. */
-function djdt_ticker_item( $text ) {
+/** Escapes a genre line and softens any " · " grouping dots inside it. */
+function djdt_genre_item( $text ) {
 	$parts = array_map( 'esc_html', array_map( 'trim', explode( '·', $text ) ) );
-	return implode( '<span class="djd-ticker__sub" aria-hidden="true">·</span>', $parts );
+	return implode( '<span class="djd-genres__sub" aria-hidden="true">·</span>', $parts );
 }
 
 /**
  * Splits a word into one span per letter, each carrying its index in --i so
- * the CSS stagger can read it. aria-hidden: the parent heading already
- * carries the readable name in its own aria-label.
+ * CSS can stagger something per letter (the hero name's entrance, or the
+ * venues heading's beam sweep, each with their own class and animation).
+ * aria-hidden: the parent heading already carries the readable text in its
+ * own aria-label.
+ *
+ * @param string $word  Text to split. Spaces become their own (empty
+ *                       looking but real) span, which is fine, inline-block
+ *                       spans still lay out like normal inline text.
+ * @param string $class Class on each letter span.
  */
-function djdt_split_letters( $word ) {
+function djdt_split_letters( $word, $class = 'djd-letter' ) {
 	$out = '';
 	$i   = 0;
 	foreach ( preg_split( '//u', $word, -1, PREG_SPLIT_NO_EMPTY ) as $ch ) {
-		$out .= '<span class="djd-letter" style="--i:' . (int) $i . '">' . esc_html( $ch ) . '</span>';
+		$out .= '<span class="' . esc_attr( $class ) . '" style="--i:' . (int) $i . '">' . esc_html( $ch ) . '</span>';
 		$i++;
 	}
 	return $out;
+}
+
+/* -------------------------------------------------------------------------
+ * [djdigi_venues]: clubs and events Mark has played, plus the static
+ * genre list underneath (reusing the old ticker's settings and sanitizing,
+ * just rendered as plain static text now, not a scrolling marquee).
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Returns only the venues switched on, each with a render-ready logo src
+ * (empty string if that row has no logo, or its attachment was deleted
+ * since being picked, either way a valid state, not an error).
+ */
+function djdt_venues() {
+	$rows = djdt_get( 'venues' );
+	$out  = array();
+	if ( is_array( $rows ) ) {
+		foreach ( $rows as $row ) {
+			if ( empty( $row['on'] ) ) {
+				continue;
+			}
+			$id  = isset( $row['id'] ) ? (int) $row['id'] : 0;
+			$src = ( $id > 0 && wp_attachment_is_image( $id ) ) ? wp_get_attachment_image_url( $id, 'medium' ) : '';
+			$out[] = array(
+				'src'     => (string) $src,
+				'caption' => isset( $row['caption'] ) ? $row['caption'] : '',
+				'link'    => isset( $row['link'] ) ? $row['link'] : '',
+			);
+		}
+	}
+	return $out;
+}
+
+/** One venue's markup: a logo, or its caption in the display font if it has no logo. */
+function djdt_venue_item( $v ) {
+	if ( $v['src'] ) {
+		$inner = '<span class="djd-venues__logo-wrap"><img class="djd-venues__logo" src="' . esc_url( $v['src'] ) . '" alt="" loading="lazy"></span>';
+		if ( $v['caption'] ) {
+			$inner .= '<span class="djd-venues__caption">' . esc_html( $v['caption'] ) . '</span>';
+		}
+	} else {
+		$inner = '<span class="djd-venues__name">' . esc_html( $v['caption'] ) . '</span>';
+	}
+	if ( $v['link'] ) {
+		echo '<a class="djd-venues__item" href="' . esc_url( $v['link'] ) . '" target="_blank" rel="noopener">' . $inner . '</a>'; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside
+	} else {
+		echo '<div class="djd-venues__item">' . $inner . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside
+	}
+}
+
+add_shortcode( 'djdigi_venues', 'djdt_venues_shortcode' );
+
+function djdt_venues_shortcode() {
+	if ( ! djdt_is_active() ) {
+		return '';
+	}
+	$venues = djdt_venues();
+	if ( ! $venues ) {
+		return '';
+	}
+	wp_enqueue_style( 'djdt-venues' );
+	wp_enqueue_script( 'djdt-venues' );
+
+	$heading = (string) djdt_get( 'venues_heading' );
+	$genres  = array_filter( array_map( 'trim', explode( "\n", (string) djdt_get( 'ticker' ) ) ) );
+
+	// A handful of venues would make a thin, obviously-looping row; repeat
+	// the set until it is wide enough to feel intentional, same idea as
+	// the old ticker had for a short genre list.
+	$padded   = $venues;
+	$min_rows = 8;
+	while ( count( $padded ) > 0 && count( $padded ) < $min_rows ) {
+		$padded = array_merge( $padded, $venues );
+	}
+
+	ob_start();
+	?>
+	<section class="djd-venues" aria-label="<?php echo esc_attr( $heading ); ?>">
+		<div class="djd-venues__card">
+			<div class="djd-venues__beam" aria-hidden="true"></div>
+			<h2 class="djd-venues__heading"><?php echo djdt_split_letters( $heading, 'djd-venues__letter' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></h2>
+			<div class="djd-venues__window">
+				<div class="djd-venues__track">
+					<?php for ( $copy = 0; $copy < 2; $copy++ ) : ?>
+						<div class="djd-venues__set"<?php echo $copy ? ' aria-hidden="true"' : ''; ?>>
+							<?php foreach ( $padded as $v ) : djdt_venue_item( $v ); endforeach; ?>
+						</div>
+					<?php endfor; ?>
+				</div>
+			</div>
+		</div>
+		<?php if ( $genres ) : ?>
+			<div class="djd-genres">
+				<span class="djd-genres__label">What I play</span>
+				<div class="djd-genres__list">
+					<?php foreach ( array_values( $genres ) as $i => $item ) : ?>
+						<?php if ( $i > 0 ) : ?><span class="djd-genres__dot" aria-hidden="true">●</span><?php endif; ?>
+						<span class="djd-genres__item<?php echo ( 2 === $i % 3 ) ? ' is-accent' : ''; ?>"><?php echo djdt_genre_item( $item ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></span>
+					<?php endforeach; ?>
+				</div>
+			</div>
+		<?php endif; ?>
+	</section>
+	<?php
+	return ob_get_clean();
 }

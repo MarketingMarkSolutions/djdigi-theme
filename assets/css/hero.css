@@ -1,5 +1,5 @@
 /* [djdigi_hero]: large right side photo, layered opening, scroll shrink,
-   name, slogan, Mixcloud player, ticker. */
+   name, slogan, Mixcloud player. */
 
 .djd-hero {
 	position: relative;
@@ -434,59 +434,6 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 .djd-player__links a:hover { color: var(--djd-cyan) !important; opacity: 1; }
 .djd-player__frame { position: absolute; width: 1px; height: 1px; left: -9999px; top: 0; border: 0; opacity: 0; pointer-events: none; }
 
-/* Ticker. The track holds the items twice in a row (PHP) and slides by
-   exactly half its own width, transform only, so the loop point is
-   seamless: once the first copy has fully scrolled off, the second copy
-   is sitting exactly where the first one started. --djd-ticker-dur is
-   worked out in hero.js from the track's real rendered width, so the
-   speed reads the same regardless of item count or viewport width,
-   instead of a fixed duration that is a different speed on every screen.
-   contain: layout paint isolates the whole strip from the rest of the
-   page, so nothing outside it can force a repaint here and vice versa.
-   The bulb dots are a plain static background now (v1.2.3), not
-   animated at all: nothing behind the track should be moving while it
-   runs, full stop, see CLAUDE.md for what else that round cut. */
-.djd-ticker {
-	position: relative;
-	z-index: 10;
-	background: var(--djd-violet);
-	color: var(--djd-paper);
-	overflow: hidden;
-	contain: layout paint;
-	transform: translate3d(0, 100%, 0);
-	opacity: 0;
-	animation: djd-rise-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-ticker, 1.2s) both;
-}
-.djd-ticker__bulbs {
-	height: 14px;
-	background-image: radial-gradient(circle, var(--djd-orange) 2.6px, transparent 3.2px);
-	background-size: 20px 12px;
-	background-position: 0 center;
-}
-.djd-ticker__window { overflow: hidden; padding: 6px 0; }
-.djd-ticker__track {
-	display: flex;
-	width: max-content;
-	will-change: transform;
-	animation: djd-marquee var(--djd-ticker-dur, 24s) linear infinite;
-}
-.djd-ticker:hover .djd-ticker__track { animation-play-state: paused; }
-.djd-ticker__set {
-	display: flex;
-	align-items: center;
-	gap: 34px;
-	padding-right: 34px;
-	font-family: var(--djd-display);
-	font-weight: 800;
-	font-size: clamp(30px, 3.2vw, 46px);
-	line-height: 1.1;
-	text-transform: uppercase;
-	white-space: nowrap;
-}
-.djd-ticker__item.is-accent { color: var(--djd-cyan); }
-.djd-ticker__dot { color: var(--djd-orange); font-size: 0.6em; }
-.djd-ticker__sub { opacity: 0.45; padding: 0 0.22em; }
-
 /* ---------------------------------------------------------------------
    Opening sequence keyframes. Transform and opacity only, nothing that
    forces layout or paint (no filter, no blur, no background-position):
@@ -516,7 +463,6 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	0%, 100% { transform: translate3d(0, 0, 0); }
 	50% { transform: translate3d(0, -2px, 0); }
 }
-@keyframes djd-marquee { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-50%, 0, 0); } }
 
 .djd-hero__glow { animation: djd-glow-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-glow, 0s) both, djd-glow-drift 16s ease-in-out calc(var(--djd-t-glow, 0s) + 0.6s) infinite alternate; }
 
@@ -552,8 +498,7 @@ body:not(.djd-intro-ready) .djd-hero__slogan,
 body:not(.djd-intro-ready) .djd-eq,
 body:not(.djd-intro-ready) .djd-eq span,
 body:not(.djd-intro-ready) .djd-btn,
-body:not(.djd-intro-ready) .djd-player,
-body:not(.djd-intro-ready) .djd-ticker {
+body:not(.djd-intro-ready) .djd-player {
 	animation-play-state: paused, paused !important;
 }
 .djd-hero__glow,
@@ -565,8 +510,7 @@ body:not(.djd-intro-ready) .djd-ticker {
 .djd-eq,
 .djd-eq span,
 .djd-btn,
-.djd-player,
-.djd-ticker {
+.djd-player {
 	will-change: transform, opacity;
 }
 

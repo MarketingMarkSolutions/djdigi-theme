@@ -1,5 +1,5 @@
 /* [djdigi_hero] behavior: opening sequence timing, photo rotation, scroll
-   shrink, the ticker's speed, and the Mixcloud player. */
+   shrink, the header fix, and the Mixcloud player. */
 (function () {
 	'use strict';
 
@@ -9,6 +9,9 @@
 	var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
 	/* -----------------------------------------------------------------------
+	 * Header over the hero: two separate guarantees neither CSS nor the
+	 * normal intro timing can make on their own.
+	 *
 	 * Avada's own global header background image (an Options panel setting,
 	 * set site wide) comes from Avada's own generated CSS, which has beaten
 	 * an external stylesheet rule here even with !important across two
@@ -16,11 +19,20 @@
 	 * to be. An inline style set with the important priority cannot be
 	 * beaten by any stylesheet rule regardless of its own specificity, so
 	 * this is the one way to actually guarantee it is gone. Only the image
-	 * is forced here; background color is left to CSS, which already
-	 * handles the transparent versus sticky distinction correctly.
+	 * is forced here; background color and position are left to CSS, which
+	 * already handle those correctly (see site.css for the v1.3.0 fix to a
+	 * doubled admin bar offset that was pushing the header into the hero).
+	 *
+	 * Separately, the header's own entrance depends on the intro ready gate
+	 * below ever firing. If it never does for any reason (a script error
+	 * elsewhere, a promise that never settles), the header must not stay
+	 * invisible forever: there would be no way to navigate the site at all.
+	 * A timeout well past the normal intro forces it to its final visible
+	 * state regardless of whether the animation ever actually played.
 	 * -------------------------------------------------------------------- */
-	(function killHeaderBgImage() {
+	(function fixHeaderOverHero() {
 		if (!document.body.classList.contains('djdigi-has-hero')) return;
+		var wrapper = document.querySelector('.fusion-header-wrapper');
 		var selector = [
 			'.fusion-header-wrapper',
 			'.fusion-header',
@@ -31,17 +43,24 @@
 			'.fusion-sticky-header-wrapper .fusion-header',
 			'.fusion-sticky-header-wrapper .fusion-row'
 		].join(', ');
-		function apply() {
+		function killBgImage() {
 			document.querySelectorAll(selector).forEach(function (el) {
 				el.style.setProperty('background-image', 'none', 'important');
 			});
 		}
-		apply();
+		killBgImage();
 		// Avada's sticky header clone, if it is a separate element, can be
 		// built slightly after initial render; a couple of follow up passes
 		// catch that without an open ended observer.
-		window.addEventListener('load', apply);
-		setTimeout(apply, 1500);
+		window.addEventListener('load', killBgImage);
+		setTimeout(killBgImage, 1500);
+
+		setTimeout(function () {
+			if (!wrapper) return;
+			wrapper.style.setProperty('opacity', '1', 'important');
+			wrapper.style.setProperty('transform', 'none', 'important');
+			wrapper.style.willChange = 'auto';
+		}, 3000);
 	})();
 
 	/* -----------------------------------------------------------------------
@@ -206,40 +225,12 @@
 				// so will-change stays on those rather than coming off
 				// right as they are still actively animating.
 				var animated = hero.querySelectorAll(
-					'.djd-in-dj, .djd-letter, .djd-hero__slogan, .djd-eq, .djd-btn, .djd-player, .djd-ticker'
+					'.djd-in-dj, .djd-letter, .djd-hero__slogan, .djd-eq, .djd-btn, .djd-player'
 				);
 				animated.forEach(function (el) { el.style.willChange = 'auto'; });
 				var headerWrapper = document.querySelector('.fusion-header-wrapper');
 				if (headerWrapper) headerWrapper.style.willChange = 'auto';
 			}, introDone);
-		});
-	})();
-
-	/* -----------------------------------------------------------------------
-	 * Ticker speed: works out how long one full loop should take from the
-	 * track's own rendered width, so it reads at a steady 60 to 80px per
-	 * second regardless of item count or viewport width, instead of a
-	 * fixed duration that is a different speed on every screen.
-	 * -------------------------------------------------------------------- */
-	(function tickerSpeed() {
-		var track = hero.querySelector('.djd-ticker__track');
-		if (!track) return;
-		var PX_PER_SECOND = 70;
-		function measure() {
-			var setWidth = track.scrollWidth / 2;
-			if (!setWidth) return;
-			var duration = Math.max(8, setWidth / PX_PER_SECOND);
-			track.style.setProperty('--djd-ticker-dur', duration.toFixed(2) + 's');
-		}
-		measure();
-		window.addEventListener('load', measure);
-		if (document.fonts && document.fonts.ready) {
-			document.fonts.ready.then(measure).catch(function () {});
-		}
-		var resizeTimer;
-		window.addEventListener('resize', function () {
-			clearTimeout(resizeTimer);
-			resizeTimer = setTimeout(measure, 150);
 		});
 	})();
 

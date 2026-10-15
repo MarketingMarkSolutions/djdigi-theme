@@ -1,0 +1,218 @@
+/* [djdigi_venues]: a bordered card on the night background with a traveling
+   light beam, a slow-moving row of venue logos, and a static genre list
+   underneath. Loaded only when the shortcode renders, same pattern as
+   hero.css. Transform and opacity only throughout, same lightness rules
+   as the hero (see CLAUDE.md, "Intro" and "Ticker" sections, v1.2.2 and
+   v1.2.3): no filter or backdrop-filter animation, nothing that forces a
+   repaint on every frame. */
+
+.djd-venues {
+	position: relative;
+	background: var(--djd-night);
+	padding: 72px 40px;
+}
+
+/* ---------------------------------------------------------------------
+   Card: a thin border, rounded corners, and the traveling beam. The beam
+   is a conic gradient rotated by a custom property (registered with
+   @property so the browser can animate its angle smoothly, which it
+   cannot do with an unregistered custom property), masked down to just
+   the border ring (padding-box excluded from border-box) so only a
+   short arc shows at a time, not the whole gradient disc. --djd-beam-dur
+   is worked out once in JS from the card's own perimeter, so the beam's
+   speed holds steady regardless of how big the card ends up being.
+   ------------------------------------------------------------------ */
+@property --djd-beam-angle {
+	syntax: '<angle>';
+	initial-value: 0deg;
+	inherits: false;
+}
+.djd-venues__card {
+	position: relative;
+	max-width: 1600px;
+	margin: 0 auto;
+	border: 1px solid rgba(241, 236, 226, 0.15);
+	border-radius: 24px;
+	padding: 48px 40px 32px;
+	overflow: hidden;
+	contain: layout paint;
+}
+.djd-venues__beam {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	padding: 1px;
+	background: conic-gradient(
+		from var(--djd-beam-angle, 0deg),
+		transparent 0deg,
+		transparent 320deg,
+		rgba(36, 169, 224, 0) 330deg,
+		var(--djd-cyan) 348deg,
+		var(--djd-violet) 359deg,
+		transparent 360deg
+	);
+	-webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+	mask-composite: exclude;
+	animation: djd-beam-spin var(--djd-beam-dur, 7s) linear infinite;
+	pointer-events: none;
+}
+@keyframes djd-beam-spin {
+	to { --djd-beam-angle: 360deg; }
+}
+
+/* Heading breaks the top border, like a legend on a fieldset: centered,
+   its own background matching the section behind the card so the border
+   line appears to stop where the text sits. */
+.djd-venues__heading {
+	position: absolute;
+	top: 0;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	margin: 0;
+	padding: 0 20px;
+	background: var(--djd-night);
+	font-family: var(--djd-display);
+	font-weight: 800;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	font-size: clamp(16px, 1.8vw, 22px);
+	white-space: nowrap;
+	z-index: 1;
+}
+/* Each letter rests at paper, with a brief cyan to violet sweep once per
+   loop, the same duration as the beam and staggered per letter so the
+   color visibly travels left to right, timed to when the beam itself is
+   passing behind the heading (see djd-venues__beam above, the arc is
+   drawn to reach full color right at 360deg/0deg, the heading's own
+   position). */
+.djd-venues__letter {
+	display: inline-block;
+	color: var(--djd-paper);
+	animation: djd-venues-sweep var(--djd-beam-dur, 7s) linear infinite;
+	animation-delay: calc(var(--i) * 0.015s);
+}
+@keyframes djd-venues-sweep {
+	0%, 90%, 100% { color: var(--djd-paper); }
+	95% { color: var(--djd-cyan); }
+	98% { color: var(--djd-violet); }
+}
+
+/* ---------------------------------------------------------------------
+   Logo row: one track holding the (possibly repeated, see PHP) venue set
+   twice, sliding by exactly half its own width, transform only, same
+   seamless-loop technique as the old ticker. Edges fade with a mask, not
+   an overlay wash, so it works against any logo color underneath.
+   ------------------------------------------------------------------ */
+.djd-venues__window {
+	position: relative;
+	overflow: hidden;
+	-webkit-mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 92%, transparent 100%);
+	mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 92%, transparent 100%);
+}
+.djd-venues__track {
+	display: flex;
+	width: max-content;
+	will-change: transform;
+	animation: djd-venues-marquee var(--djd-venues-dur, 30s) linear infinite;
+}
+.djd-venues__card:hover .djd-venues__track { animation-play-state: paused; }
+@keyframes djd-venues-marquee {
+	from { transform: translate3d(0, 0, 0); }
+	to { transform: translate3d(-50%, 0, 0); }
+}
+.djd-venues__set {
+	display: flex;
+	align-items: flex-end;
+	gap: 56px;
+	padding-right: 56px;
+}
+.djd-venues__item {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 10px;
+	text-decoration: none !important;
+	flex: 0 0 auto;
+}
+.djd-venues__logo-wrap {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 64px;
+}
+/* Any logo, any source color, reads as one flat off-white mark: crushed
+   to solid black first (keeping its own alpha), then inverted, which is
+   what makes a colored or dark logo come out a clean, consistent white
+   regardless of what it started as. Set once here, never animated. */
+.djd-venues__logo {
+	max-height: 64px;
+	max-width: 180px;
+	width: auto;
+	filter: brightness(0) invert(0.92);
+	opacity: 0.85;
+}
+.djd-venues__caption {
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: rgba(241, 236, 226, 0.6);
+	white-space: nowrap;
+}
+/* No logo: the caption stands in on its own, in the display font, sized
+   to read at a glance the same way a logo mark would. */
+.djd-venues__name {
+	display: flex;
+	align-items: center;
+	height: 64px;
+	font-family: var(--djd-display);
+	font-weight: 800;
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+	font-size: 22px;
+	color: var(--djd-paper);
+	white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------
+   Genres: static, no motion at all, plain brand-colored type.
+   ------------------------------------------------------------------ */
+.djd-genres {
+	max-width: 1600px;
+	margin: 40px auto 0;
+	padding: 0 40px;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: center;
+	gap: 10px 14px;
+}
+.djd-genres__label {
+	font-weight: 700;
+	font-size: 12px;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	color: var(--djd-cyan);
+}
+.djd-genres__list {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	align-items: baseline;
+	gap: 10px 14px;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--djd-paper);
+}
+.djd-genres__item.is-accent { color: var(--djd-cyan); }
+.djd-genres__dot { color: var(--djd-orange); font-size: 0.5em; opacity: 0.8; }
+.djd-genres__sub { opacity: 0.45; padding: 0 0.22em; }
+
+@media (max-width: 800px) {
+	.djd-venues { padding: 48px 16px; }
+	.djd-venues__card { padding: 40px 24px 24px; border-radius: 18px; }
+	.djd-venues__set { gap: 36px; padding-right: 36px; }
+	.djd-genres { padding: 0 16px; }
+}
