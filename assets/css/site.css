@@ -62,11 +62,12 @@ body.djdigi-theme .fusion-secondary-header {
 	background-image: none !important;
 }
 
-/* ---------- Secondary header (small plain social icons) ----------
-   Not a dock: Mark's call in v1.2.2, footer keeps the only magnetic dock.
-   Avada's own plain icons render here untouched, aligned to the same
-   1600px box as the logo below it. Hidden entirely on hero pages if
-   empty (dock.js adds djdt-is-empty), so it does not leave a gap. */
+/* ---------- Secondary header ----------
+   No social icons here at all now, footer keeps the only ones (Mark's
+   call, v1.2.3: v1.2.1 tried a small dock here, v1.2.2 reverted to
+   Avada's plain icons, now hidden outright). dock.js adds djdt-is-empty
+   when that leaves the bar with nothing else in it (checked against
+   Avada's own secondary menu, not the icons), so it does not leave a gap. */
 
 body.djdigi-theme .fusion-secondary-header {
 	background-color: var(--djd-ink) !important;
@@ -79,14 +80,11 @@ body.djdigi-theme .fusion-secondary-header .fusion-row {
 	padding-left: 40px;
 	padding-right: 40px;
 }
-body.djdigi-theme .fusion-secondary-header .fusion-social-network-icon,
-body.djdigi-theme .fusion-secondary-header .fusion-social-network-icon:before {
-	color: var(--djd-paper) !important;
+body.djdigi-theme .fusion-secondary-header .fusion-social-links-header,
+body.djdigi-theme .fusion-secondary-header .fusion-social-networks-wrapper {
+	display: none !important;
 }
-body.djdigi-theme .fusion-secondary-header .fusion-social-network-icon:hover:before {
-	color: var(--djd-cyan) !important;
-}
-body.djdigi-has-hero .fusion-secondary-header.djdt-is-empty { display: none !important; }
+body.djdigi-theme .fusion-secondary-header.djdt-is-empty { display: none !important; }
 
 /* ---------- Main header ---------- */
 
@@ -306,10 +304,10 @@ body.djdigi-theme .fusion-button:hover {
    dock.js builds this from the footer's own distinct ancestor path
    (fusion-social-links-footer), never a bare unscoped class query, which
    in an earlier version let it pick up the header's icons by accident.
-   Avada's own rendered icons are hidden only once dock.js has read their
-   hrefs, not hidden unconditionally here: if dock.js never runs, the
-   originals stay exactly as Avada renders them. The header keeps its
-   plain Avada icons untouched, see "Secondary header" above. */
+   Avada's own rendered footer icons are hidden only once dock.js has read
+   their hrefs, not hidden unconditionally here: if dock.js never runs,
+   the originals stay exactly as Avada renders them. The header's own
+   icons are a separate, unconditional hide, see "Secondary header" above. */
 
 .djd-dock {
 	display: flex;
@@ -405,10 +403,26 @@ body.djdigi-has-hero .fusion-header-wrapper {
 	will-change: transform, opacity;
 	animation: djd-header-drop 0.4s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-menu, 0.9s) both;
 }
+/* Logged in, WP's admin bar is fixed at the very top of the viewport, the
+   same reference point the header floats from; without this the header
+   renders underneath it instead of below it. Matches WP's own admin bar
+   breakpoint (782px) for its shorter mobile height. */
+body.djdigi-has-hero.admin-bar .fusion-header-wrapper { top: 32px; }
+@media (max-width: 782px) {
+	body.djdigi-has-hero.admin-bar .fusion-header-wrapper { top: 46px; }
+}
 body:not(.djd-intro-ready) .fusion-header-wrapper { animation-play-state: paused !important; }
 @keyframes djd-header-drop { from { opacity: 0; transform: translate3d(0, -100%, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
 
 body.djdigi-has-hero.djdigi-hero-strip .fusion-header-wrapper { top: 46px; }
+
+/* Avada reserves real document flow height for the header with this
+   spacer (so the page does not jump when its own JS makes the header
+   fixed on scroll), regardless of the header itself floating absolute
+   here. Left in place, it pushes the hero down by the header's height
+   even though the header is visually floating over it, the actual cause
+   of the hero starting below the header instead of behind it (v1.2.3). */
+body.djdigi-has-hero .fusion-header-sticky-height { display: none !important; }
 
 /* Past 1680px wide (1600px box + 40px padding each side) the hero's own
    content stays inside that box while an unconstrained header would keep
@@ -446,11 +460,13 @@ body.djdigi-has-hero .fusion-sticky-header-wrapper .fusion-row {
 	background-image: none !important;
 	border-bottom-color: transparent;
 }
+/* Solid, not glass: a backdrop-filter here forces a repaint of whatever
+   is behind it (the hero photo) on every frame, which is what was
+   making the ticker look like a low frame rate video (v1.2.3). A
+   darker, more opaque solid reads the same at a glance without it. */
 body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu {
-	background: rgba(20, 15, 51, 0.55);
+	background: rgba(14, 10, 36, 0.82);
 	border: 1px solid rgba(241, 236, 226, 0.16);
-	-webkit-backdrop-filter: blur(10px);
-	backdrop-filter: blur(10px);
 }
 body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu > ul > li > a,
 body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu > ul > li.current-menu-item > a,
@@ -461,10 +477,11 @@ body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-
 	color: var(--djd-cyan) !important;
 }
 /* Dropdown panels on the hero are always dark (night with paper text), not
-   just while the header floats non-sticky: unlike the glass menu bar and
-   link color above, which only make sense over the photo, a dropdown panel
-   has its own solid background regardless, so there is no reason for it to
-   revert to the cream/violet default once the header goes sticky. */
+   just while the header floats non-sticky: unlike the menu bar's own
+   background and link color above, which only make sense over the photo,
+   a dropdown panel has its own solid background regardless, so there is
+   no reason for it to revert to the cream/violet default once the header
+   goes sticky. */
 body.djdigi-has-hero .fusion-main-menu .sub-menu {
 	background-color: #140f33 !important;
 	border-color: rgba(241, 236, 226, 0.18) !important;

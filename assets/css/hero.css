@@ -22,6 +22,22 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 .djd-hero *::before,
 .djd-hero *::after { box-sizing: border-box; }
 
+/* Top-down wash so the floating header's logo and menu pill stay readable
+   over the photo, now that the header has no background of its own
+   (v1.2.3, see site.css). A static gradient, not a filter or shadow, so
+   it costs nothing to keep on screen while other things animate. */
+.djd-hero::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 200px;
+	z-index: 3;
+	background: linear-gradient(to bottom, rgba(11, 8, 32, 0.65) 0%, rgba(11, 8, 32, 0) 100%);
+	pointer-events: none;
+}
+
 /* Glows: their own clipped layer so removing overflow from other things never
    lets one bleed onto the paper page below. */
 .djd-hero__glows { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
@@ -285,8 +301,11 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 .djd-btn--line:hover { background: var(--djd-paper); color: var(--djd-night) !important; }
 
 /* ---------------------------------------------------------------------
-   Player. Background darker with a blur so the waveform reads over a
-   busy photo; bars colored via currentColor now the SVG is inlined.
+   Player. Solid dark background (no backdrop-filter, see CLAUDE.md,
+   v1.2.3: it forces a repaint of whatever is behind it on every frame,
+   which is what was making the ticker look like a low frame rate video)
+   so the waveform still reads over a busy photo; bars colored via
+   currentColor now the SVG is inlined.
    ------------------------------------------------------------------ */
 .djd-player {
 	flex: 1 1 480px;
@@ -296,9 +315,7 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	gap: 18px;
 	align-items: center;
 	border: 1px solid rgba(241, 236, 226, 0.22);
-	background: rgba(11, 8, 32, 0.82);
-	-webkit-backdrop-filter: blur(14px);
-	backdrop-filter: blur(14px);
+	background: rgba(11, 8, 32, 0.9);
 	padding: 18px 22px;
 	opacity: 0;
 	transform: translate3d(28px, 0, 0);
@@ -424,39 +441,27 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
    worked out in hero.js from the track's real rendered width, so the
    speed reads the same regardless of item count or viewport width,
    instead of a fixed duration that is a different speed on every screen.
-   The bulbs strip is a repeating background slid by one tile width via
-   transform, not by animating background-position, which forces a
-   repaint on every frame; this way the only moving property is transform
-   on both pieces, same as the track. */
+   contain: layout paint isolates the whole strip from the rest of the
+   page, so nothing outside it can force a repaint here and vice versa.
+   The bulb dots are a plain static background now (v1.2.3), not
+   animated at all: nothing behind the track should be moving while it
+   runs, full stop, see CLAUDE.md for what else that round cut. */
 .djd-ticker {
 	position: relative;
 	z-index: 10;
 	background: var(--djd-violet);
 	color: var(--djd-paper);
 	overflow: hidden;
+	contain: layout paint;
 	transform: translate3d(0, 100%, 0);
 	opacity: 0;
 	animation: djd-rise-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-ticker, 1.2s) both;
 }
 .djd-ticker__bulbs {
-	position: relative;
 	height: 14px;
-	overflow: hidden;
-}
-.djd-ticker__bulbs::before {
-	content: '';
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 200%;
-	height: 100%;
 	background-image: radial-gradient(circle, var(--djd-orange) 2.6px, transparent 3.2px);
 	background-size: 20px 12px;
-	background-repeat: repeat-x;
 	background-position: 0 center;
-	will-change: transform;
-	animation: djd-chase 1.6s steps(2) infinite;
-	animation-delay: var(--djd-t-ticker, 1.2s);
 }
 .djd-ticker__window { overflow: hidden; padding: 6px 0; }
 .djd-ticker__track {
@@ -512,7 +517,6 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	50% { transform: translate3d(0, -2px, 0); }
 }
 @keyframes djd-marquee { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-50%, 0, 0); } }
-@keyframes djd-chase { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-20px, 0, 0); } }
 
 .djd-hero__glow { animation: djd-glow-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-glow, 0s) both, djd-glow-drift 16s ease-in-out calc(var(--djd-t-glow, 0s) + 0.6s) infinite alternate; }
 
@@ -549,8 +553,7 @@ body:not(.djd-intro-ready) .djd-eq,
 body:not(.djd-intro-ready) .djd-eq span,
 body:not(.djd-intro-ready) .djd-btn,
 body:not(.djd-intro-ready) .djd-player,
-body:not(.djd-intro-ready) .djd-ticker,
-body:not(.djd-intro-ready) .djd-ticker__bulbs::before {
+body:not(.djd-intro-ready) .djd-ticker {
 	animation-play-state: paused, paused !important;
 }
 .djd-hero__glow,

@@ -9,6 +9,42 @@
 	var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
 	/* -----------------------------------------------------------------------
+	 * Avada's own global header background image (an Options panel setting,
+	 * set site wide) comes from Avada's own generated CSS, which has beaten
+	 * an external stylesheet rule here even with !important across two
+	 * earlier rounds, whatever its exact selector or load order turns out
+	 * to be. An inline style set with the important priority cannot be
+	 * beaten by any stylesheet rule regardless of its own specificity, so
+	 * this is the one way to actually guarantee it is gone. Only the image
+	 * is forced here; background color is left to CSS, which already
+	 * handles the transparent versus sticky distinction correctly.
+	 * -------------------------------------------------------------------- */
+	(function killHeaderBgImage() {
+		if (!document.body.classList.contains('djdigi-has-hero')) return;
+		var selector = [
+			'.fusion-header-wrapper',
+			'.fusion-header',
+			'.fusion-secondary-header',
+			'.fusion-sticky-header-wrapper',
+			'.fusion-header-wrapper .fusion-row',
+			'.fusion-secondary-header .fusion-row',
+			'.fusion-sticky-header-wrapper .fusion-header',
+			'.fusion-sticky-header-wrapper .fusion-row'
+		].join(', ');
+		function apply() {
+			document.querySelectorAll(selector).forEach(function (el) {
+				el.style.setProperty('background-image', 'none', 'important');
+			});
+		}
+		apply();
+		// Avada's sticky header clone, if it is a separate element, can be
+		// built slightly after initial render; a couple of follow up passes
+		// catch that without an open ended observer.
+		window.addEventListener('load', apply);
+		setTimeout(apply, 1500);
+	})();
+
+	/* -----------------------------------------------------------------------
 	 * Full intro once per session, quick after that. ?intro=1 forces the full
 	 * sequence for testing, but still marks the session as seen afterward, so
 	 * normal navigation right after a forced preview goes back to quick.

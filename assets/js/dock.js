@@ -99,14 +99,15 @@
 		if (!hasContent) area.classList.add('djdt-is-empty');
 	})();
 
-	// The header keeps Avada's own plain icons now, no dock (Mark's call,
-	// v1.2.2). If that bar ends up with none configured, hide it on hero
-	// pages so it does not leave an empty gap above the hero.
+	// The header's social icons are hidden outright now (site.css, v1.2.3:
+	// social links live in the footer only). Checked against Avada's own
+	// secondary menu, the only other thing that bar can hold, not the
+	// icons, since those are always hidden regardless of whether any are
+	// configured.
 	(function hideEmptySecondaryHeader() {
-		if (!document.body.classList.contains('djdigi-has-hero')) return;
 		var bar = document.querySelector('.fusion-secondary-header');
 		if (!bar) return;
-		var hasLinks = bar.querySelector('.fusion-social-networks-wrapper a[href]');
-		if (!hasLinks) bar.classList.add('djdt-is-empty');
+		var hasMenu = bar.querySelector('.fusion-secondary-menu li');
+		if (!hasMenu) bar.classList.add('djdt-is-empty');
 	})();
 })();
