@@ -1,10 +1,11 @@
-/* [djdigi_hero] behavior: opening sequence timing, photo rotation, scroll depth,
-   and the Mixcloud player. */
+/* [djdigi_hero] behavior: opening sequence timing, photo rotation, scroll
+   shrink with the photo wall, and the Mixcloud player. */
 (function () {
 	'use strict';
 
 	var hero = document.querySelector('.djd-hero');
 	if (!hero) return;
+	var scene = document.querySelector('.djd-hero-scene');
 
 	var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 	var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
@@ -103,25 +104,35 @@
 	})();
 
 	/* -----------------------------------------------------------------------
-	 * Scroll depth: photo and name move at different rates as the hero
-	 * scrolls past. Transform only, rAF throttled, off for touch and
-	 * reduced motion.
+	 * Scroll: the hero shrinks into a rounded card while the photo wall
+	 * slides in around it, then normal scrolling continues below. One
+	 * progress value (0 to 1) across a zone the height of the hero itself
+	 * drives both: transform/opacity only, rAF throttled, off for touch
+	 * and reduced motion (hero.css also hard disables it there).
 	 * -------------------------------------------------------------------- */
-	(function scrollDepth() {
+	(function scrollShrink() {
 		if (reduceMotion || isTouch) return;
+		if (!scene) return;
 		var stage = hero.querySelector('.djd-hero__stage');
 		var photos = hero.querySelector('.djd-hero__photos');
-		if (!stage && !photos) return;
+
+		var SCALE_MIN = 0.85;
+		var RADIUS_MAX = 28; // px
 
 		var ticking = false;
 		function update() {
 			ticking = false;
-			var heroHeight = hero.offsetHeight || 1;
-			var progress = Math.max(0, Math.min(1, -hero.getBoundingClientRect().top / heroHeight));
-			if (photos) hero.style.setProperty('--djd-scroll-photo', (progress * heroHeight * 0.18).toFixed(1) + 'px');
+			var zone = hero.offsetHeight || 1;
+			var progress = Math.max(0, Math.min(1, -hero.getBoundingClientRect().top / zone));
+
+			hero.style.setProperty('--djd-shrink-scale', (1 - progress * (1 - SCALE_MIN)).toFixed(3));
+			hero.style.setProperty('--djd-shrink-radius', (progress * RADIUS_MAX).toFixed(1) + 'px');
+			scene.style.setProperty('--djd-shrink-progress', progress.toFixed(3));
+
+			if (photos) hero.style.setProperty('--djd-scroll-photo', (progress * zone * 0.06).toFixed(1) + 'px');
 			if (stage) {
-				hero.style.setProperty('--djd-scroll-name', (-progress * heroHeight * 0.1).toFixed(1) + 'px');
-				hero.style.setProperty('--djd-scroll-name-op', Math.max(0.25, 1 - progress * 1.3).toFixed(2));
+				hero.style.setProperty('--djd-scroll-name', (-progress * zone * 0.08).toFixed(1) + 'px');
+				hero.style.setProperty('--djd-scroll-name-op', Math.max(0.2, 1 - progress * 1.4).toFixed(2));
 			}
 		}
 		window.addEventListener('scroll', function () {
@@ -179,6 +190,10 @@
 
 	// Builds the hidden Mixcloud widget once. Started early (on idle, hover or focus)
 	// so the click that presses play still counts as the user's gesture.
+	// The widget now lives at player-widget.mixcloud.com: the old
+	// www.mixcloud.com/widget/iframe/ URL still works but 301s there, and
+	// loading it directly is what the Widget API now expects as the
+	// iframe's origin for its postMessage handshake.
 	function prepare() {
 		if (loading) return loading;
 		var iframe = document.createElement('iframe');
@@ -187,7 +202,7 @@
 		iframe.setAttribute('allow', 'autoplay');
 		iframe.setAttribute('tabindex', '-1');
 		iframe.setAttribute('aria-hidden', 'true');
-		iframe.src = 'https://www.mixcloud.com/widget/iframe/?hide_cover=1&mini=1&hide_artwork=1&autoplay=0&feed=' + encodeURIComponent(feed);
+		iframe.src = 'https://player-widget.mixcloud.com/?hide_cover=1&mini=1&hide_artwork=1&autoplay=0&feed=' + encodeURIComponent(feed);
 		player.appendChild(iframe);
 
 		loading = loadScript('https://widget.mixcloud.com/media/js/widgetApi.js').then(function () {

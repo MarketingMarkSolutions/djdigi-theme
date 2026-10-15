@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle and the [djdigi_hero] homepage hero for djdigimark.com.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.1.0' );
+define( 'DJDT_VERSION', '1.2.0' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -44,7 +44,6 @@ function djdt_defaults() {
 		'mix_mode'      => 'latest',
 		'mix_url'       => '',
 		'hero_photos'   => array(),
-		'booking_url'   => '#booking',
 		'sets_url'      => '/upcoming-events/',
 		'videos_url'    => '/video-gallery/',
 		'ticker'        => "House\nEDM\nTop 40 Remixes\n70s · 80s · 90s · 00s Dance\nPride/Queer Pop & Dance\nLive Video DJ Sets",
@@ -109,9 +108,6 @@ function djdt_sanitize( $in ) {
 	$out['mixcloud_user'] = sanitize_title( isset( $in['mixcloud_user'] ) ? $in['mixcloud_user'] : $d['mixcloud_user'] );
 	$out['mix_mode']      = ( isset( $in['mix_mode'] ) && 'pinned' === $in['mix_mode'] ) ? 'pinned' : 'latest';
 	$out['mix_url']       = esc_url_raw( isset( $in['mix_url'] ) ? trim( $in['mix_url'] ) : '' );
-	$out['booking_url']   = isset( $in['booking_url'] ) && '' !== trim( $in['booking_url'] )
-		? ( '#' === $in['booking_url'][0] ? sanitize_text_field( $in['booking_url'] ) : esc_url_raw( $in['booking_url'] ) )
-		: $d['booking_url'];
 	$out['sets_url']      = sanitize_text_field( isset( $in['sets_url'] ) ? $in['sets_url'] : $d['sets_url'] );
 	$out['videos_url']    = sanitize_text_field( isset( $in['videos_url'] ) ? $in['videos_url'] : $d['videos_url'] );
 	$out['ticker']        = sanitize_textarea_field( isset( $in['ticker'] ) ? $in['ticker'] : $d['ticker'] );
@@ -165,7 +161,7 @@ function djdt_render_settings() {
 							<button type="button" class="button" id="djdt-add-photos">Add photos</button>
 						</p>
 						<input type="hidden" id="djdt-hero-photos-json" name="<?php echo esc_attr( $n ); ?>[hero_photos_json]" value="<?php echo esc_attr( wp_json_encode( array_values( $s['hero_photos'] ) ) ); ?>">
-						<p class="description">Drag a photo to reorder. Click a photo once to pick its focal point, then click where the subject is. The x removes it from rotation only, it stays in the Media Library. Leave empty to use the built in photo. One photo plays with no rotation.</p>
+						<p class="description">Drag a photo to reorder. Click a photo once to pick its focal point, then click where the subject is. The x removes it from rotation only, it stays in the Media Library. Leave empty to use the built in photo. One photo plays with no rotation. 3 to 4 photos also appear as a small photo wall once a visitor scrolls past the hero.</p>
 					</td>
 				</tr>
 				<tr>
@@ -178,13 +174,6 @@ function djdt_render_settings() {
 						<label><input type="radio" name="<?php echo esc_attr( $n ); ?>[mix_mode]" value="latest" <?php checked( $s['mix_mode'], 'latest' ); ?>> My newest Mixcloud upload</label><br>
 						<label><input type="radio" name="<?php echo esc_attr( $n ); ?>[mix_mode]" value="pinned" <?php checked( $s['mix_mode'], 'pinned' ); ?>> This mix:</label>
 						<input class="regular-text" name="<?php echo esc_attr( $n ); ?>[mix_url]" value="<?php echo esc_attr( $s['mix_url'] ); ?>" placeholder="https://www.mixcloud.com/djdigimark/...">
-					</td>
-				</tr>
-				<tr>
-					<th scope="row"><label for="djdt-booking">Booking link</label></th>
-					<td>
-						<input id="djdt-booking" class="regular-text" name="<?php echo esc_attr( $n ); ?>[booking_url]" value="<?php echo esc_attr( $s['booking_url'] ); ?>">
-						<p class="description">Where the "Book me" button in the menu goes. Default is a placeholder until the booking page exists.</p>
 					</td>
 				</tr>
 				<tr>
@@ -206,6 +195,7 @@ function djdt_render_settings() {
 			<?php submit_button(); ?>
 		</form>
 		<p>Hero shortcode: <code>[djdigi_hero]</code>. Put it alone in a 100% width container with no padding, at the top of the page. Add <code>?intro=1</code> to any hero page URL to force the full opening sequence while testing.</p>
+		<p><strong>After saving:</strong> if a caching plugin or your host's cache is active, purge the cached copy of any page carrying <code>[djdigi_hero]</code>, or changes here (hero photos especially) can keep showing the old version. See the plugin's CLAUDE.md for exact steps.</p>
 	</div>
 	<?php
 }
@@ -231,9 +221,6 @@ add_action( 'wp_enqueue_scripts', function () {
 
 	// Menu and footer dock run on every themed page, hero or not.
 	wp_enqueue_script( 'djdt-menu', DJDT_URL . 'assets/js/menu.js', array(), djdt_ver( 'assets/js/menu.js' ), true );
-	wp_add_inline_script( 'djdt-menu', 'window.djdtMenu = ' . wp_json_encode( array(
-		'bookingUrl' => djdt_get( 'booking_url' ),
-	) ) . ';', 'before' );
 
 	wp_enqueue_script( 'djdt-dock', DJDT_URL . 'assets/js/dock.js', array(), djdt_ver( 'assets/js/dock.js' ), true );
 	wp_add_inline_script( 'djdt-dock', 'window.djdtDock = ' . wp_json_encode( array(
@@ -273,38 +260,6 @@ add_filter( 'body_class', function ( $classes ) {
 	}
 	return $classes;
 } );
-
-/* -------------------------------------------------------------------------
- * "Book me" menu item
- *
- * Added in PHP so it works with no JS and shows in Avada's mobile menu too,
- * matched the way Mark's real menu is set up: the menu slug "digimenu", or
- * the "main_navigation" theme location, whichever the current wp_nav_menu()
- * call used. menu.js adds the same button only if neither matched here.
- * ---------------------------------------------------------------------- */
-
-add_filter( 'wp_nav_menu_items', function ( $items, $args ) {
-	if ( ! djdt_is_active() ) {
-		return $items;
-	}
-
-	$is_target = false;
-	if ( ! empty( $args->menu ) ) {
-		$menu = is_object( $args->menu ) ? $args->menu : wp_get_nav_menu_object( $args->menu );
-		if ( $menu && ! is_wp_error( $menu ) && 'digimenu' === $menu->slug ) {
-			$is_target = true;
-		}
-	}
-	if ( ! $is_target && ! empty( $args->theme_location ) && 'main_navigation' === $args->theme_location ) {
-		$is_target = true;
-	}
-	if ( ! $is_target ) {
-		return $items;
-	}
-
-	$url = djdt_get( 'booking_url' );
-	return $items . '<li id="djdt-book-me" class="menu-item djdt-book-me"><a href="' . esc_url( $url ) . '"><span class="djdt-book-me__text">Book me</span><span class="djdt-book-me__arrow" aria-hidden="true">↗</span></a></li>';
-}, 10, 2 );
 
 /* -------------------------------------------------------------------------
  * Mixcloud
@@ -378,6 +333,34 @@ function djdt_format_length( $sec ) {
 	return $h ? sprintf( '%d:%02d:%02d', $h, $m, $s ) : sprintf( '%d:%02d', $m, $s );
 }
 
+/**
+ * The player waveform, inlined directly into the page rather than loaded as
+ * an <img src>. Two reasons: an externally loaded SVG's own internal
+ * preserveAspectRatio still governs how it fits inside an <img>'s box even
+ * once CSS sizes that box, which is what made it render letterboxed instead
+ * of full width; and a separate cached file is one more thing a caching
+ * plugin can serve stale. Inline, the clip-path progress overlay and the
+ * bar colors are both plain CSS against currentColor.
+ *
+ * @param string $class Added to the <svg> root, for CSS to target.
+ */
+function djdt_inline_wave( $class ) {
+	static $svg = null;
+	if ( null === $svg ) {
+		$path = DJDT_DIR . 'assets/img/wave.svg';
+		$svg  = file_exists( $path ) ? file_get_contents( $path ) : '';
+		// The file carries its own fill for standalone use, replaced here with
+		// currentColor so the CSS classes above control color instead. Just
+		// stripping the attribute would leave the SVG's own default fill
+		// (black), not currentColor, since those are not the same thing.
+		$svg = preg_replace( '/\sfill="[^"]*"/', ' fill="currentColor"', $svg, 1 );
+	}
+	if ( '' === $svg ) {
+		return;
+	}
+	echo preg_replace( '/<svg /', '<svg class="' . esc_attr( $class ) . '" ', $svg, 1 ); // phpcs:ignore WordPress.Security.EscapeOutput -- a local file this plugin ships, not user input
+}
+
 /* -------------------------------------------------------------------------
  * Hero photo rotation: the attachments picked in Settings, each with its
  * own focal point, or the bundled photo when none are picked.
@@ -419,6 +402,26 @@ function djdt_hero_photos() {
 	return $out;
 }
 
+/**
+ * Fixed scatter slots for the scroll photo wall: large, loosely placed
+ * tiles rather than a dense grid, since there are usually only 3 or 4
+ * photos. Each tile anchors to one corner outside the shrinking card
+ * (hero.css computes its actual position from the corner and the live
+ * shrink progress, so it always tracks the card's real edges rather than
+ * a fixed guess); w/h/r are its size and a little rotation for variety.
+ * Bottom corners come first: they sit in the most reliably clear margin
+ * (below the card, where nothing else renders), so a count of 2 or 3
+ * still looks intentional rather than lopsided.
+ */
+function djdt_wall_slots() {
+	return array(
+		array( 'corner' => 'bl', 'w' => '180px', 'h' => '230px', 'r' => '4deg' ),
+		array( 'corner' => 'br', 'w' => '200px', 'h' => '250px', 'r' => '-5deg' ),
+		array( 'corner' => 'tl', 'w' => '190px', 'h' => '240px', 'r' => '-6deg' ),
+		array( 'corner' => 'tr', 'w' => '170px', 'h' => '220px', 'r' => '5deg' ),
+	);
+}
+
 /* -------------------------------------------------------------------------
  * [djdigi_hero]
  * ---------------------------------------------------------------------- */
@@ -433,7 +436,6 @@ function djdt_hero_shortcode() {
 	wp_enqueue_script( 'djdt-hero' );
 
 	$photos = djdt_hero_photos();
-	$wave   = DJDT_URL . 'assets/img/wave.svg';
 	$mix    = djdt_get_mix();
 	$sets   = djdt_get( 'sets_url' );
 	$videos = djdt_get( 'videos_url' );
@@ -442,19 +444,25 @@ function djdt_hero_shortcode() {
 
 	$items = array_filter( array_map( 'trim', explode( "\n", (string) djdt_get( 'ticker' ) ) ) );
 
+	$wall_slots = djdt_wall_slots();
+	$wall_count = min( count( $photos ), count( $wall_slots ) );
+
 	ob_start();
 	?>
+	<div class="djd-hero-scene">
 	<section class="djd-hero" aria-label="DJ DigiMark" data-photo-count="<?php echo (int) count( $photos ); ?>">
-		<div class="djd-hero__glow djd-hero__glow--a djd-in-glow" aria-hidden="true"></div>
-		<div class="djd-hero__glow djd-hero__glow--b djd-in-glow" aria-hidden="true"></div>
-		<div class="djd-hero__glow djd-hero__glow--c djd-in-glow" aria-hidden="true"></div>
+		<div class="djd-hero__glows" aria-hidden="true">
+			<div class="djd-hero__glow djd-hero__glow--a djd-in-glow"></div>
+			<div class="djd-hero__glow djd-hero__glow--b djd-in-glow"></div>
+			<div class="djd-hero__glow djd-hero__glow--c djd-in-glow"></div>
+		</div>
 
-		<div class="djd-hero__photos djd-in-photo">
+		<div class="djd-hero__photos">
 			<?php foreach ( $photos as $i => $p ) : ?>
 				<img
 					class="djd-hero__photo<?php echo ( 0 === $i ) ? ' is-active' : ''; ?>"
 					src="<?php echo esc_url( $p['src'] ); ?>"
-					<?php if ( $p['srcset'] ) : ?>srcset="<?php echo esc_attr( $p['srcset'] ); ?>" sizes="100vw"<?php endif; ?>
+					<?php if ( $p['srcset'] ) : ?>srcset="<?php echo esc_attr( $p['srcset'] ); ?>" sizes="60vw"<?php endif; ?>
 					style="object-position: <?php echo esc_attr( $p['x'] ); ?>% <?php echo esc_attr( $p['y'] ); ?>%"
 					alt="DJ DigiMark mixing under club lights"
 					<?php echo ( 0 === $i ) ? 'fetchpriority="high"' : 'loading="lazy"'; ?>
@@ -467,7 +475,7 @@ function djdt_hero_shortcode() {
 		<?php endif; ?>
 
 		<div class="djd-hero__inner">
-			<div class="djd-hero__labels djd-in-ui">
+			<div class="djd-hero__labels">
 				<span class="djd-hero__label"><span class="djd-hero__rule" aria-hidden="true"></span>Video DJ since 2008</span>
 				<span>San Francisco</span>
 			</div>
@@ -476,13 +484,13 @@ function djdt_hero_shortcode() {
 				<h1 class="djd-hero__name" aria-label="DJ DigiMark">
 					<span class="djd-hero__mask djd-hero__mask--dj" aria-hidden="true"><span class="djd-hero__dj djd-in-dj">DJ</span></span>
 					<span class="djd-hero__digimark" aria-hidden="true">
-						<span class="djd-hero__echo">DigiMark</span>
+						<span class="djd-hero__mask djd-hero__mask--echo"><span class="djd-hero__echo"><?php echo djdt_split_letters( 'DigiMark' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></span></span>
 						<span class="djd-hero__mask djd-hero__mask--main"><span class="djd-hero__main"><?php echo djdt_split_letters( 'DigiMark' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></span></span>
 					</span>
 				</h1>
 			</div>
 
-			<div class="djd-hero__row djd-in-ui">
+			<div class="djd-hero__row">
 				<div class="djd-hero__copy">
 					<p class="djd-hero__slogan">Bringing positive vibes to the dance <span class="djd-nowrap">floor <span class="djd-eq" role="img" aria-label="Rainbow flag and music"><span></span><span></span><span></span><span></span><span></span><span></span></span></span></p>
 					<div class="djd-hero__buttons">
@@ -512,8 +520,8 @@ function djdt_hero_shortcode() {
 							</div>
 							<div class="djd-player__title"><?php echo esc_html( $mix['name'] ); ?></div>
 							<div class="djd-player__scrub" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="<?php echo (int) $mix['length']; ?>" aria-valuenow="0">
-								<img class="djd-player__wave" src="<?php echo esc_url( $wave ); ?>" alt="">
-								<div class="djd-player__progress"><img src="<?php echo esc_url( $wave ); ?>" alt=""></div>
+								<?php djdt_inline_wave( 'djd-player__wave' ); ?>
+								<div class="djd-player__progress"><?php djdt_inline_wave( '' ); ?></div>
 								<div class="djd-player__tooltip" aria-hidden="true"></div>
 							</div>
 							<div class="djd-player__meta"><span class="djd-player__pos">0:00</span> / <span class="djd-player__dur"><?php echo esc_html( djdt_format_length( $mix['length'] ) ); ?></span></div>
@@ -528,7 +536,7 @@ function djdt_hero_shortcode() {
 		</div>
 
 		<?php if ( $items ) : ?>
-			<div class="djd-ticker djd-in-ticker" aria-label="What I play">
+			<div class="djd-ticker" aria-label="What I play">
 				<div class="djd-ticker__bulbs" aria-hidden="true"></div>
 				<div class="djd-ticker__window">
 					<div class="djd-ticker__track">
@@ -546,6 +554,17 @@ function djdt_hero_shortcode() {
 			</div>
 		<?php endif; ?>
 	</section>
+
+	<?php if ( $wall_count > 1 ) : ?>
+		<div class="djd-hero__wall" aria-hidden="true">
+			<?php for ( $i = 0; $i < $wall_count; $i++ ) : $slot = $wall_slots[ $i ]; $p = $photos[ $i ]; ?>
+				<div class="djd-hero__wall-tile djd-hero__wall-tile--<?php echo esc_attr( $slot['corner'] ); ?>" style="--wall-w: <?php echo esc_attr( $slot['w'] ); ?>; --wall-h: <?php echo esc_attr( $slot['h'] ); ?>; --wall-r: <?php echo esc_attr( $slot['r'] ); ?>;">
+					<img src="<?php echo esc_url( $p['src'] ); ?>" style="object-position: <?php echo esc_attr( $p['x'] ); ?>% <?php echo esc_attr( $p['y'] ); ?>%" alt="" loading="lazy">
+				</div>
+			<?php endfor; ?>
+		</div>
+	<?php endif; ?>
+	</div>
 	<?php
 	return ob_get_clean();
 }

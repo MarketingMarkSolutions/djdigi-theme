@@ -34,7 +34,11 @@
 	}
 
 	(function buildDock() {
-		var wrapper = document.querySelector('.fusion-social-networks-wrapper');
+		// Scoped strictly to the footer's own copy of this markup: Avada
+		// reuses the exact same .fusion-social-networks-wrapper class for the
+		// header's small icon bar, and an unscoped query here previously
+		// grabbed that one instead, since it comes first in the document.
+		var wrapper = document.querySelector('footer#footer.fusion-footer-copyright-area .fusion-social-links-footer .fusion-social-networks-wrapper');
 		if (!wrapper) return;
 
 		var found = {};

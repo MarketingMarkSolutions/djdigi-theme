@@ -62,11 +62,20 @@ body.djdigi-theme .fusion-secondary-header {
 	background-image: none !important;
 }
 
-/* ---------- Secondary header (social icon bar) ---------- */
+/* ---------- Secondary header (small plain social icons) ----------
+   Not the magnetic dock: that is footer only, scoped strictly in dock.js
+   to the footer's own social links so it can never pick up this bar. */
 
 body.djdigi-theme .fusion-secondary-header {
 	background-color: var(--djd-ink) !important;
 	border-bottom: 0 !important;
+}
+body.djdigi-theme .fusion-secondary-header .fusion-row {
+	max-width: 1600px;
+	margin-left: auto;
+	margin-right: auto;
+	padding-left: 40px;
+	padding-right: 40px;
 }
 body.djdigi-theme .fusion-secondary-header .fusion-social-network-icon,
 body.djdigi-theme .fusion-secondary-header .fusion-social-network-icon:before {
@@ -105,7 +114,7 @@ body.djdigi-theme .fusion-main-menu > ul.fusion-menu {
 	height: 100%;
 }
 
-body.djdigi-theme .fusion-main-menu > ul > li { display: flex; align-items: center; height: 100%; }
+body.djdigi-theme .fusion-main-menu > ul > li { position: relative; display: flex; align-items: center; height: 100%; }
 body.djdigi-theme .fusion-main-menu > ul > li > a {
 	position: relative;
 	z-index: 1;
@@ -135,7 +144,9 @@ body.djdigi-theme .fusion-main-menu > ul > li.current-menu-ancestor > a {
 }
 
 /* The sliding highlight behind the current/clicked item. menu.js sets its
-   left/top/width/height; the easing lives here so JS only ever sets targets. */
+   left/top/width/height; the easing lives here so JS only ever sets targets.
+   This is the only highlight in the menu now: it marks the current page,
+   nothing else. */
 .djd-menu-pill {
 	position: absolute;
 	top: 0;
@@ -151,48 +162,56 @@ body.djdigi-theme .fusion-main-menu > ul > li.current-menu-ancestor > a {
 .djd-menu-pill.is-ready { opacity: 1; }
 .djd-menu-pill:not(.is-ready) { opacity: 0; }
 
-/* "Book me" pill button, appended as the last menu item.
-   Matched on #djdt-book-me, not .djdt-book-me, on purpose: the general menu
-   item color rules above chain through ul > li > a and so outrank a class of
-   equal count on element specificity alone. An ID always wins regardless, and
-   both the PHP filter and the menu.js fallback give the item that same ID. */
-body.djdigi-theme .djdt-book-me { margin-left: 6px; }
-body.djdigi-theme #djdt-book-me > a {
-	display: flex !important;
-	align-items: center;
-	gap: 6px;
-	height: 36px !important;
-	padding: 0 20px !important;
-	border-radius: 999px;
-	background: var(--djd-violet) !important;
-	color: var(--djd-paper) !important;
-	font-weight: 600 !important;
-	text-decoration: none !important;
-}
-body.djdigi-theme #djdt-book-me > a:hover { background: var(--djd-cyan) !important; color: var(--djd-night) !important; }
-body.djdigi-theme #djdt-book-me > a:focus-visible { text-decoration: underline !important; }
-body.djdigi-theme .djdt-book-me__arrow { font-size: 0.9em; }
-
-/* Dropdowns, including nested flyouts (Downloads > Membership Account). A
-   nested .sub-menu opens to the right of its parent row rather than
-   stacking inline, styled the same as the top-level panel. */
+/* ---------------------------------------------------------------------
+   Dropdowns, including nested flyouts (Downloads > Membership Account).
+   Explicit position below and left aligned to the parent item: Avada's own
+   default positioning assumes its original (non pill) header layout and
+   was centering panels over our flex bar instead. A JS-added class flips
+   a panel to the right edge of its own trigger when it would otherwise
+   run off the viewport, see menu.js.
+   ------------------------------------------------------------------ */
 body.djdigi-theme .fusion-main-menu .sub-menu {
+	position: absolute !important;
+	top: calc(100% + 8px) !important;
+	left: 0 !important;
+	right: auto !important;
+	transform: none !important;
 	background-color: var(--djd-paper) !important;
 	border: 1px solid rgba(90, 46, 145, 0.18) !important;
 	border-radius: 16px !important;
 	box-shadow: 0 16px 40px rgba(42, 20, 80, 0.18) !important;
 	padding: 10px !important;
+	margin: 0 !important;
+	list-style: none !important;
 	min-width: 240px;
+	z-index: 20;
 }
+body.djdigi-theme .fusion-main-menu > ul > li.djd-flip-right > .sub-menu {
+	left: auto !important;
+	right: 0 !important;
+}
+/* A nested flyout opens to the right of its own parent row, top aligned to
+   it, not below it like a top level panel. */
 body.djdigi-theme .fusion-main-menu .sub-menu .sub-menu {
-	left: 100%;
-	top: -10px;
+	top: -10px !important;
+	left: 100% !important;
+	right: auto !important;
 	margin-left: 6px;
+}
+body.djdigi-theme .fusion-main-menu .sub-menu li.djd-flip-right > .sub-menu {
+	left: auto !important;
+	right: 100% !important;
+	margin-left: 0;
+	margin-right: 6px;
 }
 body.djdigi-theme .fusion-main-menu .sub-menu li,
 body.djdigi-theme .fusion-main-menu .sub-menu li a {
 	background-color: transparent !important;
 	border-bottom: 0 !important;
+}
+body.djdigi-theme .fusion-main-menu .sub-menu li {
+	list-style: none !important;
+	margin: 0 !important;
 }
 body.djdigi-theme .fusion-main-menu .sub-menu li a {
 	font-family: var(--djd-sans) !important;
@@ -241,10 +260,6 @@ body.djdigi-theme .fusion-mobile-nav-holder li a {
 	font-size: 15px !important;
 }
 body.djdigi-theme .fusion-mobile-nav-holder li a:hover { background-color: rgba(36, 169, 224, 0.12) !important; }
-body.djdigi-theme .fusion-mobile-nav-holder #djdt-book-me > a {
-	background-color: var(--djd-violet) !important;
-	color: var(--djd-paper) !important;
-}
 
 /* Sticky header (Avada adds .fusion-is-sticky on scroll) */
 body.djdigi-theme .fusion-is-sticky .fusion-header {
@@ -276,11 +291,13 @@ body.djdigi-theme .fusion-button:hover {
 	color: var(--djd-night) !important;
 }
 
-/* ---------- Footer: magnetic social dock ---------- */
-
-/* Avada's own rendered icons are hidden by dock.js once it has read their
-   hrefs, not hidden unconditionally here: if dock.js never runs (no JS),
-   the original icons stay exactly as Avada renders them. */
+/* ---------- Footer: magnetic social dock ----------
+   dock.js scopes its lookup strictly to the footer's own social links
+   (footer#footer.fusion-footer-copyright-area .fusion-social-links-footer),
+   so it can never pick up the header's small icon bar above. Avada's own
+   rendered footer icons are hidden only once dock.js has read their hrefs,
+   not hidden unconditionally here: if dock.js never runs, the original
+   icons stay exactly as Avada renders them. */
 
 .djd-dock {
 	display: flex;
@@ -342,30 +359,36 @@ body.djdigi-theme .fusion-footer-widget-area.djdt-is-empty { display: none !impo
    because the header (the menu's drop-in) is a sibling of the hero section,
    not a descendant of it. A custom property only cascades to descendants, so
    anything both the header and the hero need to read has to start at least
-   this high. hero.js toggles djd-quick-intro for repeat views in the session. */
+   this high. hero.js toggles djd-quick-intro for repeat views in the session.
+
+   Schedule (about 3.6s):
+   1. 0 to 1s     glow only, everything else hidden
+   2. 0.6 to 2.4s photo pulls into focus
+   3. 1.8 to 3s   DJ then DigiMark sweep up letter by letter
+   4. 3 to 3.6s   slogan, buttons, player, menu drop, ticker rise */
 body.djdigi-has-hero {
 	--djd-t-glow: 0s;
-	--djd-t-photo: 0.25s;
-	--djd-t-dj: 0.7s;
-	--djd-t-name: 1.0s;
-	--djd-t-slogan: 1.9s;
-	--djd-t-eq: 2.5s;
-	--djd-t-buttons: 2.1s;
-	--djd-t-player: 2.3s;
-	--djd-t-menu: 2.6s;
-	--djd-t-ticker: 2.8s;
+	--djd-t-photo: 0.6s;
+	--djd-t-dj: 1.8s;
+	--djd-t-name: 2.0s;
+	--djd-t-slogan: 3.0s;
+	--djd-t-buttons: 3.15s;
+	--djd-t-player: 3.2s;
+	--djd-t-menu: 3.1s;
+	--djd-t-eq: 3.3s;
+	--djd-t-ticker: 3.35s;
 }
 body.djdigi-has-hero.djd-quick-intro {
 	--djd-t-glow: 0s;
 	--djd-t-photo: 0s;
 	--djd-t-dj: 0.1s;
 	--djd-t-name: 0.2s;
-	--djd-t-slogan: 0.3s;
-	--djd-t-eq: 0.45s;
-	--djd-t-buttons: 0.3s;
-	--djd-t-player: 0.35s;
-	--djd-t-menu: 0.3s;
-	--djd-t-ticker: 0.4s;
+	--djd-t-slogan: 0.35s;
+	--djd-t-buttons: 0.4s;
+	--djd-t-player: 0.42s;
+	--djd-t-menu: 0.38s;
+	--djd-t-eq: 0.5s;
+	--djd-t-ticker: 0.45s;
 }
 
 body.djdigi-has-hero .fusion-header-wrapper {
@@ -377,7 +400,7 @@ body.djdigi-has-hero .fusion-header-wrapper {
 	width: 100% !important;
 	background-color: transparent !important;
 	background-image: none !important;
-	animation: djd-header-drop 0.6s cubic-bezier(.2, .7, .2, 1) var(--djd-t-menu, 2.6s) both;
+	animation: djd-header-drop 0.6s cubic-bezier(.2, .7, .2, 1) var(--djd-t-menu, 3.1s) both;
 }
 @keyframes djd-header-drop { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: translateY(0); } }
 
@@ -428,10 +451,6 @@ body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-
 body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu > ul > li > a:hover {
 	color: var(--djd-cyan) !important;
 }
-body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) #djdt-book-me > a {
-	background: var(--djd-paper) !important;
-	color: var(--djd-violet) !important;
-}
 body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu .sub-menu {
 	background-color: #140f33 !important;
 	border-color: rgba(241, 236, 226, 0.18) !important;
@@ -456,10 +475,6 @@ body.djdigi-has-hero .fusion-is-sticky .fusion-main-menu > ul > li > a { color: 
 body.djdigi-has-hero .fusion-is-sticky .fusion-main-menu {
 	background: rgba(20, 15, 51, 0.55);
 	border: 1px solid rgba(241, 236, 226, 0.16);
-}
-body.djdigi-has-hero .fusion-is-sticky #djdt-book-me > a {
-	background: var(--djd-paper) !important;
-	color: var(--djd-violet) !important;
 }
 
 /* Remove gaps Avada leaves above the first container on hero pages */
