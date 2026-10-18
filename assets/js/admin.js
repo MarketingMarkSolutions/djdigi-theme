@@ -1,7 +1,9 @@
-/* Settings > DigiMark Theme: the hero photo picker (add, reorder, remove,
-   focal point) and the venues list (add, reorder, remove, logo, caption,
-   link, on/off). Two independent pieces in one file since both only ever
-   run together, on this one settings page. */
+/* DigiMark admin screens: the hero photo picker (add, reorder, remove,
+   focal point, on the Hero Photos screen) and the venues list (add,
+   reorder, remove, logo, name, details, link, logo color, on/off, on the
+   Venues screen). Two independent pieces in one file; each only looks for
+   its own DOM ids and returns early if they are not on the current page,
+   so loading this file on either screen (or both, it is small) is fine. */
 (function ($) {
 	'use strict';
 
@@ -148,14 +150,25 @@
 	var addBtn = document.getElementById('djdt-add-venue');
 	if (!grid || !hidden || !addBtn) return;
 
-	// Each row: { id, caption, link, on, url }. url is filled in as
-	// thumbnails resolve and is never saved, only id/caption/link/on round
-	// trip to the server, same pattern as the hero photos above.
+	// Each row: { id, name, details, link, on, logo_color, url }. url is
+	// filled in as thumbnails resolve and is never saved, only
+	// id/name/details/link/on/logo_color round trip to the server, same
+	// pattern as the hero photos above. The server already splits an old
+	// single-caption row into name/details before localizing it here
+	// (djdt_venue_admin_row, djdigi-theme.php), so this file never has to
+	// know the old format existed.
 	var rows = (window.djdtAdmin && window.djdtAdmin.venues) || [];
 
 	function persist() {
 		var out = rows.map(function (r) {
-			return { id: r.id, caption: r.caption, link: r.link, on: r.on ? 1 : 0 };
+			return {
+				id: r.id,
+				name: r.name,
+				details: r.details,
+				link: r.link,
+				on: r.on ? 1 : 0,
+				logo_color: 'original' === r.logo_color ? 'original' : 'white'
+			};
 		});
 		hidden.value = JSON.stringify(out);
 	}
@@ -197,23 +210,41 @@
 			var fields = document.createElement('div');
 			fields.className = 'djdt-venue-item__fields';
 
-			var caption = document.createElement('input');
-			caption.type = 'text';
-			caption.className = 'regular-text';
-			caption.placeholder = 'Caption (club or event name)';
-			caption.value = r.caption || '';
-			caption.addEventListener('input', function () { r.caption = caption.value; persist(); });
-			fields.appendChild(caption);
+			var name = document.createElement('input');
+			name.type = 'text';
+			name.placeholder = 'Name (club or event)';
+			name.value = r.name || '';
+			name.addEventListener('input', function () { r.name = name.value; persist(); });
+			fields.appendChild(name);
+
+			var details = document.createElement('input');
+			details.type = 'text';
+			details.placeholder = 'Details (optional, e.g. city, residency length)';
+			details.value = r.details || '';
+			details.addEventListener('input', function () { r.details = details.value; persist(); });
+			fields.appendChild(details);
 
 			var link = document.createElement('input');
 			link.type = 'text';
-			link.className = 'regular-text';
+			link.className = 'djdt-venue-item__link';
 			link.placeholder = 'Link (optional)';
 			link.value = r.link || '';
 			link.addEventListener('input', function () { r.link = link.value; persist(); });
 			fields.appendChild(link);
 
 			item.appendChild(fields);
+
+			var color = document.createElement('select');
+			color.className = 'djdt-venue-item__color';
+			[['white', 'White logo'], ['original', 'Original colors']].forEach(function (opt) {
+				var option = document.createElement('option');
+				option.value = opt[0];
+				option.textContent = opt[1];
+				if (opt[0] === (r.logo_color || 'white')) option.selected = true;
+				color.appendChild(option);
+			});
+			color.addEventListener('change', function () { r.logo_color = color.value; persist(); });
+			item.appendChild(color);
 
 			var toggle = document.createElement('label');
 			toggle.className = 'djdt-venue-item__toggle';
@@ -276,7 +307,7 @@
 
 	addBtn.addEventListener('click', function (e) {
 		e.preventDefault();
-		rows.push({ id: 0, caption: '', link: '', on: 1, url: '' });
+		rows.push({ id: 0, name: '', details: '', link: '', on: 1, logo_color: 'white', url: '' });
 		persist();
 		render();
 	});

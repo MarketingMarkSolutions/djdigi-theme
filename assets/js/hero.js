@@ -1,5 +1,8 @@
 /* [djdigi_hero] behavior: opening sequence timing, photo rotation, scroll
-   shrink, the header fix, and the Mixcloud player. */
+   shrink, header height measurement, and the Mixcloud player. The header's
+   background image is killed by a late wp_head <style> block now
+   (djdigi-theme.php), not from here, and it carries no entrance animation
+   to gate on readiness either (v1.4.0, see CLAUDE.md). */
 (function () {
 	'use strict';
 
@@ -7,61 +10,6 @@
 	if (!hero) return;
 
 	var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-
-	/* -----------------------------------------------------------------------
-	 * Header over the hero: two separate guarantees neither CSS nor the
-	 * normal intro timing can make on their own.
-	 *
-	 * Avada's own global header background image (an Options panel setting,
-	 * set site wide) comes from Avada's own generated CSS, which has beaten
-	 * an external stylesheet rule here even with !important across two
-	 * earlier rounds, whatever its exact selector or load order turns out
-	 * to be. An inline style set with the important priority cannot be
-	 * beaten by any stylesheet rule regardless of its own specificity, so
-	 * this is the one way to actually guarantee it is gone. Only the image
-	 * is forced here; background color and position are left to CSS, which
-	 * already handle those correctly (see site.css for the v1.3.0 fix to a
-	 * doubled admin bar offset that was pushing the header into the hero).
-	 *
-	 * Separately, the header's own entrance depends on the intro ready gate
-	 * below ever firing. If it never does for any reason (a script error
-	 * elsewhere, a promise that never settles), the header must not stay
-	 * invisible forever: there would be no way to navigate the site at all.
-	 * A timeout well past the normal intro forces it to its final visible
-	 * state regardless of whether the animation ever actually played.
-	 * -------------------------------------------------------------------- */
-	(function fixHeaderOverHero() {
-		if (!document.body.classList.contains('djdigi-has-hero')) return;
-		var wrapper = document.querySelector('.fusion-header-wrapper');
-		var selector = [
-			'.fusion-header-wrapper',
-			'.fusion-header',
-			'.fusion-secondary-header',
-			'.fusion-sticky-header-wrapper',
-			'.fusion-header-wrapper .fusion-row',
-			'.fusion-secondary-header .fusion-row',
-			'.fusion-sticky-header-wrapper .fusion-header',
-			'.fusion-sticky-header-wrapper .fusion-row'
-		].join(', ');
-		function killBgImage() {
-			document.querySelectorAll(selector).forEach(function (el) {
-				el.style.setProperty('background-image', 'none', 'important');
-			});
-		}
-		killBgImage();
-		// Avada's sticky header clone, if it is a separate element, can be
-		// built slightly after initial render; a couple of follow up passes
-		// catch that without an open ended observer.
-		window.addEventListener('load', killBgImage);
-		setTimeout(killBgImage, 1500);
-
-		setTimeout(function () {
-			if (!wrapper) return;
-			wrapper.style.setProperty('opacity', '1', 'important');
-			wrapper.style.setProperty('transform', 'none', 'important');
-			wrapper.style.willChange = 'auto';
-		}, 3000);
-	})();
 
 	/* -----------------------------------------------------------------------
 	 * Full intro once per session, quick after that. ?intro=1 forces the full
@@ -110,8 +58,14 @@
 	})();
 
 	/* -----------------------------------------------------------------------
-	 * Rotating hero photos: cross-fade, Ken Burns per photo, pause when the
-	 * tab is hidden, and only ever warm the one photo coming up next.
+	 * Rotating hero photos: a waveform wipe between photos (hero.css, pure
+	 * CSS, see "Rotation transition" there), Ken Burns per photo, pause
+	 * when the tab is hidden, and only ever warm the one photo coming up
+	 * next. The outgoing photo stays marked is-active until the wipe
+	 * finishes, since the incoming photo's mask reveals it progressively,
+	 * not a plain swap: removing is-active from the outgoing photo early
+	 * would drop it to opacity 0 before anything had revealed it, showing
+	 * the night background through the wipe instead of the previous photo.
 	 * -------------------------------------------------------------------- */
 	(function photoRotation() {
 		var wrap = hero.querySelector('.djd-hero__photos');
@@ -133,6 +87,7 @@
 		var index = photos.indexOf(active);
 		var timer = null;
 		var SLOT = 6500;
+		var WIPE_MS = 1250; // just past hero.css's 1.2s djd-wipe-reveal
 
 		function warm(i) {
 			var src = photos[i].getAttribute('srcset') ? photos[i].currentSrc : photos[i].src;
@@ -140,10 +95,17 @@
 		}
 
 		function advance() {
+			var prevEl = photos[index];
 			var next = (index + 1) % photos.length;
-			photos[index].classList.remove('is-active');
-			photos[next].classList.add('is-active');
-			restartKenBurns(photos[next]);
+			var nextEl = photos[next];
+			nextEl.classList.add('is-active', 'is-entering');
+			wrap.classList.add('is-wiping');
+			restartKenBurns(nextEl);
+			setTimeout(function () {
+				prevEl.classList.remove('is-active');
+				nextEl.classList.remove('is-entering');
+				wrap.classList.remove('is-wiping');
+			}, WIPE_MS);
 			index = next;
 			warm((index + 1) % photos.length);
 		}
@@ -228,8 +190,6 @@
 					'.djd-in-dj, .djd-letter, .djd-hero__slogan, .djd-eq, .djd-btn, .djd-player'
 				);
 				animated.forEach(function (el) { el.style.willChange = 'auto'; });
-				var headerWrapper = document.querySelector('.fusion-header-wrapper');
-				if (headerWrapper) headerWrapper.style.willChange = 'auto';
 			}, introDone);
 		});
 	})();

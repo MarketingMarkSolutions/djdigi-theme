@@ -37,19 +37,19 @@ Plugin Update Checker (vendor/plugin-update-checker, MIT) reads the latest GitHu
 attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 
 ## How it is gated
-`djdt_is_active()`: the theme and hero only load for logged-in admins until Settings > DigiMark Theme >
+`djdt_is_active()`: the theme and hero only load for logged-in admins until DigiMark > Theme Settings >
 "Live for everyone" is checked. Keep every new feature behind this check.
 
 ## Files
-- `djdigi-theme.php`: settings page (hero photo picker, venues picker), asset loading (filemtime versions, Cloudflare-safe), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]`, `[djdigi_venues]`.
-- `assets/css/site.css`: site-wide, scoped to `body.djdigi-theme`. Avada header and menu selectors: `.fusion-header-wrapper`, `.fusion-secondary-header` (no social icons at all now, see "Dock scoping"), `.fusion-header`, `.fusion-sticky-header-wrapper`, `.fusion-header-sticky-height` (Avada's own spacer, hidden on hero pages, see "Header over the hero" below), `.fusion-main-menu` (the pill bar) `> ul.fusion-menu`, `.sub-menu` (including explicit dropdown/flyout positioning and the `djd-flip-right` class menu.js adds near the viewport edge), `.fusion-mobile-selector` (classic mobile menu), `.fusion-is-sticky` (sticky state). Also owns the footer dock's styling and the opening sequence's shared timing custom properties (on `body.djdigi-has-hero`, see below).
-- `assets/css/hero.css`: hero only, loaded only when the shortcode renders. The large right side photo panel and its edge fade, the scroll shrink transform, the grid-stacked name layers, the player, the Pride EQ wave, the intro's pause-until-ready gate (see "Intro: fast, overlapping, waits for the photo and fonts" below). No ticker here anymore, see "Venues, and why there is no more ticker" below.
-- `assets/css/venues.css`, `assets/js/venues.js`: the `[djdigi_venues]` card, loaded only when that shortcode renders, same pattern as hero.css/hero.js. See "Venues, and why there is no more ticker" below.
-- `assets/css/admin.css`, `assets/js/admin.js`: Settings > DigiMark Theme only, the hero photo picker and the venues picker (wp.media, drag to reorder; hero photos also set a focal point, venues also have a caption, a link and an on/off switch).
-- `assets/js/hero.js`: opening sequence timing (session quick-intro, `?intro=1` override, the ready gate), the header over the hero fix (background image, final-state safety net, see "Header over the hero" below), header height measurement (the taller of the header wrapper and the mobile nav holder, so the hero always starts below whichever actually extends further down), hero photo rotation, the scroll shrink driver, the Mixcloud Widget API player (iframe at player-widget.mixcloud.com, see below).
+- `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo duotone baking (Imagick or GD), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]`, `[djdigi_venues]`.
+- `assets/css/site.css`: site-wide, scoped to `body.djdigi-theme`. Avada header and menu selectors: `.fusion-header-wrapper`, `.fusion-secondary-header` (no social icons at all now, see "Dock scoping"), `.fusion-header`, `.fusion-sticky-header-wrapper`, `.fusion-header-sticky-height` (Avada's own spacer, hidden on hero pages, see "Header over the hero" below), `.fusion-main-menu` (the pill bar) `> ul.fusion-menu`, `.sub-menu` (including explicit dropdown/flyout positioning and the `djd-flip-right` class menu.js adds near the viewport edge), `.fusion-mobile-selector` (classic mobile menu), `.fusion-is-sticky` (sticky state). Also owns the footer dock's styling, the opening sequence's shared timing custom properties (on `body.djdigi-has-hero`, see below), and the hero-page override of `html`'s own background color (see "Header over the hero" below, the cream strip fix).
+- `assets/css/hero.css`: hero only, loaded only when the shortcode renders. The large right side photo panel and its edge fade, the waveform wipe transition between rotating photos, the scroll shrink transform, the grid-stacked name layers, the player, the Pride EQ wave, the intro's pause-until-ready gate (see "Intro: fast, overlapping, waits for the photo and fonts" below). No filter, mix-blend-mode or mask-image on the photo itself anymore, see "Smoothness" below. No ticker here, see "Venues" below.
+- `assets/css/venues.css`, `assets/js/venues.js`: the `[djdigi_venues]` card, loaded only when that shortcode renders, same pattern as hero.css/hero.js. See "Venues" below.
+- `assets/css/admin.css`, `assets/js/admin.js`: the Hero Photos and Venues admin screens only, the hero photo picker and the venues picker (wp.media, drag to reorder; hero photos also set a focal point, venues also have a name, details, a link, a logo color, and an on/off switch).
+- `assets/js/hero.js`: opening sequence timing (session quick-intro, `?intro=1` override, the ready gate), header height measurement (the taller of the header wrapper and the mobile nav holder, so the hero always starts below whichever actually extends further down), the waveform wipe's class handoff between rotating photos, the scroll shrink driver, the Mixcloud Widget API player (iframe at player-widget.mixcloud.com, see below). The header's background image fix is no longer here, see "Header over the hero" below.
 - `assets/js/menu.js`: the sliding pill behind the current menu item (the only highlight in the menu now), carried across page loads via `sessionStorage`. Also keeps dropdown panels inside the viewport near the right edge.
 - `assets/js/dock.js`: the magnetic social dock, footer only (Mark's call: v1.2.1 tried a small one in the header too, v1.2.2 reverted that to Avada's plain icons, v1.2.3 hid those outright, social links live in the footer only now). Reads Avada's own rendered social link hrefs rather than owning them, hides the footer widget area when it has no widgets, and hides the secondary header entirely if that leaves it with nothing else in it.
-- `assets/img/hero-photo.jpg`: the bundled fallback hero photo, used when no photos are picked in Settings. `wave.svg`: player waveform, inlined by PHP rather than loaded as an image, see below.
+- `assets/img/hero-photo.jpg`: the original bundled fallback photo (kept as the source for rebaking). `hero-photo-duotone.jpg`: its pre-baked duotone copy, what actually gets served, built the same way `djdt_bake_duotone_imagick()`/`djdt_bake_duotone_gd()` bake an uploaded photo, just done once ahead of time rather than at upload. `hero-wipe-mask.svg`, `hero-wipe-glow.svg`: the waveform wipe's mask shapes, see "Smoothness" below. `wave.svg`: player waveform, inlined by PHP rather than loaded as an image, see below.
 - `assets/fonts/`: Archivo (variable, wdth + wght) and Saira Extra Condensed (700, 800), self-hosted, OFL.
 
 ## Dock scoping
@@ -83,16 +83,27 @@ every progress update. hero.js now loads the new domain directly. If Mixcloud mo
 quick `curl -sI` on the old URL shows where it currently redirects.
 
 ## Header over the hero: what actually beat it
-Getting the header to truly float transparent over the hero took four rounds. What finally worked:
+Getting the header to truly float transparent over the hero, with no animation and no flash on
+refresh, took five rounds. What finally worked:
+- **No entrance animation at all (v1.4.0).** The header used to drop in with its own `opacity`/
+  `transform` animation gated on the same intro-ready check as the rest of the hero (`djd-header-
+  drop`, site.css, removed in v1.4.0). Mark kept seeing a black bar on refresh regardless, which
+  turned out to be the background-image fix below running late (JS, after load) rather than the
+  animation itself; removing the animation entirely was the simpler, equally correct fix once the
+  background fix no longer needed JS timing either. The logo and menu pill are simply in place from
+  the very first frame now, on every page load, logged in or not.
 - **Avada's own global header background image** (an Options panel setting, HeaderMenuBG.png,
-  reflected in body classes like `avada-has-header-bg-image`) comes from Avada's own generated CSS,
-  which beat an external stylesheet rule here even with `!important`, across two earlier rounds,
-  regardless of the exact selector or load order tried against it. The only thing that actually
-  guarantees it gone is forcing `background-image: none` as an inline style with the `important`
-  priority (`el.style.setProperty('background-image', 'none', 'important')`, hero.js,
-  `fixHeaderOverHero()`): no stylesheet rule, at any specificity, can beat an inline `!important`
-  declaration. Only the image is forced this way; background color is left to CSS, which already
-  handles the transparent versus sticky distinction correctly, forcing it too would fight that.
+  reflected in body classes like `avada-has-header-bg-image`) comes from Avada's own generated
+  dynamic CSS, printed in `wp_head` at its own priority. Through v1.2.3 this was forced off with JS
+  after load (`el.style.setProperty('background-image', 'none', 'important')`, hero.js), which
+  worked, but only once that JS actually ran, after the real first paint, which is what caused the
+  black bar flash on every refresh Mark kept seeing. v1.4.0 instead prints a plain `<style>` block
+  from PHP, in `wp_head` at priority `9999` so it always lands after Avada's own dynamic stylesheet
+  in the page source, forcing `background-image: none !important` on the same selectors the JS used
+  to target. Later wins a tie in specificity and `!important` on every single load, so there is no
+  JS timing to race and nothing to flash. Only the image is forced this way; background color is
+  left to CSS, which already handles the transparent versus sticky distinction correctly through
+  the normal cascade, that was never the part Avada's CSS was beating.
 - **Avada's header sticky height spacer** (`.fusion-header-sticky-height`, a placeholder div Avada
   renders right before the real header so the page does not jump when its own JS makes the header
   fixed on scroll) still reserves real document flow height even though the header itself floats
@@ -110,35 +121,41 @@ Getting the header to truly float transparent over the hero took four rounds. Wh
   tested logged out). v1.3.0 removed it. If the header ever needs a genuine admin bar specific
   offset in the future, confirm `#wrapper`'s own `position` first and work out from there whether
   WP's margin is already accounted for, do not just re-add a flat 32px.
-- **A final-state safety net**: the header's visibility depends on the intro ready gate below ever
-  firing (it is `opacity: 0` until then). If that gate never fires for any reason, a script error
-  elsewhere, a promise that never settles, the header must not stay invisible forever: there would
-  be no way to navigate the site at all. hero.js forces it to its final visible state (opacity,
-  transform, will-change) on a timeout well past the normal intro, regardless of whether the
-  animation ever actually played.
+- **The cream strip above the header, logged in (v1.4.0).** WordPress core's own admin bar CSS puts
+  `margin-top: 32px` on `html` itself when an admin is logged in (not padding on a wrapper inside
+  it), so the admin bar can sit fixed on top without the page jumping. That strip, being margin on
+  the root element, paints with whatever background `html` itself resolves to; `html:has(body.djdigi-
+  theme)` is deliberately set to the paper color so a page shorter than the viewport never shows a
+  gray browser default behind the footer, but that same cream was what was showing through the
+  admin bar's own margin strip on hero pages, above the header. Fixed with a second, more specific
+  rule, `html:has(body.djdigi-has-hero) { background-color: #0b0820; }` (site.css), right after the
+  paper one, so that strip reads as a seamless continuation of the night hero instead. No change was
+  needed to the admin bar offset math itself, that part was already correct.
 - **Readability over the photo**: with the header carrying no background of its own, the logo and
   menu pill need their own contrast. A static top-down gradient wash on the hero itself
   (`.djd-hero::before`, about 200px tall, fading out) covers the logo; the menu bar already has its
-  own solid background (not glass, see "Venues, and why there is no more ticker" below for why).
+  own solid background (not glass, see "Venues" below for why).
 - **Avada's separate sticky header clone** (`.fusion-sticky-header-wrapper`, if it exists as a
   genuinely separate element rather than a class toggled on the same wrapper) is covered everywhere
-  the plain `.fusion-header-wrapper` is, both in CSS and in the JS pass above, since v1.2.1 and
-  v1.2.2 only ever targeted the one wrapper.
+  the plain `.fusion-header-wrapper` is, both in the wp_head `<style>` block above and in site.css.
 
-If the header ever shows a solid background again, check these in order: the inline style actually
-landed (DevTools, computed style, not just the stylesheet rules), the sticky height spacer is
-really hidden, whether anything is re-adding an admin bar offset (it should not need one, see
-above), the gradient still reads over a bright photo, and whether Avada changed its own markup (a
-theme update can rename or restructure any of this). Test both logged in and logged out, v1.2.3 was
-only ever confirmed logged out and the admin bar bug only showed up logged in.
+If the header ever shows a solid background again, check these in order: whether the `<style
+id="djdt-header-bg-kill">` block is actually printing after Avada's own dynamic stylesheet in the
+page source (view source, not just DevTools computed style, since load order is the whole point
+here), the sticky height spacer is really hidden, whether anything is re-adding an admin bar offset
+(it should not need one, see above), the gradient still reads over a bright photo, and whether Avada
+changed its own markup (a theme update can rename or restructure any of this). Test both logged in
+and logged out; the cream strip and the double admin bar offset were both bugs that only ever
+showed up logged in, while the exact same build looked correct logged out.
 
 ## The opening sequence's timing
-Lives as custom properties on `body.djdigi-has-hero` (site.css), not on `.djd-hero`, because the
-header's drop-in animation is a sibling of the hero section, not a descendant of it, and a custom
-property only cascades to descendants. `body.djdigi-has-hero.djd-quick-intro` (set by hero.js for a
-repeat view in the session, or cleared by `?intro=1`) overrides the same properties to shorten
-every dependent `animation-delay` at once. Add a new step by adding one `--djd-t-*` variable here,
-not by hardcoding a delay where it's used.
+Lives as custom properties on `body.djdigi-has-hero` (site.css), not on `.djd-hero`: it used to
+need to be this high up so the header's own drop-in animation (a sibling of the hero section, not
+a descendant of it) could read the same variables, and stayed there in v1.4.0 even though the
+header no longer animates, since nothing else needs it to move. `body.djdigi-has-hero.djd-quick-
+intro` (set by hero.js for a repeat view in the session, or cleared by `?intro=1`) overrides the
+same properties to shorten every dependent `animation-delay` at once. Add a new step by adding one
+`--djd-t-*` variable here, not by hardcoding a delay where it's used.
 
 ## Intro: fast, overlapping, waits for the photo and fonts
 Rebuilt in v1.2.2. About 1.6 to 1.8s total now (down from 3.6s), and the steps overlap rather than
@@ -169,7 +186,7 @@ hero, not just the entrance: no `filter` or `backdrop-filter` animation anywhere
 what turned out to be degrading the old ticker (see "Venues, and why there is no more ticker"
 below), and the same rules carried straight into venues.css for the v1.3.0 venues card.
 
-## Venues, and why there is no more ticker
+## Venues
 The scrolling genre ticker (bulb dots, marquee text) was removed entirely in v1.3.0, Mark's call:
 he found it cartoonish. Do not rebuild it if a "ticker" idea comes up again, this is a deliberate
 removal, not an oversight; if something like it is wanted later it needs to be designed again from
@@ -197,28 +214,113 @@ property, `--djd-beam-angle`, registered with `@property` (`syntax: '<angle>'`) 
 browser can smoothly animate it: an unregistered custom property used inside a gradient cannot be
 interpolated, only swapped instantly between values. The gradient is masked down to just the
 border's own ring (`mask-composite: exclude`, content-box cut out of border-box) so only a short arc
-shows at a time, not the whole gradient disc. `--djd-beam-dur` is worked out once in JS from the
-card's own perimeter (venues.js), same reasoning as the logo row's own speed. The heading's cyan to
-violet letter sweep (`.djd-venues__letter`, pure CSS keyframes, no JS) shares that same duration and
-is staggered per letter with the same `--i` custom property `djdt_split_letters()` already sets for
-the hero name, timed so it reads at roughly the moment the beam is passing behind the heading
-(the gradient's arc is drawn to land at 0deg/360deg, the heading's own fixed position on the card).
+shows at a time, not the whole gradient disc. v1.4.0 widened and brightened that arc (Mark could not
+really see it in the first pass) and thickened the ring from 1px to 2px. `--djd-beam-dur` is worked
+out once in JS from the card's own perimeter (venues.js), same reasoning as the logo row's own
+speed. The heading (`.djd-venues__heading`) moved above the card entirely in v1.4.0, a plain centered
+label rather than breaking the card's own top border like a fieldset legend; this also meant nothing
+can get clipped by the card's own `overflow: hidden` (which the beam needs) anymore. Its cyan to
+violet letter sweep (`.djd-venues__letter`, pure CSS keyframes, no JS) still shares the beam's own
+duration and is staggered per letter with the same `--i` custom property `djdt_split_letters()`
+already sets for the hero name; now that the heading sits outside the card, the sweep is simply
+timed to the beam's own loop rather than to a specific point on the card.
 
-Admin: a venue is `{ id, caption, link, on }`, the same hidden-JSON-field pattern as hero photos
-(`admin.js`, drag to reorder, `wp.media` for the logo), but the logo is optional: a venue with no
-logo shows its caption in the display font instead (`djdt_venue_item()`, PHP). Every logo renders in
-one flat off-white regardless of its own source color or format, via a static (never animated) CSS
-filter, `brightness(0) invert(0.92)`: brightness(0) crushes any non-transparent pixel to solid
-black while keeping its alpha, then invert flips that to a consistent off-white, which is what makes
-mismatched logos read as one set. If there are only a few venues on, PHP repeats the set (not just
+Admin (its own "Venues" screen under the DigiMark menu, see "Admin: three screens" below): a venue
+is `{ id, name, details, link, on, logo_color }`, the same hidden-JSON-field pattern as hero photos
+(`admin.js`, drag to reorder, `wp.media` for the logo). Name and details are two separate fields
+since v1.4.0 (a venue saved before that only had one "caption" field like "Necto Nightclub (Ann
+Arbor, MI, 10 year weekly residency)"; `djdt_venue_name_details()` splits an old row like that into
+name and details at read time, text before the first "(" as the name, text inside the parentheses
+as the details, so nothing Mark already entered needed retyping, it just shows up pre-split the
+first time the Venues screen loads after updating). The logo is optional: a venue with no logo
+shows its name (and details, if any) in the display font instead (`djdt_venue_item()`, PHP). Logo
+color is per venue, White (default) or Original: White renders every logo in one flat off-white
+regardless of its own source color or format, via a static (never animated) CSS filter,
+`brightness(0) invert(0.92)`, brightness(0) crushes any non-transparent pixel to solid black while
+keeping its alpha, then invert flips that to a consistent off-white, which is what makes mismatched
+logos read as one set; Original keeps the logo's own colors, dimmed to 85% opacity until a visitor's
+pointer is over that specific item (`.djd-venues__logo.is-original`, venues.css). SVG logos
+(`image/svg+xml`) are accepted (an `upload_mimes` filter, scoped to administrators) and rendered
+from their full file URL rather than through `wp_get_attachment_image_url()`, which has no generated
+sizes to offer for an SVG in the first place. Every venue logo also carries `skip-lazy` and
+`data-no-lazy="1"`, with no `loading="lazy"` of its own and `decoding="async"` instead: it sits in a
+constantly moving row that is already on screen, so Avada's lazy loading would either never
+trigger or load it visibly late. If there are only a few venues on, PHP repeats the set (not just
 the loop-duplicate, the actual displayed set) until it is wide enough to not look like a thin,
-obviously-looping row (`$min_rows` in `djdt_venues_shortcode()`).
+obviously-looping row (`$min_rows` in `djdt_venues_shortcode()`). The card itself is narrower now
+too (max 1200px, down from 1600, with less padding around the content, v1.4.0), and the whole
+`[djdigi_venues]` section breaks out of Avada's own container the same way `.djd-hero` does (`width:
+100vw; margin-left: calc(50% - 50vw);`, venues.css), so the night background runs edge to edge with
+no cream margin on either side and flows straight out of the hero above it.
 
 The genre list underneath (`.djd-genres`) reuses the exact setting the old ticker used
 (`djdt_get('ticker')`, the option key itself is still called `ticker`, intentionally not renamed, so
 existing saved values are not silently dropped), just rendered as plain static text now, no motion
 at all. `djdt_genre_item()` is the old `djdt_ticker_item()`, renamed for clarity since there is no
 ticker anymore, same escaping and `·` grouping behavior.
+
+## Smoothness: baked duotone photos and the waveform wipe
+The hero photo panel and the venue strip were both choppy (v1.4.0 report: "like the old ticker").
+The likely cause this time was never backdrop-filter (that lesson already shaped venues.css from the
+start, see "Venues" above); it was the hero photo itself carrying three repaint-forcing layers at
+once under the Ken Burns zoom: a `filter: grayscale(1) contrast(1.05)`, a `mix-blend-mode: color`
+duotone overlay, and a `mask-image` edge fade, all three recomputed every frame the photo moved or
+crossfaded. Fixed by moving the whole duotone treatment server side:
+- `djdt_ensure_duotone()` (djdigi-theme.php) bakes a grayscale-then-violet-to-cyan copy of a hero
+  photo once, when it is saved into Hero Photos, not on every front end page load. Imagick first
+  (`djdt_bake_duotone_imagick()`, the standard duotone recipe: convert to grayscale, then
+  `clutImage()` against a 1px tall gradient from violet to cyan, which maps black to violet, white
+  to cyan, and every gray level to the matching point between them), GD as a fallback
+  (`djdt_bake_duotone_gd()`, the same lerp done by hand with a 256 entry lookup table, one pass over
+  the pixels). Both resize to `DJDT_DUOTONE_MAX_DIM` (2000px) first, plenty for how large the photo
+  panel ever renders and far cheaper to bake and serve than the original upload. The baked file's
+  path is cached in postmeta (`_djdt_duotone_file`); `djdt_duotone_url()` regenerates it on demand if
+  that meta or the file is ever missing, so a photo saved before v1.4.0 self heals the first time it
+  is needed, no resave required. If neither Imagick nor GD is available (unusual on a normal host),
+  the photo falls back to the plain, unprocessed original rather than a broken image.
+- The bundled fallback photo got the same treatment ahead of time: `hero-photo-duotone.jpg` is a
+  pre-baked copy of `hero-photo.jpg`, shipped as a file rather than generated at runtime, and is what
+  actually gets served when no photos are picked in Settings.
+- hero.css no longer has any `filter`, `mix-blend-mode` or `mask-image` on `.djd-hero__photo` or
+  `.djd-hero__photos` at all. The left/bottom edge fade that used to be reinforced by the mask is now
+  the only fade (`.djd-hero__photos::after`), with its stops pushed a little further out so there is
+  still no visible seam without that reinforcement.
+
+The crossfade between rotating photos became a waveform wipe in the same pass (Mark's ask, not a
+performance fix on its own, but built with the same no-filter rule): `hero-wipe-mask.svg` is a
+jagged vertical-bar boundary, white (visible) on one side, transparent (hidden) on the other,
+sized at `mask-size: 200% 100%` so that animating `mask-position` from `100% 0` to `0% 0` sweeps the
+boundary left to right across the whole photo over about 1.2s (`@keyframes djd-wipe-reveal`,
+hero.css). `mask-position` is a paint-cost property and the general rule elsewhere in this plugin is
+to never animate one like it (see "Venues" above); it is fine here specifically because this runs
+once per rotation, not in an infinite loop like the old ticker did. The incoming photo gets a
+temporary `is-entering` class (hero.js, `photoRotation()`) that applies the mask and runs the reveal
+together with Ken Burns as one combined `animation` list on `.is-kenburns.is-entering`, so Ken Burns
+keeps running without restarting once `is-entering` is removed again after the wipe (same animation
+name still present in the list before and after, which is what keeps the browser from treating it as
+a new animation instance). The outgoing photo stays marked `is-active` until the wipe finishes
+(hero.js clears it on a timeout, not immediately), since what shows through the not-yet-revealed
+part of the mask is simply whatever is underneath, the previous photo, which is the whole effect: an
+early removal would show the night background through it instead. `hero-wipe-glow.svg` is a second,
+softer mask (a feathered vertical band rather than a hard edge) applied to `.djd-hero__wipe-glow`, a
+plain cyan-to-violet gradient div with no filter and no blend mode, riding the exact same
+`djd-wipe-reveal` keyframe so the glow tracks the jagged edge without its own transform or any JS.
+Falls back to the plain opacity crossfade on a browser with no mask-image support
+(`@supports (mask-image: ...) or (-webkit-mask-image: ...)` gates the whole thing).
+
+## Admin: three screens
+A top level "DigiMark" item in the WordPress sidebar (v1.4.0, replacing the single page that used to
+live under Settings), with three screens: Theme Settings, Hero Photos, Venues
+(`add_menu_page()`/`add_submenu_page()`, djdigi-theme.php). All three post to the same
+`options.php` and the same option (`djdigi_theme_settings`), so each form carries a hidden
+`djdt_page` field (`theme`, `photos`, or `venues`); `djdt_sanitize()` starts from the setting as
+currently saved (not just the defaults) and only overwrites the slice of keys that screen's own
+`djdt_page` value owns. This matters because splitting one form into three means any one of them,
+submitted on its own, would otherwise blank out every field it does not carry, a checkbox the
+Theme Settings screen does not even render would look "unchecked" to a plain rebuild-from-POST
+sanitizer. The old URL, `wp-admin/options-general.php?page=djdigi-theme`, redirects to the new
+Theme Settings page (`admin_init`, checked against `$pagenow` and `$_GET['page']`) so an old
+bookmark still lands somewhere real.
 
 ## Motion: always on, by design
 Nothing on this site checks `prefers-reduced-motion`, anywhere: not in CSS, not in JS, no setting
@@ -244,9 +346,9 @@ is correct whether or not the animation happens to be running at that instant.
 - Paper `#f1ece2`, violet `#5a2e91`, ink `#2a1450`, night `#0b0820`, logo cyan `#24a9e0`, International Orange `#f04e23` (sparingly).
 - "DigiMark" in the hero uses logo cyan and is mixed case, not all caps, matching the logo. "DJ" is off-white on the dark hero.
 - Display font: Saira Extra Condensed, 700/800. Text font: Archivo. Buttons and the player status tag are sentence case now, not wide-tracked uppercase, except the venues heading and the name, which stay uppercase display type.
-- Hero layout: the photo is large, the right 55 to 60% of the hero, full height, bleeding to the right edge, with the name overlapping into it on the left. A dedicated fade layer (not the duotone layer) washes the left and bottom edges into night so the photo never shows a hard rectangle. Phone: the photo goes full bleed behind everything with a stronger dark wash for text contrast. No hero labels: the name and slogan carry the hero alone (removed entirely in v1.2.1, markup and CSS, Mark's call).
-- Hero intro (about 1.6 to 1.8s, see "Intro: fast, overlapping, waits for the photo and fonts" above): glows bloom first, then the photo fades in with a slight scale in, then "DJ" and "DigiMark" sweep up letter by letter from a full height mask, then slogan, buttons, player and menu land together, all heavily overlapping rather than running in sequence. Quick version on a repeat view in the session; `?intro=1` forces the full one. Always plays in full motion, see "Motion: always on, by design".
-- Hero photo: rotates through whatever is picked in Settings > DigiMark Theme (each with its own focal point), cross fading with a slow zoom, or the bundled photo if none are picked. A CSS duotone (grayscale + a violet to cyan color blend) is applied to every photo uniformly, including the bundled one, so any photo Mark adds reads as part of the same look without manual editing.
+- Hero layout: the photo is large, the right 55 to 60% of the hero, full height, bleeding to the right edge, with the name overlapping into it on the left. A fade layer washes the left and bottom edges into night so the photo never shows a hard rectangle. Phone: the photo goes full bleed behind everything with a stronger dark wash for text contrast. No hero labels: the name and slogan carry the hero alone (removed entirely in v1.2.1, markup and CSS, Mark's call).
+- Hero intro (about 1.6 to 1.8s, see "Intro: fast, overlapping, waits for the photo and fonts" above): glows bloom first, then the photo fades in with a slight scale in, then "DJ" and "DigiMark" sweep up letter by letter from a full height mask, then slogan, buttons and player land together, all heavily overlapping rather than running in sequence. The header carries no entrance animation of its own (v1.4.0), the logo and menu pill are simply in place from the first frame. Quick version on a repeat view in the session; `?intro=1` forces the full one. Always plays in full motion, see "Motion: always on, by design".
+- Hero photo: rotates through whatever is picked in Settings (each with its own focal point), with a slow Ken Burns zoom and a waveform wipe transition between photos (see "Smoothness" above), or the bundled photo if none are picked. The duotone look (grayscale, then a violet to cyan gradient) is baked into the photo file itself server side now, not a live CSS filter or blend mode, so any photo Mark adds reads as part of the same look without manual editing and without costing a repaint every frame.
 - Name layers: echo (the drifting violet ghost) and main (the cyan letters) are stacked with CSS Grid, both in the same grid cell, not positioned by hand. Grid items never margin collapse with their container or each other, which is what actually caused v1.2.0's doubled name bug (the padding and negative margin used to make room for descenders collapsed through on one layer and not the other). Keep them grid stacked rather than going back to relative/absolute arithmetic.
 - Scroll: past the hero, it shrinks toward scale 0.85 with growing corner radius (toward 28px). One scroll driven progress value (0 to 1) feeds it; see hero.js. Off for touch devices only. The photo wall that used to slide in around it (v1.2.0 and v1.2.1) was removed entirely in v1.2.2, Mark's call (nothing showed below the hero live, and he had not actually asked for it); if tiles come back later they need rebuilding from scratch, not un-reverting this.
 - Pride EQ: a shared sine wave drives all 6 bars (`djd-eq-wave`), each with its own `animation-delay` so the motion rolls left to right through the colors, plus a small separate drift animation for a fabric feel, rather than each bar bouncing independently.
@@ -254,7 +356,7 @@ is correct whether or not the animation happens to be running at that instant.
 ## Hero copy (approved)
 - Slogan: "Bringing positive vibes to the dance floor" + pride-colored EQ bars (rainbow flag and music in one mark).
 - Venues section heading, editable in Settings, default: "Where I've played".
-- Genre list (under the venues card, see "Venues, and why there is no more ticker" above) comes from
+- Genre list (under the venues card, see "Venues" above) comes from
   settings. Default: House, EDM, Top 40 Remixes, "70s · 80s · 90s · 00s Dance" (one grouped item),
   Pride/Queer Pop & Dance, Live Video DJ Sets.
 - Keep the hero lean. Background details belong on the About page.
@@ -308,6 +410,22 @@ Since v1.2.1, screenshots from this harness are QA for the build itself, not som
 reviews before release: he judges every round live on the site instead. Still worth running before
 calling a batch done.
 
+## Measuring smoothness, not guessing at it
+v1.4.0 ("Smoothness" above) was measured, not just reasoned about, before release: headed Chromium
+(Playwright, GPU on, not the headless-only path), 1920x1080, a local harness with the hero's Ken
+Burns zoom, a waveform wipe transition in progress, the venues beam and the logo marquee all running
+at once, `requestAnimationFrame` timestamps collected for 10 seconds starting 3 seconds after load
+(past the opening sequence). This sandbox's own display is not locked to a real 60Hz refresh (plain
+`requestAnimationFrame` on a blank page here runs at roughly 145 to 165fps on its own, confirmed
+separately), so a raw fps number from it is not a meaningful "is this 60fps" claim. What is
+meaningful regardless of the display: per-frame cost, how long the browser actually spent per frame
+regardless of how often it was allowed to paint. Measured result: 0 frames exceeded even a loose
+25ms (well past a 60fps budget's 16.7ms) dropped-frame threshold out of 1650 frames over 10 seconds,
+p95 and max frame cost both 6.2ms, comfortably inside the 60fps budget with room to spare. Re-run
+this (the harness and `measure.js` are not checked into the plugin, rebuild them the same way:
+hero's and venues' real markup and CSS/JS, a few seconds of settle time, then collect rAF deltas)
+before claiming a future change is smooth; do not just assert a frame rate without it.
+
 For real Avada markup: the most accurate fixture is a real saved page (View Source > Save As)
 with the plugin's own `<link>`/`<script>` tags repointed at the local updated files, rather than a
 hand built stand in. The hero section itself still needs to be replaced in that saved copy (it is
@@ -319,32 +437,33 @@ JS do not fully initialize against a static file, so the mobile selector and all
 can render in the wrong state regardless of anything in this plugin.
 
 ## Open items
-- Queued for live review after v1.3.0, not confirmed yet:
-  1. Header and menu fully transparent over the hero, logged in AND logged out (v1.2.3 was only
-     confirmed logged out; the admin bar double offset bug only showed up logged in). Check both the
-     plain and the sticky (scrolled) state. See "Header over the hero: what actually beat it" above
-     if it is still showing solid.
-  2. Top bar shows no social icons at all now (footer only); if the bar is otherwise empty it should
-     not show at all, no gap above the hero.
-  3. The genre ticker is gone completely, replaced by `[djdigi_venues]` right below the hero: the
-     bordered card, the traveling beam, the heading's color sweep when the beam passes behind it,
-     the slow logo row (pause on hover), and the static genre list underneath. Add a few venues in
-     Settings first, nothing shows if none are on.
-  4. Venues card performance: DevTools Performance should show a steady 60fps while the beam and the
-     logo row are both animating, same standard as the hero's own entrance and the (now removed)
-     ticker, see "Venues, and why there is no more ticker" above for the rules that came out of that.
-  5. A venue with no logo shows its caption in the display font; a venue with a logo shows the logo
-     (recolored off-white) with its caption underneath. Confirm both look right, and that the switch
-     per venue actually hides it from the front end without losing the saved logo or caption.
-  6. Intro still finishes in about 1.6 to 1.8s with overlapping steps (unchanged from v1.2.2) and
-     still plays in full with OS reduce motion on.
-  7. Confirm the hero photo rotation actually advances on a fresh (uncached) load with the 3 saved
-     photos. If `data-photo-count` in the page source still reads wrong after a purge, see "Hero
-     photo rotation depends on a fresh page cache" below.
-- Resolved in v1.2.1 through v1.2.3, confirmed live: third-level dropdown overlap and colors, mobile
+- Queued for live review after v1.4.0, not confirmed yet:
+  1. Header and menu fully transparent over the hero, with no black bar flash on refresh, logged in
+     AND logged out, plain and sticky (scrolled) state. The cream strip above the header while
+     logged in should also be gone. See "Header over the hero: what actually beat it" above if
+     anything still shows solid or flashes.
+  2. The new DigiMark sidebar menu: Theme Settings, Hero Photos, Venues all save correctly and only
+     touch their own fields (saving Hero Photos should never blank out the Mixcloud username, for
+     example). The old Settings > DigiMark Theme bookmark redirects to the new Theme Settings page.
+  3. Venues: Name and Details render as two lines under a logo (or on their own if a venue has no
+     logo); an old venue's single caption shows up correctly pre-split into name and details the
+     first time the Venues screen loads. Logo color per venue (White recolors, Original keeps its
+     own colors and dims until hovered) looks right for at least one of each. An SVG logo renders.
+  4. Venues card layout: the heading reads as a plain label above the card now, not breaking the
+     border; the card feels right at its new narrower width; logos read clearly at the larger size;
+     the beam is now actually visible riding the border. The whole section should flow directly out
+     of the hero with no cream gap on any side.
+  5. Hero photo smoothness: the photo panel and the venue strip should both feel smooth now (see
+     "Smoothness" above for the baked duotone and what changed); the new waveform wipe between
+     rotating photos should read as a left to right reveal with a soft glow on its edge, not a
+     crossfade, and Ken Burns should keep zooming through and after it with no stutter or restart.
+  6. Intro still finishes in about 1.6 to 1.8s with overlapping steps (unchanged since v1.2.2) and
+     still plays in full with OS reduce motion on; the header no longer animates in at all, confirm
+     that reads as "just there" rather than missing something.
+- Resolved in v1.2.1 through v1.3.0, confirmed live: third-level dropdown overlap and colors, mobile
   header overlapping hero content, reduced motion freezing everything, the intro's own speed, and
   two different diagnoses of what was making the old ticker choppy before it was removed outright
-  (see "Venues, and why there is no more ticker" above for what the real cause turned out to be).
+  (see "Venues" above for what the real cause turned out to be).
 - After updating, purge Asset CleanUp, Bluehost's cache, and Cloudflare (see "Caching, every time
   something changes") before judging anything on the live page. Most "it didn't change" reports in
   past rounds turned out to be a stale cached copy, not a code issue.
