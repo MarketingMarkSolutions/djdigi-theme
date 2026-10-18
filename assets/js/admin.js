@@ -198,6 +198,14 @@
 				picker.on('select', function () {
 					var attachment = picker.state().get('selection').first();
 					r.id = attachment.get('id');
+					var mime = attachment.get('mime') || '';
+					// A quick mime based guess at a sensible default (a real
+					// alpha check needs pixel data this picker does not have
+					// on hand): JPG can never have transparency, so it is
+					// never White by default; PNG/WebP/SVG default to White
+					// since they often do. Mark can change it from the
+					// dropdown either way.
+					r.logo_color = ('image/png' === mime || 'image/webp' === mime || 'image/svg+xml' === mime) ? 'white' : 'original';
 					var sizes = attachment.get('sizes');
 					r.url = (sizes && sizes.thumbnail && sizes.thumbnail.url) || attachment.get('url') || '';
 					persist();

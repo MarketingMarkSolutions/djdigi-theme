@@ -63,16 +63,18 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 @media (min-width: 1100px) {
 	.djd-hero__photos { left: 44%; }
 }
-/* The photo file itself is already a baked grayscale-then-duotone JPEG
-   (v1.4.0, server side: Imagick or GD, see djdigi-theme.php), not a plain
-   photo with a CSS filter and a mix-blend-mode layer on top of it. Those,
-   together with the mask-image this element used to carry, were the
-   actual cause of the hero photo panel repainting every frame during the
-   Ken Burns zoom (see CLAUDE.md, "Smoothness"): a filter or a blend mode
-   forces the browser to recompute color for the whole layer on every
-   frame it moves or changes, same family of cost as backdrop-filter.
-   What is left here is a plain image with only a transform animating it,
-   which is cheap to composite. */
+/* The photo file itself is already a baked grayscale-then-duotone image
+   (v1.4.0, server side: Imagick or GD, see djdigi-theme.php; the color
+   bug where it came out pure gray, and the left/bottom edge fade baked
+   into the file's own alpha channel instead of painted on top, are both
+   v1.4.1). No CSS filter and no mix-blend-mode layer on top of it, and no
+   mask-image on this element either: all three were the actual cause of
+   the hero photo panel repainting every frame during the Ken Burns zoom
+   (see CLAUDE.md, "Smoothness"), a filter or a blend mode forces the
+   browser to recompute color for the whole layer on every frame it moves
+   or changes, same family of cost as backdrop-filter. What is left here
+   is a plain image with only a transform animating it, which is cheap to
+   composite. */
 .djd-hero__photo {
 	position: absolute;
 	inset: 0;
@@ -86,20 +88,20 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 .djd-hero__photo.is-active { opacity: 1; }
 .djd-hero__photo.is-entering { z-index: 2; }
 .djd-hero__photo.is-kenburns { animation: djd-kenburns 7.6s linear forwards; }
-/* Edge fade into night, left and bottom, wide and eased (several stops,
-   not one linear ramp) over roughly the first third of the panel. This
-   used to only reinforce a matching mask-image on .djd-hero__photos
-   (removed above, it was one of the three repaint sources); stops here
-   are pushed slightly further out so there is still no visible seam now
-   that it is the only thing doing the fade. */
+/* Bottom edge fade only now (v1.4.1): the left edge used to be painted
+   here too, solid night, but the glow behind it is lighter than flat
+   night in places, which is what showed as a hard seam live. The left
+   edge fade is baked into the photo's own alpha channel now instead (see
+   djdigi-theme.php, djdt_bake_duotone_imagick/gd), so whatever is
+   actually behind the photo, glow included, shows through correctly
+   regardless of its own brightness. The bottom edge has no such seam
+   (nothing bright sits directly behind it), so it stays here. */
 .djd-hero__photos::after {
 	content: '';
 	position: absolute;
 	inset: -2px;
 	z-index: 3;
-	background:
-		linear-gradient(to right, var(--djd-night) 0%, rgba(11, 8, 32, 0.9) 10%, rgba(11, 8, 32, 0.6) 18%, rgba(11, 8, 32, 0.28) 27%, rgba(11, 8, 32, 0) 38%),
-		linear-gradient(to top, var(--djd-night) 0%, rgba(11, 8, 32, 0.85) 7%, rgba(11, 8, 32, 0.5) 13%, rgba(11, 8, 32, 0.2) 20%, rgba(11, 8, 32, 0) 30%);
+	background: linear-gradient(to top, var(--djd-night) 0%, rgba(11, 8, 32, 0.85) 7%, rgba(11, 8, 32, 0.5) 13%, rgba(11, 8, 32, 0.2) 20%, rgba(11, 8, 32, 0) 30%);
 	pointer-events: none;
 }
 /* Phone: the photo goes full bleed behind everything, with a stronger wash
@@ -115,18 +117,21 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 }
 
 /* ---------------------------------------------------------------------
-   Rotation transition: a left to right reveal behind a waveform-shaped
-   edge (v1.4.0, replacing a plain crossfade). The incoming photo's own
-   mask slides from fully hidden to fully shown; since the outgoing photo
-   sits beneath it at all times during the overlap (hero.js keeps both
-   marked is-active until the reveal finishes), what shows through the
-   not-yet-revealed part is simply the previous photo, which is the wipe.
-   mask-position is pre-approved for this one case even though the general
-   rule elsewhere is to never animate a paint-cost property like it: this
-   runs once per rotation (about 1.2s), not in an infinite loop, so the
-   cost is bounded, unlike the old ticker. No per-frame JS anywhere in it.
-   Falls back to the plain opacity crossfade above on a browser with no
-   mask-image support, since nothing here overrides it in that case. */
+   Rotation transition: a left to right reveal behind a waveform shaped
+   edge (v1.4.0, replacing a plain crossfade; the edge itself redrawn
+   taller and more irregular in v1.4.1, hero-wipe-mask.svg, after it read
+   as barely visible at the old smaller amplitude). The incoming photo's
+   own mask slides from fully hidden to fully shown; since the outgoing
+   photo sits beneath it at all times during the overlap (hero.js keeps
+   both marked is-active until the reveal finishes), what shows through
+   the not-yet-revealed part is simply the previous photo, which is the
+   wipe. mask-position is pre-approved for this one case even though the
+   general rule elsewhere is to never animate a paint-cost property like
+   it: this runs once per rotation (about 1.4s), not in an infinite loop,
+   so the cost is bounded, unlike the old ticker. No per-frame JS anywhere
+   in it. Falls back to the plain opacity crossfade above on a browser
+   with no mask-image support, since nothing here overrides it in that
+   case. */
 @supports (mask-image: url('data:image/svg+xml,%3Csvg/%3E')) or (-webkit-mask-image: url('data:image/svg+xml,%3Csvg/%3E')) {
 	.djd-hero__photo.is-entering {
 		transition: none;
@@ -141,23 +146,32 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 		mask-position: 100% 0;
 	}
 	.djd-hero__photo.is-kenburns.is-entering {
-		animation: djd-wipe-reveal 1.2s cubic-bezier(0.22, 1, 0.36, 1) both, djd-kenburns 7.6s linear forwards;
+		animation: djd-wipe-reveal 1.4s cubic-bezier(0.22, 1, 0.36, 1) both, djd-kenburns 7.6s linear forwards;
 	}
 	.djd-hero__wipe-glow { display: block; }
 	.djd-hero__photos.is-wiping .djd-hero__wipe-glow {
-		opacity: 0.85;
 		-webkit-mask-image: url('../img/hero-wipe-glow.svg');
 		mask-image: url('../img/hero-wipe-glow.svg');
 		-webkit-mask-size: 200% 100%;
 		mask-size: 200% 100%;
 		-webkit-mask-repeat: no-repeat;
 		mask-repeat: no-repeat;
-		animation: djd-wipe-reveal 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+		animation: djd-wipe-reveal 1.4s cubic-bezier(0.22, 1, 0.36, 1) both, djd-wipe-flare 1.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 	}
 }
 @keyframes djd-wipe-reveal {
 	from { mask-position: 100% 0; -webkit-mask-position: 100% 0; }
 	to { mask-position: 0% 0; -webkit-mask-position: 0% 0; }
+}
+/* A short, brighter flare right as the edge crosses the middle of the
+   panel (opacity only, same rule as everywhere else in the hero): base
+   brightness raised from v1.4.0's flat 0.85 so the glow actually reads,
+   with one pulse to full opacity around the midpoint of the reveal. */
+@keyframes djd-wipe-flare {
+	0%, 100% { opacity: 0.8; }
+	45% { opacity: 0.9; }
+	50% { opacity: 1; }
+	55% { opacity: 0.9; }
 }
 /* The glow bar: a static cyan to violet gradient (no filter, no blend
    mode), masked down to a soft vertical band that rides the same

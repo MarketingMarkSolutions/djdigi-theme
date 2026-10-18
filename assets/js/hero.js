@@ -87,7 +87,7 @@
 		var index = photos.indexOf(active);
 		var timer = null;
 		var SLOT = 6500;
-		var WIPE_MS = 1250; // just past hero.css's 1.2s djd-wipe-reveal
+		var WIPE_MS = 1450; // just past hero.css's 1.4s djd-wipe-reveal
 
 		function warm(i) {
 			var src = photos[i].getAttribute('srcset') ? photos[i].currentSrc : photos[i].src;

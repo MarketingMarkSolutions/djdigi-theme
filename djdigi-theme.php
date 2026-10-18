@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, and [djdigi_venues] for djdigimark.com.
- * Version: 1.4.0
+ * Version: 1.4.1
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.4.0' );
+define( 'DJDT_VERSION', '1.4.1' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -177,16 +177,111 @@ function djdt_venue_name_details( $row ) {
 
 /** A venue row shaped for admin.js: id, name, details, link, on, logo_color, each always present. */
 function djdt_venue_admin_row( $row ) {
-	$nd = djdt_venue_name_details( $row );
+	$nd  = djdt_venue_name_details( $row );
+	$id  = isset( $row['id'] ) ? (int) $row['id'] : 0;
 	return array(
-		'id'         => isset( $row['id'] ) ? (int) $row['id'] : 0,
+		'id'         => $id,
 		'name'       => $nd['name'],
 		'details'    => $nd['details'],
 		'link'       => isset( $row['link'] ) ? (string) $row['link'] : '',
 		'on'         => isset( $row['on'] ) ? (int) $row['on'] : 1,
-		'logo_color' => ( isset( $row['logo_color'] ) && 'original' === $row['logo_color'] ) ? 'original' : 'white',
+		'logo_color' => isset( $row['logo_color'] ) ? ( 'original' === $row['logo_color'] ? 'original' : 'white' ) : djdt_logo_default_color( $id ),
 	);
 }
+
+/**
+ * Picks a sensible default logo color for a venue (v1.4.1, found live: a
+ * JPG with a solid background, Necto, was defaulting to White and coming
+ * out a gray box, since brightness(0) invert(0.92) crushes a JPG's own
+ * opaque background the same as any other pixel, there is no transparency
+ * for it to read through). White only makes sense when the file actually
+ * has something transparent for the recolor to apply through: an SVG
+ * (vector, counted as transparent by convention here) or a PNG/WebP that
+ * genuinely carries alpha. Anything else, a JPG above all, defaults to
+ * Original. Mark can still override per venue from the dropdown.
+ */
+function djdt_logo_default_color( $id ) {
+	$id = (int) $id;
+	if ( $id <= 0 ) {
+		return 'white';
+	}
+	$mime = get_post_mime_type( $id );
+	if ( 'image/svg+xml' === $mime ) {
+		return 'white';
+	}
+	if ( ! in_array( $mime, array( 'image/png', 'image/webp' ), true ) ) {
+		return 'original';
+	}
+	return djdt_image_has_alpha( $id ) ? 'white' : 'original';
+}
+
+/**
+ * A PNG or WebP can carry an alpha channel while still being fully
+ * opaque; this samples a grid of pixels (not every one, a logo is small
+ * and this only ever needs to run once per venue) looking for any pixel
+ * that is actually, visibly transparent. GD specifically, not Imagick:
+ * simpler to get exactly right here and virtually always available
+ * regardless of which library ends up baking hero photos.
+ */
+function djdt_image_has_alpha( $id ) {
+	$path = get_attached_file( $id );
+	$mime = get_post_mime_type( $id );
+	if ( ! $path || ! file_exists( $path ) || ! function_exists( 'imagecreatefrompng' ) ) {
+		return false;
+	}
+	$im = ( 'image/webp' === $mime )
+		? ( function_exists( 'imagecreatefromwebp' ) ? @imagecreatefromwebp( $path ) : false )
+		: @imagecreatefrompng( $path );
+	if ( ! $im ) {
+		return false;
+	}
+	$w     = imagesx( $im );
+	$h     = imagesy( $im );
+	$step  = max( 1, (int) floor( min( $w, $h ) / 40 ) );
+	$found = false;
+	for ( $y = 0; $y < $h && ! $found; $y += $step ) {
+		for ( $x = 0; $x < $w; $x += $step ) {
+			$alpha = ( imagecolorat( $im, $x, $y ) >> 24 ) & 0x7F;
+			if ( $alpha > 3 ) { // a little slack for near opaque antialiasing
+				$found = true;
+				break;
+			}
+		}
+	}
+	imagedestroy( $im );
+	return $found;
+}
+
+/**
+ * Recomputes logo_color for every existing venue once per
+ * DJDT_LOGO_COLOR_RECIPE bump (v1.4.1), the same reasoning as the
+ * duotone regeneration above: a venue saved before this version always
+ * got White by default regardless of the file, which is what made a JPG
+ * logo like Necto's render as a gray box. This overwrites whatever is
+ * currently saved for every venue with a logo, once; a value Mark sets
+ * afterward from the Venues screen is untouched by this (it only runs
+ * again if DJDT_LOGO_COLOR_RECIPE is bumped again).
+ */
+define( 'DJDT_LOGO_COLOR_RECIPE', 1 );
+add_action( 'admin_init', function () {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+	if ( (int) get_option( 'djdt_logo_color_done', 0 ) >= DJDT_LOGO_COLOR_RECIPE ) {
+		return;
+	}
+	$settings = djdt_settings();
+	$venues   = is_array( $settings['venues'] ) ? $settings['venues'] : array();
+	foreach ( $venues as $i => $row ) {
+		$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+		if ( $id > 0 ) {
+			$venues[ $i ]['logo_color'] = djdt_logo_default_color( $id );
+		}
+	}
+	$settings['venues'] = $venues;
+	update_option( DJDT_OPTION, $settings );
+	update_option( 'djdt_logo_color_done', DJDT_LOGO_COLOR_RECIPE );
+} );
 
 /**
  * Three separate screens (Theme Settings, Hero Photos, Venues, see
@@ -492,70 +587,109 @@ add_action( 'wp_head', function () {
 }, 9999 );
 
 /* -------------------------------------------------------------------------
- * Hero photo duotone baking (v1.4.0)
+ * Hero photo duotone baking (v1.4.0, color fixed and edge fades baked in
+ * v1.4.1)
  * Generated once, when a photo is saved into Hero Photos (djdt_sanitize's
  * 'photos' branch), not on every front end page load: grayscale, then a
- * violet to cyan duotone, baked straight into its own JPEG next to the
- * original upload. The front end then serves a plain photo with no CSS
- * filter, no mix-blend-mode and no mask-image, all three of which were
- * forcing a repaint every frame together with the Ken Burns zoom (see
- * CLAUDE.md, "Smoothness" / why the venue strip and the hero photo were
- * choppy). Falls back to the unprocessed original if neither Imagick nor
- * GD is available, which would be unusual on a normal WordPress host.
+ * violet to cyan duotone, with the left and bottom edge fades baked
+ * straight into the file's own alpha channel (a WebP), next to a plain
+ * opaque JPEG fallback for a browser with no WebP support. The front end
+ * then serves a plain photo with no CSS filter, no mix-blend-mode and no
+ * mask-image, all three of which were forcing a repaint every frame
+ * together with the Ken Burns zoom (see CLAUDE.md, "Smoothness" / why the
+ * venue strip and the hero photo were choppy). Falls back to the
+ * unprocessed original if neither Imagick nor GD is available, which
+ * would be unusual on a normal WordPress host.
  * ---------------------------------------------------------------------- */
 
 define( 'DJDT_DUOTONE_VIOLET', '#5a2e91' );
 define( 'DJDT_DUOTONE_CYAN', '#24a9e0' );
+define( 'DJDT_DUOTONE_NIGHT', '#0b0820' );
 define( 'DJDT_DUOTONE_MAX_DIM', 2000 );
+// Bump this whenever djdt_bake_duotone_* changes in a way that means an
+// already baked file needs regenerating to look right (v1.4.1: both the
+// Imagick color bug and the new baked edge fades need every existing
+// photo rebaked, see the admin_init hook below, "Mark does not have to
+// re-save").
+define( 'DJDT_DUOTONE_RECIPE', 2 );
 
 /**
- * Returns the baked duotone URL for a hero photo attachment, generating it
- * first if it does not exist yet (a photo saved before v1.4.0, or whose
- * baked file was somehow lost, self heals on the next page load that
- * needs it, no resave required). Empty string if baking is not possible.
+ * Returns the baked duotone URLs for a hero photo attachment as
+ * { jpg, webp }, generating them first if they do not exist yet (a photo
+ * saved before v1.4.0, or whose baked files were somehow lost, self
+ * heals on the next page load that needs them, no resave required). jpg
+ * is always a usable URL if baking succeeded at all; webp is '' if WebP
+ * output was not available (older Imagick/GD without WebP support) and a
+ * caller should just use jpg in that case. Both empty if baking was not
+ * possible at all.
  */
-function djdt_duotone_url( $id ) {
-	$meta = get_post_meta( $id, '_djdt_duotone_file', true );
-	if ( $meta ) {
-		$upload_dir = wp_upload_dir();
-		if ( file_exists( trailingslashit( $upload_dir['basedir'] ) . $meta ) ) {
-			return trailingslashit( $upload_dir['baseurl'] ) . $meta;
-		}
+function djdt_duotone_urls( $id ) {
+	$upload_dir = wp_upload_dir();
+	$jpg_meta   = get_post_meta( $id, '_djdt_duotone_jpg', true );
+	$webp_meta  = get_post_meta( $id, '_djdt_duotone_webp', true );
+	if ( $jpg_meta && file_exists( trailingslashit( $upload_dir['basedir'] ) . $jpg_meta ) ) {
+		return array(
+			'jpg'  => trailingslashit( $upload_dir['baseurl'] ) . $jpg_meta,
+			'webp' => ( $webp_meta && file_exists( trailingslashit( $upload_dir['basedir'] ) . $webp_meta ) ) ? trailingslashit( $upload_dir['baseurl'] ) . $webp_meta : '',
+		);
 	}
 	return djdt_ensure_duotone( $id );
 }
 
-/** Generates (or regenerates) the baked duotone copy for one attachment. Returns its URL, or '' if generation was not possible. */
+/** Generates (or regenerates) the baked duotone copies for one attachment. Returns { jpg, webp }, either possibly '' if that format was not possible. */
 function djdt_ensure_duotone( $id ) {
 	$id = (int) $id;
 	if ( $id <= 0 || ! wp_attachment_is_image( $id ) ) {
-		return '';
+		return array( 'jpg' => '', 'webp' => '' );
 	}
 	$src_path = get_attached_file( $id );
 	if ( ! $src_path || ! file_exists( $src_path ) ) {
-		return '';
+		return array( 'jpg' => '', 'webp' => '' );
 	}
-	$upload_dir = wp_upload_dir();
-	$rel_dir    = trailingslashit( dirname( str_replace( trailingslashit( $upload_dir['basedir'] ), '', $src_path ) ) );
-	$rel_path   = $rel_dir . 'djdt-duotone-' . $id . '.jpg';
-	$abs_path   = trailingslashit( $upload_dir['basedir'] ) . $rel_path;
+	$upload_dir   = wp_upload_dir();
+	$rel_dir      = trailingslashit( dirname( str_replace( trailingslashit( $upload_dir['basedir'] ), '', $src_path ) ) );
+	$rel_jpg      = $rel_dir . 'djdt-duotone-' . $id . '.jpg';
+	$rel_webp     = $rel_dir . 'djdt-duotone-' . $id . '.webp';
+	$abs_jpg      = trailingslashit( $upload_dir['basedir'] ) . $rel_jpg;
+	$abs_webp     = trailingslashit( $upload_dir['basedir'] ) . $rel_webp;
+	$result       = array( 'jpg' => false, 'webp' => false );
 
-	$ok = false;
 	if ( class_exists( 'Imagick' ) ) {
-		$ok = djdt_bake_duotone_imagick( $src_path, $abs_path );
+		$result = djdt_bake_duotone_imagick( $src_path, $abs_jpg, $abs_webp );
 	}
-	if ( ! $ok && function_exists( 'imagecreatetruecolor' ) ) {
-		$ok = djdt_bake_duotone_gd( $src_path, $abs_path );
+	if ( ! $result['jpg'] && function_exists( 'imagecreatetruecolor' ) ) {
+		$result = djdt_bake_duotone_gd( $src_path, $abs_jpg, $abs_webp );
 	}
-	if ( ! $ok ) {
-		delete_post_meta( $id, '_djdt_duotone_file' );
-		return '';
+
+	if ( ! $result['jpg'] ) {
+		delete_post_meta( $id, '_djdt_duotone_jpg' );
+		delete_post_meta( $id, '_djdt_duotone_webp' );
+		return array( 'jpg' => '', 'webp' => '' );
 	}
-	update_post_meta( $id, '_djdt_duotone_file', $rel_path );
-	return trailingslashit( $upload_dir['baseurl'] ) . $rel_path;
+	update_post_meta( $id, '_djdt_duotone_jpg', $rel_jpg );
+	$webp_url = '';
+	if ( $result['webp'] ) {
+		update_post_meta( $id, '_djdt_duotone_webp', $rel_webp );
+		$webp_url = trailingslashit( $upload_dir['baseurl'] ) . $rel_webp;
+	} else {
+		delete_post_meta( $id, '_djdt_duotone_webp' );
+	}
+	return array(
+		'jpg'  => trailingslashit( $upload_dir['baseurl'] ) . $rel_jpg,
+		'webp' => $webp_url,
+	);
 }
 
-function djdt_bake_duotone_imagick( $src_path, $dest_path ) {
+/**
+ * Imagick: grayscale, back to sRGB (the v1.4.1 color bug: clutImage ran
+ * while the image was still in the GRAY colorspace, which has no color
+ * channels left for the gradient to write into, so every baked photo
+ * came out pure gray, R = G = B, no violet or cyan at all), then the
+ * duotone clut, then a combined left/bottom alpha fade baked in for the
+ * WebP and blended toward night for the JPEG fallback.
+ */
+function djdt_bake_duotone_imagick( $src_path, $dest_jpg, $dest_webp ) {
+	$out = array( 'jpg' => false, 'webp' => false );
 	try {
 		$img = new Imagick( $src_path );
 		if ( method_exists( $img, 'autoOrientImage' ) ) {
@@ -566,35 +700,115 @@ function djdt_bake_duotone_imagick( $src_path, $dest_path ) {
 		$max = max( $w, $h );
 		if ( $max > DJDT_DUOTONE_MAX_DIM ) {
 			$scale = DJDT_DUOTONE_MAX_DIM / $max;
-			$img->resizeImage( (int) round( $w * $scale ), (int) round( $h * $scale ), Imagick::FILTER_LANCZOS, 1 );
+			$w     = (int) round( $w * $scale );
+			$h     = (int) round( $h * $scale );
+			$img->resizeImage( $w, $h, Imagick::FILTER_LANCZOS, 1 );
 		}
 		$img->transformImageColorspace( Imagick::COLORSPACE_GRAY );
 		$img->contrastImage( true );
+		// Back to sRGB before the clut: a grayscale-colorspace image has
+		// only one real channel, so clutImage has nowhere to write violet
+		// or cyan into and the result stays gray regardless of the
+		// gradient. This line is the actual v1.4.1 fix.
+		$img->transformImageColorspace( Imagick::COLORSPACE_SRGB );
 		// The standard Imagick duotone recipe: a 1px tall gradient from
-		// violet to cyan used as a lookup table against the grayscale
-		// image's own intensity, so black maps to violet, white to cyan,
-		// and every gray level in between to the matching point on the
-		// gradient, the same relationship the CSS version used to fake
-		// with a diagonal gradient and mix-blend-mode: color.
+		// violet to cyan used as a lookup table against the image's own
+		// intensity (still grayscale in effect, R = G = B, just with
+		// color channels available again), so black maps to violet, white
+		// to cyan, and every gray level in between to the matching point
+		// on the gradient.
 		$gradient = new Imagick();
 		$gradient->newPseudoImage( 256, 1, 'gradient:' . DJDT_DUOTONE_VIOLET . '-' . DJDT_DUOTONE_CYAN );
 		$img->clutImage( $gradient );
 		$gradient->destroy();
+
+		$mask = djdt_imagick_edge_mask( $w, $h );
+
+		// WebP: the mask copied straight into the alpha channel, so the
+		// left and bottom edges genuinely fade to transparent and
+		// whatever is actually behind the photo (the glows, not a flat
+		// color) shows through, no seam regardless of how bright the
+		// glow underneath happens to be.
+		$webp = clone $img;
+		$webp->setImageAlphaChannel( Imagick::ALPHACHANNEL_OPAQUE );
+		$webp->compositeImage( $mask, Imagick::COMPOSITE_COPYOPACITY, 0, 0 );
+		$webp->setImageFormat( 'webp' );
+		wp_mkdir_p( dirname( $dest_webp ) );
+		$webp->writeImage( $dest_webp );
+		$webp->destroy();
+		$out['webp'] = true;
+
+		// JPEG fallback: no real alpha to fall back on, so the same edges
+		// are blended toward the night color instead, the same idea the
+		// old CSS overlay used, just baked in now.
+		$inv_mask = clone $mask;
+		$inv_mask->negateImage( false );
+		$night = new Imagick();
+		$night->newImage( $w, $h, new ImagickPixel( DJDT_DUOTONE_NIGHT ) );
+		$night->setImageAlphaChannel( Imagick::ALPHACHANNEL_OPAQUE );
+		$night->compositeImage( $inv_mask, Imagick::COMPOSITE_COPYOPACITY, 0, 0 );
+		$img->compositeImage( $night, Imagick::COMPOSITE_OVER, 0, 0 );
 		$img->setImageFormat( 'jpeg' );
 		$img->setImageCompressionQuality( 86 );
-		wp_mkdir_p( dirname( $dest_path ) );
-		$img->writeImage( $dest_path );
+		wp_mkdir_p( dirname( $dest_jpg ) );
+		$img->writeImage( $dest_jpg );
+		$out['jpg'] = true;
+
+		$mask->destroy();
+		$inv_mask->destroy();
+		$night->destroy();
 		$img->destroy();
-		return true;
 	} catch ( Exception $e ) {
-		return false;
+		return $out;
 	}
+	return $out;
 }
 
-function djdt_bake_duotone_gd( $src_path, $dest_path ) {
+/**
+ * Builds a WxH grayscale mask (white = opaque, black = transparent)
+ * combining a left edge fade (the first 34% of the width) and a bottom
+ * edge fade (the last 30% of the height), multiplied together so a
+ * corner near both edges fades faster than either alone. COMPOSITE_COPY
+ * pastes the gradient band onto an otherwise solid white canvas (fully
+ * opaque) at just the edge it belongs to; COMPOSITE_MULTIPLY combines the
+ * two full size masks the same way two independent fades would stack.
+ */
+function djdt_imagick_edge_mask( $w, $h ) {
+	$fade_w = max( 1, (int) round( $w * 0.34 ) );
+	$fade_h = max( 1, (int) round( $h * 0.30 ) );
+
+	$left_band = new Imagick();
+	$left_band->newPseudoImage( $fade_w, 1, 'gradient:black-white' );
+	$left_band->resizeImage( $fade_w, $h, Imagick::FILTER_LANCZOS, 1 );
+	$left_mask = new Imagick();
+	$left_mask->newImage( $w, $h, 'white' );
+	$left_mask->compositeImage( $left_band, Imagick::COMPOSITE_COPY, 0, 0 );
+	$left_band->destroy();
+
+	$bottom_band = new Imagick();
+	$bottom_band->newPseudoImage( 1, $fade_h, 'gradient:white-black' );
+	$bottom_band->resizeImage( $w, $fade_h, Imagick::FILTER_LANCZOS, 1 );
+	$bottom_mask = new Imagick();
+	$bottom_mask->newImage( $w, $h, 'white' );
+	$bottom_mask->compositeImage( $bottom_band, Imagick::COMPOSITE_COPY, 0, $h - $fade_h );
+	$bottom_band->destroy();
+
+	$left_mask->compositeImage( $bottom_mask, Imagick::COMPOSITE_MULTIPLY, 0, 0 );
+	$bottom_mask->destroy();
+	return $left_mask;
+}
+
+/**
+ * GD: the same recipe as Imagick, done by hand with a per-pixel loop
+ * (GD has no clut or alpha-channel compositing of its own), computing
+ * the duotone color, the combined edge alpha, the WebP pixel (real
+ * alpha) and the JPEG pixel (blended toward night) together in one pass.
+ */
+function djdt_bake_duotone_gd( $src_path, $dest_jpg, $dest_webp ) {
+	$out  = array( 'jpg' => false, 'webp' => false );
 	$info = @getimagesize( $src_path );
 	if ( ! $info ) {
-		return false;
+		return $out;
 	}
 	switch ( $info[2] ) {
 		case IMAGETYPE_JPEG:
@@ -610,7 +824,7 @@ function djdt_bake_duotone_gd( $src_path, $dest_path ) {
 			$src = false;
 	}
 	if ( ! $src ) {
-		return false;
+		return $out;
 	}
 
 	// GD has no equivalent of Imagick's autoOrientImage; correct a plain
@@ -646,6 +860,7 @@ function djdt_bake_duotone_gd( $src_path, $dest_path ) {
 
 	list( $vr, $vg, $vb ) = djdt_hex_rgb( DJDT_DUOTONE_VIOLET );
 	list( $cr, $cg, $cb ) = djdt_hex_rgb( DJDT_DUOTONE_CYAN );
+	list( $nr, $ng, $nb ) = djdt_hex_rgb( DJDT_DUOTONE_NIGHT );
 
 	// A 256 entry lookup table (lerp violet to cyan by gray level), built
 	// once rather than recomputed per pixel: this loop is the whole cost
@@ -660,23 +875,52 @@ function djdt_bake_duotone_gd( $src_path, $dest_path ) {
 		);
 	}
 
+	$fade_w = max( 1, (int) round( $w * 0.34 ) );
+	$fade_h = max( 1, (int) round( $h * 0.30 ) );
+
+	$webp_supported = function_exists( 'imagewebp' );
+	$out_webp        = $webp_supported ? imagecreatetruecolor( $w, $h ) : null;
+	if ( $out_webp ) {
+		imagealphablending( $out_webp, false );
+		imagesavealpha( $out_webp, true );
+	}
+	$out_jpg = imagecreatetruecolor( $w, $h );
+
 	for ( $y = 0; $y < $h; $y++ ) {
+		$bottom_a = ( $y >= $h - $fade_h ) ? max( 0, min( 1, ( $h - $y ) / $fade_h ) ) : 1.0;
 		for ( $x = 0; $x < $w; $x++ ) {
 			// After imagefilter(IMG_FILTER_GRAYSCALE) the R, G and B
 			// channels are equal, so any one of them is the gray level.
 			$gray = imagecolorat( $src, $x, $y ) & 0xFF;
 			$c    = $lut[ $gray ];
-			// A packed true color int works directly with imagesetpixel on
-			// a true color image; skips an imagecolorallocate call per
-			// pixel, which matters here given the pixel count.
-			imagesetpixel( $src, $x, $y, ( $c[0] << 16 ) | ( $c[1] << 8 ) | $c[2] );
+			$left_a = ( $x < $fade_w ) ? max( 0, min( 1, $x / $fade_w ) ) : 1.0;
+			$a      = $left_a * $bottom_a;
+
+			if ( $out_webp ) {
+				// GD alpha is 7 bit: 0 opaque, 127 fully transparent.
+				$alpha127 = (int) round( ( 1 - $a ) * 127 );
+				imagesetpixel( $out_webp, $x, $y, ( $alpha127 << 24 ) | ( $c[0] << 16 ) | ( $c[1] << 8 ) | $c[2] );
+			}
+
+			$r = (int) round( $c[0] * $a + $nr * ( 1 - $a ) );
+			$g = (int) round( $c[1] * $a + $ng * ( 1 - $a ) );
+			$b = (int) round( $c[2] * $a + $nb * ( 1 - $a ) );
+			imagesetpixel( $out_jpg, $x, $y, ( $r << 16 ) | ( $g << 8 ) | $b );
 		}
 	}
 
-	wp_mkdir_p( dirname( $dest_path ) );
-	$ok = imagejpeg( $src, $dest_path, 86 );
+	wp_mkdir_p( dirname( $dest_jpg ) );
+	$out['jpg'] = imagejpeg( $out_jpg, $dest_jpg, 86 );
+	imagedestroy( $out_jpg );
+
+	if ( $out_webp ) {
+		wp_mkdir_p( dirname( $dest_webp ) );
+		$out['webp'] = imagewebp( $out_webp, $dest_webp, 86 );
+		imagedestroy( $out_webp );
+	}
+
 	imagedestroy( $src );
-	return $ok;
+	return $out;
 }
 
 function djdt_gd_rotate_by_exif( $img, $orientation ) {
@@ -696,6 +940,50 @@ function djdt_hex_rgb( $hex ) {
 	$hex = ltrim( $hex, '#' );
 	return array( hexdec( substr( $hex, 0, 2 ) ), hexdec( substr( $hex, 2, 2 ) ), hexdec( substr( $hex, 4, 2 ) ) );
 }
+
+/**
+ * Regenerates every already saved hero photo's baked copies once per
+ * DJDT_DUOTONE_RECIPE bump, so a recipe fix (like the v1.4.1 color bug)
+ * reaches photos Mark already picked without him needing to resave Hero
+ * Photos. Runs for an admin on any admin page load, not just the Hero
+ * Photos screen, since otherwise it would never run at all until he
+ * happened to visit that one screen.
+ */
+add_action( 'admin_init', function () {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+	if ( (int) get_option( 'djdt_duotone_recipe_done', 0 ) >= DJDT_DUOTONE_RECIPE ) {
+		return;
+	}
+	$rows = djdt_get( 'hero_photos' );
+	if ( is_array( $rows ) ) {
+		foreach ( $rows as $row ) {
+			$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+			if ( $id > 0 ) {
+				djdt_ensure_duotone( $id );
+			}
+		}
+	}
+	update_option( 'djdt_duotone_recipe_done', DJDT_DUOTONE_RECIPE );
+} );
+
+/**
+ * Cream gaps above the hero, between the hero and venues, and above the
+ * footer (v1.4.1, found live): wpautop runs on the raw post content before
+ * do_shortcode expands anything, so it has no idea [djdigi_hero] and
+ * [djdigi_venues] become block level markup (a <section>) and wraps the
+ * bare shortcode tags the same as any other line, in an empty <p> (with
+ * its own margin) and a <br> between them when they are on adjacent
+ * lines. shortcode_unautop() is WordPress core's own fix for exactly
+ * this: it strips that wrapping specifically around a shortcode that is
+ * alone in its own paragraph, including the adjacent-shortcodes-with-a-br
+ * case. Hooked between wpautop (priority 10) and do_shortcode (priority
+ * 11) so it sees the <p>/<br> wpautop just added and do_shortcode has not
+ * expanded anything yet. A CSS backup for anything this does not catch
+ * lives in site.css (body.djdigi-has-hero .post-content > p:empty, > br).
+ */
+add_filter( 'the_content', 'shortcode_unautop', 10.5 );
 
 add_filter( 'body_class', function ( $classes ) {
 	if ( ! djdt_is_active() ) {
@@ -820,8 +1108,9 @@ function djdt_inline_wave( $class ) {
  * ---------------------------------------------------------------------- */
 
 /**
- * Returns an array of render-ready photos: src, srcset, sizes, x, y.
- * Always returns at least one row (the bundled photo as a fallback).
+ * Returns an array of render-ready photos: src (jpg, always present),
+ * webp (may be ''), srcset, x, y. Always returns at least one row (the
+ * bundled photo as a fallback).
  */
 function djdt_hero_photos() {
 	$rows = djdt_get( 'hero_photos' );
@@ -832,18 +1121,19 @@ function djdt_hero_photos() {
 			if ( $id <= 0 || ! wp_attachment_is_image( $id ) ) {
 				continue;
 			}
-			$duotone = djdt_duotone_url( $id );
-			$src     = $duotone ? $duotone : wp_get_attachment_image_url( $id, 'full' );
+			$duotone = djdt_duotone_urls( $id );
+			$src     = $duotone['jpg'] ? $duotone['jpg'] : wp_get_attachment_image_url( $id, 'full' );
 			if ( ! $src ) {
 				continue;
 			}
 			$out[] = array(
-				'src' => $src,
+				'src'  => $src,
+				'webp' => $duotone['jpg'] ? $duotone['webp'] : '',
 				// A baked duotone copy has no WordPress generated responsive
 				// sizes of its own, only the one file; it is already capped
 				// at DJDT_DUOTONE_MAX_DIM, plenty for how large the photo
 				// panel ever renders, so no srcset is needed for it.
-				'srcset' => $duotone ? '' : (string) wp_get_attachment_image_srcset( $id, 'full' ),
+				'srcset' => $duotone['jpg'] ? '' : (string) wp_get_attachment_image_srcset( $id, 'full' ),
 				'x'      => isset( $row['x'] ) ? (float) $row['x'] : 50,
 				'y'      => isset( $row['y'] ) ? (float) $row['y'] : 50,
 			);
@@ -852,6 +1142,7 @@ function djdt_hero_photos() {
 	if ( empty( $out ) ) {
 		$out[] = array(
 			'src'    => DJDT_URL . 'assets/img/hero-photo-duotone.jpg',
+			'webp'   => DJDT_URL . 'assets/img/hero-photo-duotone.webp',
 			'srcset' => '',
 			'x'      => 50,
 			'y'      => 50,
@@ -891,14 +1182,19 @@ function djdt_hero_shortcode() {
 
 		<div class="djd-hero__photos">
 			<?php foreach ( $photos as $i => $p ) : ?>
-				<img
-					class="djd-hero__photo<?php echo ( 0 === $i ) ? ' is-active' : ''; ?>"
-					src="<?php echo esc_url( $p['src'] ); ?>"
-					<?php if ( $p['srcset'] ) : ?>srcset="<?php echo esc_attr( $p['srcset'] ); ?>" sizes="60vw"<?php endif; ?>
-					style="object-position: <?php echo esc_attr( $p['x'] ); ?>% <?php echo esc_attr( $p['y'] ); ?>%"
-					alt="DJ DigiMark mixing under club lights"
-					<?php echo ( 0 === $i ) ? 'fetchpriority="high"' : 'loading="lazy"'; ?>
-				>
+				<picture>
+					<?php if ( ! empty( $p['webp'] ) ) : ?>
+						<source srcset="<?php echo esc_url( $p['webp'] ); ?>" type="image/webp">
+					<?php endif; ?>
+					<img
+						class="djd-hero__photo<?php echo ( 0 === $i ) ? ' is-active' : ''; ?>"
+						src="<?php echo esc_url( $p['src'] ); ?>"
+						<?php if ( ! empty( $p['srcset'] ) ) : ?>srcset="<?php echo esc_attr( $p['srcset'] ); ?>" sizes="60vw"<?php endif; ?>
+						style="object-position: <?php echo esc_attr( $p['x'] ); ?>% <?php echo esc_attr( $p['y'] ); ?>%"
+						alt="DJ DigiMark mixing under club lights"
+						<?php echo ( 0 === $i ) ? 'fetchpriority="high"' : 'loading="lazy"'; ?>
+					>
+				</picture>
 			<?php endforeach; ?>
 			<div class="djd-hero__wipe-glow" aria-hidden="true"></div>
 		</div>
@@ -989,6 +1285,17 @@ function djdt_split_letters( $word, $class = 'djd-letter' ) {
 	$out = '';
 	$i   = 0;
 	foreach ( preg_split( '//u', $word, -1, PREG_SPLIT_NO_EMPTY ) as $ch ) {
+		if ( '' === trim( $ch ) ) {
+			// A space rendered as its own inline-block span collapses to
+			// zero width (confirmed live, v1.4.1, "Wherel'veplayed"): an
+			// inline-block whose only content is whitespace trims that
+			// whitespace within its own formatting context, in every
+			// browser. Plain text has no such box to collapse, so a space
+			// is output as-is instead of wrapped. Not staggered (no --i),
+			// so the letter index below only counts actual letters.
+			$out .= esc_html( $ch );
+			continue;
+		}
 		$out .= '<span class="' . esc_attr( $class ) . '" style="--i:' . (int) $i . '">' . esc_html( $ch ) . '</span>';
 		$i++;
 	}
@@ -1031,7 +1338,7 @@ function djdt_venues() {
 				'name'       => $nd['name'],
 				'details'    => $nd['details'],
 				'link'       => isset( $row['link'] ) ? $row['link'] : '',
-				'logo_color' => ( isset( $row['logo_color'] ) && 'original' === $row['logo_color'] ) ? 'original' : 'white',
+				'logo_color' => isset( $row['logo_color'] ) ? ( 'original' === $row['logo_color'] ? 'original' : 'white' ) : djdt_logo_default_color( $id ),
 			);
 		}
 	}

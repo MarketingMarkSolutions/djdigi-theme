@@ -447,6 +447,21 @@ body.djdigi-has-hero .fusion-header {
 	padding-right: 40px !important;
 }
 
+/* Logo and menu level with each other (v1.4.1, found live: the pill sat
+   at the very top of the header while the logo carried its own 10px
+   margin, so the two read off axis). align-items: center only has any
+   effect if this row is already a flex or grid container, which Avada's
+   own header row is; it does nothing if it somehow is not, so this is
+   safe either way. The logo's own margin is reset to 0 so centering
+   alone decides its position instead of fighting a leftover margin. */
+body.djdigi-has-hero .fusion-header-wrapper .fusion-row {
+	align-items: center;
+	padding-top: 20px;
+}
+body.djdigi-has-hero .fusion-logo {
+	margin-top: 0 !important;
+}
+
 body.djdigi-has-hero .fusion-secondary-header {
 	background-color: transparent !important;
 	background-image: none !important;
@@ -525,3 +540,12 @@ body.djdigi-has-hero .fusion-is-sticky .fusion-main-menu {
 /* Remove gaps Avada leaves above the first container on hero pages */
 body.djdigi-has-hero #main { padding-top: 0 !important; }
 body.djdigi-has-hero .post-content > .fusion-fullwidth:first-child { padding-top: 0 !important; }
+/* Backup for the cream gaps wpautop's own <p>/<br> wrapping around
+   [djdigi_hero] and [djdigi_venues] used to leave (v1.4.1): the real fix
+   is shortcode_unautop (djdigi-theme.php), this just catches anything
+   that slips through, a genuinely empty paragraph or a stray line break
+   directly in the post content on a hero page. */
+body.djdigi-has-hero .post-content > p:empty,
+body.djdigi-has-hero .post-content > br {
+	display: none;
+}
