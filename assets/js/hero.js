@@ -58,56 +58,96 @@
 	})();
 
 	/* -----------------------------------------------------------------------
-	 * Rotating hero photos: a waveform wipe between photos (hero.css, pure
-	 * CSS, see "Rotation transition" there), Ken Burns per photo, pause
-	 * when the tab is hidden, and only ever warm the one photo coming up
-	 * next. The outgoing photo stays marked is-active until the wipe
-	 * finishes, since the incoming photo's mask reveals it progressively,
-	 * not a plain swap: removing is-active from the outgoing photo early
-	 * would drop it to opacity 0 before anything had revealed it, showing
-	 * the night background through the wipe instead of the previous photo.
+	 * The "room light": two glow layers (hero.css, .djd-hero__glow-layer),
+	 * one lit at a time, crossfading opacity between three color sets
+	 * (data-set a/b/c) as the photo changes. Call advance() from
+	 * photoRotation below, at the same moment the shutter starts, so the
+	 * light shift and the photo transition read as one move.
+	 * -------------------------------------------------------------------- */
+	var roomLight = (function () {
+		var layers = Array.prototype.slice.call(hero.querySelectorAll('.djd-hero__glow-layer'));
+		var sets = ['a', 'b', 'c'];
+		if (layers.length < 2) return { advance: function () {} };
+		var litIndex = 0; // which layer element is currently lit
+		var setIndex = 0; // which color set is currently showing
+		// The layer not already lit gets the next color set queued onto it
+		// ahead of time, so switching is just toggling is-lit, the CSS
+		// transition (opacity only) does the actual crossfade.
+		layers[1].setAttribute('data-set', sets[1]);
+		return {
+			advance: function () {
+				var nextLit = 1 - litIndex;
+				setIndex = (setIndex + 1) % sets.length;
+				layers[nextLit].setAttribute('data-set', sets[setIndex]);
+				layers[nextLit].classList.add('is-lit');
+				layers[litIndex].classList.remove('is-lit');
+				litIndex = nextLit;
+				// Queue the color after next onto the now-dark layer, ready
+				// for the rotation after this one.
+				layers[1 - litIndex].setAttribute('data-set', sets[(setIndex + 1) % sets.length]);
+			}
+		};
+	})();
+
+	/* -----------------------------------------------------------------------
+	 * Rotating hero photos: a shutter transition (hero.css, "Rotation
+	 * transition"), the room light shifting alongside it, Ken Burns per
+	 * photo (always running on the img itself, independent of the frame's
+	 * own transition), pause when the tab is hidden, and only ever warm
+	 * the one photo coming up next. The outgoing frame stays visible
+	 * underneath, unchanged, until the shutter has fully opened (OPEN_MS,
+	 * not the longer settle), then it is hidden; the incoming frame keeps
+	 * its is-entering class for the full settle duration (SETTLE_MS) so
+	 * its own transform animation finishes cleanly instead of snapping to
+	 * its resting value if the class were removed mid transition.
 	 * -------------------------------------------------------------------- */
 	(function photoRotation() {
 		var wrap = hero.querySelector('.djd-hero__photos');
 		if (!wrap) return;
-		var photos = Array.prototype.slice.call(wrap.querySelectorAll('.djd-hero__photo'));
-		if (!photos.length) return;
+		var frames = Array.prototype.slice.call(wrap.querySelectorAll('.djd-hero__photo-frame'));
+		if (!frames.length) return;
 
-		function restartKenBurns(img) {
+		function restartKenBurns(frame) {
+			var img = frame.querySelector('.djd-hero__photo');
+			if (!img) return;
 			img.classList.remove('is-kenburns');
 			void img.offsetWidth; // force reflow so the animation restarts
 			img.classList.add('is-kenburns');
 		}
 
-		var active = photos.filter(function (p) { return p.classList.contains('is-active'); })[0] || photos[0];
+		var active = frames.filter(function (f) { return f.classList.contains('is-active'); })[0] || frames[0];
 		restartKenBurns(active);
 
-		if (photos.length < 2) return;
+		if (frames.length < 2) return;
 
-		var index = photos.indexOf(active);
+		var index = frames.indexOf(active);
 		var timer = null;
-		var SLOT = 6500;
-		var WIPE_MS = 1450; // just past hero.css's 1.4s djd-wipe-reveal
+		var SLOT = 6000;
+		var OPEN_MS = 1150; // just past hero.css's 1.1s djd-shutter-open
+		var SETTLE_MS = 1550; // just past hero.css's 1.5s djd-shutter-settle
 
 		function warm(i) {
-			var src = photos[i].getAttribute('srcset') ? photos[i].currentSrc : photos[i].src;
-			if (src) { var img = new Image(); img.src = src; }
+			var img = frames[i].querySelector('.djd-hero__photo');
+			if (!img) return;
+			var src = img.getAttribute('srcset') ? img.currentSrc : img.src;
+			if (src) { var preload = new Image(); preload.src = src; }
 		}
 
 		function advance() {
-			var prevEl = photos[index];
-			var next = (index + 1) % photos.length;
-			var nextEl = photos[next];
-			nextEl.classList.add('is-active', 'is-entering');
-			wrap.classList.add('is-wiping');
-			restartKenBurns(nextEl);
+			var prevFrame = frames[index];
+			var next = (index + 1) % frames.length;
+			var nextFrame = frames[next];
+			nextFrame.classList.add('is-active', 'is-entering');
+			restartKenBurns(nextFrame);
+			roomLight.advance();
 			setTimeout(function () {
-				prevEl.classList.remove('is-active');
-				nextEl.classList.remove('is-entering');
-				wrap.classList.remove('is-wiping');
-			}, WIPE_MS);
+				prevFrame.classList.remove('is-active');
+			}, OPEN_MS);
+			setTimeout(function () {
+				nextFrame.classList.remove('is-entering');
+			}, SETTLE_MS);
 			index = next;
-			warm((index + 1) % photos.length);
+			warm((index + 1) % frames.length);
 		}
 
 		function start() {
@@ -119,7 +159,7 @@
 			timer = null;
 		}
 
-		warm((index + 1) % photos.length);
+		warm((index + 1) % frames.length);
 		start();
 		document.addEventListener('visibilitychange', function () {
 			if (document.hidden) stop(); else start();
@@ -172,7 +212,10 @@
 	 * reserves GPU memory nothing is still animating.
 	 * -------------------------------------------------------------------- */
 	(function introReady() {
-		var activePhoto = hero.querySelector('.djd-hero__photo.is-active') || hero.querySelector('.djd-hero__photo');
+		// The first photo frame in DOM order is always the one marked
+		// is-first/is-active on page load (djdigi-theme.php); its own img
+		// is what the intro actually waits on.
+		var activePhoto = hero.querySelector('.djd-hero__photo-frame.is-first .djd-hero__photo') || hero.querySelector('.djd-hero__photo');
 		var photoReady = (activePhoto && activePhoto.decode) ? activePhoto.decode().catch(function () {}) : Promise.resolve();
 		var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready.catch(function () {}) : Promise.resolve();
 		var timeout = new Promise(function (resolve) { setTimeout(resolve, 1200); });
@@ -187,7 +230,7 @@
 				// so will-change stays on those rather than coming off
 				// right as they are still actively animating.
 				var animated = hero.querySelectorAll(
-					'.djd-in-dj, .djd-letter, .djd-hero__slogan, .djd-eq, .djd-btn, .djd-player'
+					'.djd-in-dj, .djd-letter, .djd-hero__slogan, .djd-eq, .djd-btn, .djd-player, .djd-hero__photo-frame.is-first'
 				);
 				animated.forEach(function (el) { el.style.willChange = 'auto'; });
 			}, introDone);

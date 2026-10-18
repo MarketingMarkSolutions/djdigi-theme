@@ -202,6 +202,10 @@
 /* ---------------------------------------------------------------------
    Genres: static, no motion at all, plain brand-colored type.
    ------------------------------------------------------------------ */
+/* The genres are the statement now (v1.5.0: the "What I play" label is
+   gone, Mark's call, a tiny wide tracked label read as filler). Large
+   display type in one color, no accent, generous space between items;
+   two lines on narrow screens is fine, centered either way. */
 .djd-genres {
 	max-width: 1600px;
 	margin: 40px auto 0;
@@ -210,33 +214,24 @@
 	flex-wrap: wrap;
 	align-items: baseline;
 	justify-content: center;
-	gap: 10px 14px;
+	gap: 14px 28px;
 }
-.djd-genres__label {
-	font-weight: 700;
-	font-size: 12px;
-	letter-spacing: 0.18em;
+.djd-genres__item {
+	font-family: var(--djd-display);
+	font-weight: 800;
 	text-transform: uppercase;
-	color: var(--djd-cyan);
-}
-.djd-genres__list {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: center;
-	align-items: baseline;
-	gap: 10px 14px;
-	font-size: 14px;
-	font-weight: 600;
+	letter-spacing: 0.01em;
+	font-size: clamp(28px, 3vw, 36px);
 	color: var(--djd-paper);
 }
-.djd-genres__item.is-accent { color: var(--djd-cyan); }
-.djd-genres__dot { color: var(--djd-orange); font-size: 0.5em; opacity: 0.8; }
-.djd-genres__sub { opacity: 0.45; padding: 0 0.22em; }
+.djd-genres__dot { color: rgba(241, 236, 226, 0.35); font-size: 0.4em; }
+.djd-genres__sub { opacity: 0.5; padding: 0 0.2em; }
 
 @media (max-width: 800px) {
 	.djd-venues { padding: 40px 16px 48px; }
 	.djd-venues__heading { margin-bottom: 20px; }
 	.djd-venues__card { padding: 24px 20px 20px; border-radius: 18px; }
 	.djd-venues__set { gap: 36px; padding-right: 36px; }
-	.djd-genres { padding: 0 16px; }
+	.djd-genres { padding: 0 16px; gap: 10px 20px; }
+	.djd-genres__item { font-size: clamp(20px, 6vw, 24px); }
 }
