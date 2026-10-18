@@ -540,11 +540,18 @@ body.djdigi-has-hero .fusion-is-sticky .fusion-main-menu {
 /* Remove gaps Avada leaves above the first container on hero pages */
 body.djdigi-has-hero #main { padding-top: 0 !important; }
 body.djdigi-has-hero .post-content > .fusion-fullwidth:first-child { padding-top: 0 !important; }
-/* Backup for the cream gaps wpautop's own <p>/<br> wrapping around
-   [djdigi_hero] and [djdigi_venues] used to leave (v1.4.1): the real fix
-   is shortcode_unautop (djdigi-theme.php), this just catches anything
-   that slips through, a genuinely empty paragraph or a stray line break
-   directly in the post content on a hero page. */
+/* The cream gaps wpautop's own <p>/<br> wrapping leaves around
+   [djdigi_hero] and [djdigi_venues] (v1.4.1, still visible before the
+   hero in v1.4.2: :empty does not match, the <p> wpautop writes around a
+   lone shortcode tag still has a whitespace text node inside it, which
+   counts as content for :empty's purposes even though nothing renders).
+   :not(:has(*)) matches it correctly, a paragraph with no element
+   children at all, whitespace included, is exactly what this one is
+   until the shortcode inside it would have expanded. Scoped to
+   :first-child, the one actually confirmed still showing; a <br>
+   between two adjacent shortcode lines is a real empty element on its
+   own already, the plain selector below already catches that case. */
+body.djdigi-has-hero .post-content > p:first-child:not(:has(*)),
 body.djdigi-has-hero .post-content > p:empty,
 body.djdigi-has-hero .post-content > br {
 	display: none;

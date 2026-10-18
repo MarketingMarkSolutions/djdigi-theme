@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, and [djdigi_venues] for djdigimark.com.
- * Version: 1.4.1
+ * Version: 1.4.2
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.4.1' );
+define( 'DJDT_VERSION', '1.4.2' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -975,15 +975,16 @@ add_action( 'admin_init', function () {
  * [djdigi_venues] become block level markup (a <section>) and wraps the
  * bare shortcode tags the same as any other line, in an empty <p> (with
  * its own margin) and a <br> between them when they are on adjacent
- * lines. shortcode_unautop() is WordPress core's own fix for exactly
- * this: it strips that wrapping specifically around a shortcode that is
- * alone in its own paragraph, including the adjacent-shortcodes-with-a-br
- * case. Hooked between wpautop (priority 10) and do_shortcode (priority
- * 11) so it sees the <p>/<br> wpautop just added and do_shortcode has not
- * expanded anything yet. A CSS backup for anything this does not catch
- * lives in site.css (body.djdigi-has-hero .post-content > p:empty, > br).
+ * lines. v1.4.1 hooked shortcode_unautop() onto 'the_content' at priority
+ * 10.5 to strip that wrapping. v1.4.2 removes it: a float priority is not
+ * a valid WordPress hook priority (an int is expected), and passing one
+ * printed a PHP deprecation warning at the top of every single page on
+ * the live site, for every visitor, not just here in admin. Never use a
+ * float priority on any hook, a plain int between two integer priorities
+ * does not exist, pick a real whole number or reorder by registration
+ * timing instead. The fix for this is the CSS backup alone now, see
+ * site.css (body.djdigi-has-hero .post-content > p, > br).
  */
-add_filter( 'the_content', 'shortcode_unautop', 10.5 );
 
 add_filter( 'body_class', function ( $classes ) {
 	if ( ! djdt_is_active() ) {

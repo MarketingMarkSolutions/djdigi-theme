@@ -392,22 +392,34 @@ sanitizer. The old URL, `wp-admin/options-general.php?page=djdigi-theme`, redire
 Theme Settings page (`admin_init`, checked against `$pagenow` and `$_GET['page']`) so an old
 bookmark still lands somewhere real.
 
-## Cream gaps from wpautop (v1.4.1)
+## Cream gaps from wpautop (v1.4.1, fixed properly in v1.4.2)
 Found live: a cream gap above the hero, another between the hero and venues, and another above the
 footer. Cause: `wpautop` (WordPress core, runs on the raw post content before shortcodes expand)
 has no idea `[djdigi_hero]` and `[djdigi_venues]` become block level markup (a `<section>`), so it
 treats the bare shortcode tags the same as any other line of text: wrapping a lone one in its own
 `<p>` (which carries its own `margin-bottom`), and inserting a `<br>` between two of them written on
 adjacent lines. By the time `do_shortcode` runs and expands the tags, that wrapping is already baked
-into the HTML. Fixed with `add_filter( 'the_content', 'shortcode_unautop', 10.5 );` (djdigi-
-theme.php), WordPress core's own function for exactly this: it strips `<p>`/`<br>` wrapping
-specifically around a shortcode that is alone in its own paragraph, including the two-shortcodes-
-separated-by-a-`<br>` case, and it is registered to run between `wpautop` (priority 10) and
-`do_shortcode` (priority 11) so it sees the wrapping wpautop just added before anything expands. Not
-scoped to just our two shortcodes (it runs against every registered shortcode in the content), which
-is fine, arguably a general improvement rather than a risk. A CSS backup for anything that slips
-through anyway lives in site.css: `body.djdigi-has-hero .post-content > p:empty, > br { display:
-none; }`.
+into the HTML.
+
+v1.4.1 tried `add_filter( 'the_content', 'shortcode_unautop', 10.5 );`, hooked at a float priority
+specifically to land between `wpautop` (10) and `do_shortcode` (11). That printed a PHP deprecation
+warning ("Implicit conversion from float 10.5 to int") at the top of every page on the live site,
+for every visitor, not just in admin: a hook priority is expected to be an int, and WordPress casts
+whatever it is given. **Never use a float priority on any hook.** If something genuinely needs to
+run between two adjacent integer priorities, there is no number for that; reorder by registration
+order at the same priority instead (callbacks at an equal priority run in the order they were
+added), or find a different, real integer priority that still lands in the right place. v1.4.2
+removed the filter entirely.
+
+The actual fix is CSS alone now: `body.djdigi-has-hero .post-content > p:first-child:not(:has(*)),
+> p:empty, > br { display: none; }` (site.css). `:empty` alone does not match the paragraph wpautop
+wraps a lone shortcode tag in: that `<p>` still has a whitespace text node inside it (the newline
+wpautop left there), which counts as content for `:empty`'s purposes even though nothing visibly
+renders. `:not(:has(*))` matches correctly instead, a paragraph with no element children at all,
+whitespace included. Scoped to `:first-child` since that is the one actually confirmed still
+showing (the hero is always the first thing in that container); a `<br>` between two adjacent
+shortcode lines is a real, genuinely empty element on its own, already caught by the plain `> br`
+selector, no special casing needed there.
 
 ## Motion: always on, by design
 Nothing on this site checks `prefers-reduced-motion`, anywhere: not in CSS, not in JS, no setting
