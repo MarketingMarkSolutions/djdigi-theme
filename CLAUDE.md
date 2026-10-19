@@ -342,6 +342,33 @@ crossfaded. Fixed by moving the duotone tint server side:
   failed to rebake keeps getting retried on the next admin page load regardless of what the rest of
   the pass already did, and a freshly added photo is always caught too. Do not reintroduce a single
   global "already ran" flag for this; the per-photo meta check is the fix.
+- **v1.5.3, the same three photos were still stuck after v1.5.1 and v1.5.2, across several admin
+  page loads, with nothing visible anywhere.** Every part of the admin_init check (the capability
+  gate, the `_djdt_bake_ver` comparison) reads correctly on its own, and both bake functions only
+  ever fail by returning `false`, which was already caught and logged. The one failure mode that
+  fits silent, deterministic, repeated failure on the SAME photos every time is a PHP fatal (memory
+  or execution time exhausted) killing the request outright before any file or postmeta write
+  happens, something no `try`/`catch` anywhere in this file can intercept. `new Imagick( $src_path )`
+  (the old first line of `djdt_bake_duotone_imagick()`) decodes a source photo at its full original
+  resolution before any resize gets a chance to run, and GD's per-pixel PHP loop in
+  `djdt_bake_duotone_gd()` has no native resize step at all; both got measurably more expensive the
+  moment `DJDT_DUOTONE_MAX_DIM` went from 800 to 2000 in v1.5.0, with nothing else about the baking
+  path changing to match. Fixed by making both paths safer rather than trying to catch an
+  uncatchable error: Imagick now `pingImage()`s the file first and sets `'jpeg:size'` before the
+  real `readImage()` call so libjpeg decodes at a reduced scale directly (plus explicit
+  `setResourceLimit()` calls on memory and map, 256MB each), and GD now skips a source past a 40
+  megapixel budget outright rather than attempting a full decode that could OOM. `djdt_ensure_duotone()`
+  also raises `memory_limit` and `set_time_limit()` defensively (best effort, silently ignored on a
+  host that will not allow it). The admin_init hook now bakes at most one mismatched photo per page
+  load instead of all of them in a single pass, so a limit hit on one photo can never block the
+  others from getting their own turn on a later load. A `_djdt_bake_error` postmeta
+  (`djdt_set_bake_error()`) now records a reason and timestamp on any caught failure, cleared the
+  moment a later bake succeeds, and an `admin_notices` hook lists any hero photo still stuck so a
+  repeated failure has somewhere to actually show up instead of failing the same way forever with
+  nothing to see. None of this could be confirmed against real server error logs (no shell or
+  browser access to the live host from this tool set), so treat the memory/time theory as the best
+  explanation that fits the symptoms, not a confirmed root cause; if a hero photo is still stuck
+  after this ships, the admin notice is the next place to look, and it will at least say why.
 - The baked file's path is cached in postmeta (`_djdt_duotone_jpg`); `djdt_duotone_url()`
   regenerates it on demand if that meta or the file is ever missing, so a photo saved before v1.4.0
   self heals the first time it is needed, no resave required. If neither Imagick nor GD is

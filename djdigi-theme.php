@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, and [djdigi_venues] for djdigimark.com.
- * Version: 1.5.2
+ * Version: 1.5.3
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.5.2' );
+define( 'DJDT_VERSION', '1.5.3' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -651,7 +651,25 @@ function djdt_duotone_url( $id ) {
 	return djdt_ensure_duotone( $id );
 }
 
-/** Generates (or regenerates) the baked duotone copy for one attachment. Returns its URL, or '' if baking was not possible. */
+/**
+ * Generates (or regenerates) the baked duotone copy for one attachment.
+ * Returns its URL, or '' if baking was not possible.
+ *
+ * v1.5.3, suspected live: the three photos v1.5.1 and v1.5.2 were supposed
+ * to catch up never got rebaked across several admin page loads, with no
+ * error visible anywhere. Every check in the admin_init loop that calls
+ * this (the capability check, the '_djdt_bake_ver' comparison) reads
+ * correctly in isolation, and djdt_bake_duotone_imagick()/_gd() both only
+ * ever fail by returning false, caught here and recorded. The one failure
+ * mode that fits silent, repeated, identical failure is a PHP fatal
+ * (memory or execution time exhausted) killing the request outright before
+ * any file or postmeta write happens, which no try/catch anywhere in this
+ * file can intercept: Imagick's plain constructor decodes a source photo
+ * at its full original resolution before any resize gets a chance to run,
+ * and GD's per-pixel PHP loop over up to DJDT_DUOTONE_MAX_DIM squared
+ * pixels has no native resize step at all. Both got safer below rather
+ * than just caught better, since there is nothing to catch.
+ */
 function djdt_ensure_duotone( $id ) {
 	$id = (int) $id;
 	if ( $id <= 0 || ! wp_attachment_is_image( $id ) ) {
@@ -659,12 +677,22 @@ function djdt_ensure_duotone( $id ) {
 	}
 	$src_path = get_attached_file( $id );
 	if ( ! $src_path || ! file_exists( $src_path ) ) {
+		djdt_set_bake_error( $id, 'source file missing' );
 		return '';
 	}
 	$upload_dir = wp_upload_dir();
 	$rel_dir    = trailingslashit( dirname( str_replace( trailingslashit( $upload_dir['basedir'] ), '', $src_path ) ) );
 	$rel_jpg    = $rel_dir . 'djdt-duotone-' . $id . '.jpg';
 	$abs_jpg    = trailingslashit( $upload_dir['basedir'] ) . $rel_jpg;
+
+	// Best effort, silently ignored on a host that will not allow raising
+	// either one, which is no worse than leaving them at the default.
+	if ( function_exists( 'ini_set' ) ) {
+		@ini_set( 'memory_limit', '512M' );
+	}
+	if ( function_exists( 'set_time_limit' ) ) {
+		@set_time_limit( 120 );
+	}
 
 	$ok = false;
 	if ( class_exists( 'Imagick' ) ) {
@@ -679,8 +707,10 @@ function djdt_ensure_duotone( $id ) {
 		// Leftovers from the v1.4.1 WebP recipe, no longer written or read.
 		delete_post_meta( $id, '_djdt_duotone_webp' );
 		delete_post_meta( $id, '_djdt_bake_ver' );
+		djdt_set_bake_error( $id, 'Imagick and GD both failed or are unavailable' );
 		return '';
 	}
+	delete_post_meta( $id, '_djdt_bake_error' );
 	update_post_meta( $id, '_djdt_duotone_jpg', $rel_jpg );
 	// Stamped with the recipe that produced this file, so the admin_init
 	// pass below can tell a correctly baked photo from one still waiting
@@ -691,16 +721,54 @@ function djdt_ensure_duotone( $id ) {
 }
 
 /**
+ * Records why a hero photo's bake failed, timestamped, so djdt_duotone_url()
+ * never has to guess and the admin_notices hook below can tell Mark about
+ * a stuck photo directly instead of it failing invisibly forever (v1.5.3).
+ * Cleared the moment a later attempt actually succeeds.
+ */
+function djdt_set_bake_error( $id, $reason ) {
+	update_post_meta( $id, '_djdt_bake_error', array( 'reason' => $reason, 'time' => time() ) );
+}
+
+/**
  * Imagick: grayscale, back to sRGB (the v1.4.1 color bug: clutImage ran
  * while the image was still in the GRAY colorspace, which has no color
  * channels left for the gradient to write into, so every baked photo
  * came out pure gray, R = G = B, no violet or cyan at all), then the
  * duotone clut. No edge fade baked in, see the note above the recipe
  * version constant: that is a CSS overlay on the panel now (hero.css).
+ *
+ * v1.5.3: pings the file for its real dimensions first and, for a source
+ * larger than needed, sets 'jpeg:size' before the real read so libjpeg
+ * decodes at a reduced scale directly instead of decoding the original at
+ * full resolution only to immediately throw most of it away in the resize
+ * below. A plain `new Imagick( $src_path )` (the old first line here) does
+ * that full resolution decode unconditionally, which is the likeliest
+ * reason a bake could silently never finish on a shared host once the
+ * resize target went up to DJDT_DUOTONE_MAX_DIM: the resulting memory
+ * spike is a PHP fatal, not a catchable Imagick exception, see the note on
+ * djdt_ensure_duotone() above. The resource limits are the same safety net
+ * ImageMagick already offers for exactly this, set explicitly rather than
+ * left at whatever a shared host's php.ini happens to default to.
  */
 function djdt_bake_duotone_imagick( $src_path, $dest_jpg ) {
 	try {
-		$img = new Imagick( $src_path );
+		$img = new Imagick();
+		$img->setResourceLimit( Imagick::RESOURCETYPE_MEMORY, 256 * 1024 * 1024 );
+		$img->setResourceLimit( Imagick::RESOURCETYPE_MAP, 256 * 1024 * 1024 );
+		$img->pingImage( $src_path );
+		$pw   = $img->getImageWidth();
+		$ph   = $img->getImageHeight();
+		$pmax = max( $pw, $ph );
+		if ( $pmax > DJDT_DUOTONE_MAX_DIM ) {
+			// Twice the final target, not an exact match: libjpeg's own
+			// scaled decode only supports specific fractions (1/1, 7/8 ...
+			// 1/8), so this asks for comfortably more than needed and lets
+			// the real resize below land on the exact final size.
+			$pscale = ( DJDT_DUOTONE_MAX_DIM * 2 ) / $pmax;
+			$img->setOption( 'jpeg:size', (int) round( $pw * $pscale ) . 'x' . (int) round( $ph * $pscale ) );
+		}
+		$img->readImage( $src_path );
 		if ( method_exists( $img, 'autoOrientImage' ) ) {
 			$img->autoOrientImage();
 		}
@@ -736,15 +804,35 @@ function djdt_bake_duotone_imagick( $src_path, $dest_jpg ) {
 		$img->writeImage( $dest_jpg );
 		$img->destroy();
 		return true;
-	} catch ( Exception $e ) {
+	} catch ( \Throwable $e ) {
+		// \Throwable, not just \Exception: catches an \Error too (a bad
+		// Imagick call can throw either depending on the install), though
+		// neither one is what a true PHP fatal (memory or time exhausted)
+		// raises, which is why the real fix is above, not here.
 		return false;
 	}
 }
 
-/** GD: the same recipe as Imagick, done by hand with a lookup table (GD has no clut of its own). No edge fade, same reasoning as the Imagick version above. */
+/**
+ * GD: the same recipe as Imagick, done by hand with a lookup table (GD has
+ * no clut of its own). No edge fade, same reasoning as the Imagick version
+ * above.
+ *
+ * v1.5.3: GD has no equivalent of Imagick's 'jpeg:size' scaled decode, a
+ * plain imagecreatefromjpeg()/_png()/_webp() always decodes the source at
+ * its full original resolution before anything here gets a chance to
+ * resize it down, same risk as Imagick's old unscaled read, see the note
+ * on djdt_bake_duotone_imagick() above. An original past a sane pixel
+ * budget is skipped outright, a clean and loggable "no GD fallback either"
+ * outcome, rather than risking the same kind of uncatchable PHP fatal this
+ * whole file's other change is working around.
+ */
 function djdt_bake_duotone_gd( $src_path, $dest_jpg ) {
 	$info = @getimagesize( $src_path );
 	if ( ! $info ) {
+		return false;
+	}
+	if ( $info[0] * $info[1] > 40000000 ) {
 		return false;
 	}
 	switch ( $info[2] ) {
@@ -872,6 +960,16 @@ function djdt_hex_rgb( $hex ) {
  * no matter what the global pass already did, and a freshly added photo
  * is always caught too. The per-photo check itself is a cheap postmeta
  * read; only an actual mismatch pays for the real bake.
+ *
+ * v1.5.3: bakes at most one mismatched photo per admin page load, not
+ * every mismatched one in a single pass. Baking all of them together is
+ * exactly the kind of per-request cost that can run into a shared host's
+ * memory or time limit (see djdt_ensure_duotone()), and a limit hit kills
+ * the whole request before even the first photo's result gets written, so
+ * every photo after it in that same pass never gets its own turn either.
+ * One per load bounds each request's worst case and still catches
+ * everything up within a few admin page loads, same as how Mark already
+ * checks this live.
  */
 add_action( 'admin_init', function () {
 	if ( ! current_user_can( 'manage_options' ) ) {
@@ -885,8 +983,41 @@ add_action( 'admin_init', function () {
 		$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
 		if ( $id > 0 && (int) get_post_meta( $id, '_djdt_bake_ver', true ) !== DJDT_DUOTONE_RECIPE ) {
 			djdt_ensure_duotone( $id );
+			break;
 		}
 	}
+} );
+
+/**
+ * Surfaces a hero photo whose bake is still stuck as a visible admin
+ * notice, so a repeated failure has somewhere to show up instead of
+ * failing the same way forever with nothing to see (v1.5.3). Reads the
+ * '_djdt_bake_error' postmeta djdt_set_bake_error() writes; cleared the
+ * moment a later attempt actually succeeds.
+ */
+add_action( 'admin_notices', function () {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+	$rows = djdt_get( 'hero_photos' );
+	if ( ! is_array( $rows ) ) {
+		return;
+	}
+	$stuck = array();
+	foreach ( $rows as $row ) {
+		$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+		if ( $id <= 0 ) {
+			continue;
+		}
+		$error = get_post_meta( $id, '_djdt_bake_error', true );
+		if ( is_array( $error ) && ! empty( $error['reason'] ) ) {
+			$stuck[] = '#' . $id . ' (' . $error['reason'] . ')';
+		}
+	}
+	if ( empty( $stuck ) ) {
+		return;
+	}
+	echo '<div class="notice notice-error"><p><strong>DigiMark Theme:</strong> could not bake the duotone hero photo copy for ' . esc_html( implode( ', ', $stuck ) ) . '. This retries automatically on the next admin page load.</p></div>';
 } );
 
 /**
