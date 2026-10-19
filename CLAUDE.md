@@ -188,6 +188,37 @@ refresh, took five rounds. What finally worked:
     written from Mark's measured numbers and the standard `.fusion-logo` pattern, not from seeing it
     render. If the left edges still do not quite line up after this, the gap that is left is most
     likely that font bearing component, not the shared container value.
+- **Left-anchored, not a centered 1600px box any more (v1.7.0).** Found live at 2000px wide: the
+  hero content sat inside a centered 1600px box, leaving about 400px of empty night background on
+  the left while the photo ran to the right edge, reading lopsided. `body.djdigi-has-hero
+  .fusion-header { max-width: 1600px; margin-left/right: auto; }` is gone; the header row now just
+  spans the page's own full width with `padding-left/right: var(--djd-gutter)` (site.css,
+  `clamp(24px, 5vw, 120px)`), the exact same property `.djd-hero__inner` uses for its own side
+  padding (hero.css, see "Smoothness" below for the rest of this release). The logo's own
+  `margin-left: var(--djd-name-edge)` (v1.6.2, above) did not need to change at all: it was already
+  reading its offset relative to the header's own padding box rather than a hardcoded number, so
+  swapping that box's padding from a fixed 40px to the gutter kept the logo and the name tied
+  together automatically. Same unverified-against-real-Avada-markup caveat as the two bullets above.
+- **The v1.6.2 vertical centering fix did not actually work, found by measuring again (v1.7.0).**
+  Mark's new numbers: the logo (72px) and the menu pill (40px) start at the exact same top edge,
+  not the same center, still 16px off. That is the specific signature of `align-items: center`
+  never having applied to these two as flex siblings in the first place: a genuine center would put
+  the taller element's top HIGHER than the shorter one's, not level with it. v1.6.2's own fix
+  (centering the image inside the logo's own box) assumed the row's alignment just needed
+  reinforcing; this new measurement says that assumption itself was wrong, not merely incomplete,
+  so repeating the same kind of fix was not going to help a second time. v1.7.0 instead nudges the
+  logo down with a plain `margin-top: calc((72px - 40px) / 2)` (`= 16px`, written as the actual
+  difference between the two declared heights rather than a bare number pulled from nowhere), which
+  works regardless of whether `.fusion-row` is really flex, grid, or something else entirely, since
+  it does not depend on that assumption at all. `align-items: center` on the row is left in place as
+  a harmless no-op (costs nothing if it is genuinely never applying), not treated as the real fix
+  going forward. Reset to `margin-top: 0` on phone (`@media (max-width: 800px)`, site.css), per
+  Mark's own scoping ("desktop widths where the main menu shows") and his explicit "do not break the
+  mobile menu": at 52px with Avada's own mobile selector standing in for the 40px pill, this specific
+  16px figure does not apply down there at all. **Not verified against the real Avada markup**, same
+  caveat as every logo bullet above; if this specific number is also wrong once seen live, the "same
+  top edge" clue above is the one worth re-checking first, not just trying a third variant of
+  `align-items`.
 
 If the header ever shows a solid background again, check these in order: whether the `<style
 id="djdt-header-bg-kill">` block is actually printing after Avada's own dynamic stylesheet in the
@@ -542,10 +573,84 @@ below the fold on a normal viewport anyway.
   the old bordered/`rgba` background box. Getting the tone step onto the section instead of the card
   was the first draft here and it was wrong: it recreated exactly the kind of seam against venues
   this item was supposed to avoid, caught by looking at a real screenshot, not by re-reading the
-  brief carefully enough the first time.
+  brief carefully enough the first time. **v1.7.0, Mark's call: the card itself now spans gutter to
+  gutter too** (`.djd-player`'s own `max-width: 760px; margin: 0 auto;` is gone), not a narrow
+  centered box inside the section any more, see "Hero layout" below; the tone step still sits only
+  on the card, same reasoning, just a wider card now.
 
 Photos hold about 6 seconds each (`SLOT`, hero.js, unchanged across every version so far). Still
 pauses rotation entirely when the tab is hidden (`visibilitychange`, unchanged).
+
+## Hero layout: left anchored, gutter to gutter (v1.7.0)
+Found live at 2000px wide: the hero content sat inside a centered 1600px box, so about 400px of
+empty night background sat to the left of it while the photo ran all the way to the right edge,
+reading lopsided rather than deliberate. Mark's call: drop the centered box entirely and anchor
+everything to one shared side gutter instead, a layout that keeps making sense from phone width up
+through an ultra-wide monitor rather than looking right only inside one specific box size.
+
+- **The 100vw scrollbar bug.** `.djd-hero`, `.djd-player-section` and `.djd-venues` all broke out of
+  Avada's own centered, padded container the same way: `width: 100vw; margin-left: calc(50% -
+  50vw);`. `100vw` includes the scrollbar's own width, which `50%` (measured against the actual,
+  scrollbar-excluded viewport) does not, so the section sat about 7px too far left and overhung the
+  same amount on the right, confirmed live (`.djd-hero__inner` measured starting at -7px at 912px
+  wide). Fixed by dropping the trick entirely: `width: 100%; ` with no `margin-left`. This only
+  works because the page itself uses Avada's "100% Width" template with a zero padding container
+  (readme.txt, "Test page", the documented, required setup for any page carrying `[djdigi_hero]`):
+  under that template the section's own parent chain is already exactly the right width with no
+  padding of its own, so matching it with a plain percentage needs no scrollbar math, JS
+  measurement, or custom property at all, the simpler of the two options Mark offered. If a hero
+  page is ever built without that exact template, this assumption needs rechecking.
+- **Found while testing the fix above, not something this release caused**: at narrow widths, the
+  three fixed pixel sized glows (`.djd-hero__glow--a/b/c`, 820 to 1000px wide, unchanged since
+  v1.5.0) spill well past `.djd-hero`'s own box, which has had no `overflow: hidden` of its own
+  since v1.6.0 (on purpose, so the glow and the bottom fade can bleed past the hero's bottom edge,
+  see "Smoothness" above). `body.djdigi-theme`'s existing `overflow-x: hidden` (site.css, a
+  deliberate belt and suspenders rule already) was assumed to suppress this via the CSS spec's own
+  body-to-viewport overflow propagation, but testing this release's harness directly (`window.
+  scrollTo()` actually moved the page) showed that propagation cannot be relied on. `html:has(body.
+  djdigi-theme)` now sets `overflow-x: hidden` explicitly too, removing the ambiguity outright
+  rather than trusting propagation to resolve it the same way in every browser. The glows
+  themselves are unchanged and still oversized for a phone width panel; this only stops that from
+  ever becoming a scrollable page, it does not resize them.
+- **`--djd-gutter: clamp(24px, 5vw, 120px)`** (site.css, on `body.djdigi-theme`) is the one value
+  that now controls every side edge this release touches: `.djd-hero__inner`'s own padding
+  (hero.css), the header row's padding (site.css, "Header over the hero" above), and
+  `.djd-player-section__inner`'s padding (hero.css). One fluid number rather than a fixed 40px,
+  so it keeps making sense at 390px and at 2560px alike, not just the widths actually measured
+  live. `.djd-hero__name`'s own `--djd-name-edge: -8px` offset (v1.6.2) and `.fusion-logo`'s
+  matching margin are unaffected by this change, they read their own value independent of
+  whatever box they happen to sit inside.
+- **The photo panel's left edge moved from 42 to 44% down to a flat 40%** (`.djd-hero__photos`,
+  hero.css, the `@media (min-width: 1100px) { left: 44% }` override removed entirely, one number
+  now). The name now deliberately overlaps the photo's own left edge a little rather than sitting
+  entirely beside it; it stays legible on top purely on z-index (`.djd-hero__inner` is `z-index:
+  10`, well above the photo panel's `z-index: 1` and its own edge fade's `z-index: 2`), the same
+  left/bottom fade overlay and fixed glow as before, untouched.
+- **The name scales with the screen now, one fluid clamp down to phone width.** `.djd-hero__digimark`
+  is `clamp(72px, 9vw, 200px)`, Mark's own exact numbers ("on a 2000px screen, the name should fill
+  roughly the left half"), replacing the old `clamp(76px, 16.5vw, 240px)` plus a separate
+  `clamp(52px, 19vw, 88px)` override at 800px wide. The dedicated phone override is gone entirely:
+  the single clamp's own floor (72px) lands almost exactly where that old phone-only value did at
+  390px (about 74px) on its own, so the extra rule was no longer doing anything a plain floor
+  couldn't. `.djd-hero__dj` (`clamp(34px, 3vw, 70px)`) and `.djd-hero__slogan` (`clamp(19px, 1.1vw,
+  22px)`) were scaled to keep the exact same min/max ratio to `.djd-hero__digimark` the old values
+  had (DJ about 0.47/0.35, the slogan about 0.26/0.11), not independently guessed, since Mark asked
+  for these two to "scale in proportion" without giving exact numbers of their own. The masked
+  letter entrance and the violet echo (see "Venues" above, grid stacked spans) are unchanged by any
+  of this, font-size does not affect how they animate.
+- **The player card spans gutter to gutter now too** (`.djd-player`'s own `max-width: 760px;
+  margin: 0 auto;` removed, see "Smoothness" above), the artwork staying a fixed size on the left
+  while the title and waveform simply take up whatever width is left, same tone step background, no
+  outline.
+- Verified locally with a Playwright page at 390, 912, 1440, 1920 and 2560 wide (not just by reading
+  the CSS): `.djd-hero`'s own left/right edges exactly match the viewport width at every size (no
+  7px overhang, no horizontal scroll, `document.documentElement.scrollWidth` equals the viewport
+  width exactly at all five), the photo panel sits at exactly 40.0% at every width from 912 up,
+  `.djd-hero__digimark` never wraps to two lines at any of the five, and `.djd-player`'s own left
+  edge matches `--djd-gutter`'s own computed value exactly at every width. **What this cannot
+  verify**: the logo and menu numbers from the brief (912px: logo center versus menu pill center,
+  logo left edge versus the name's), since this harness has no real Avada header markup to render,
+  same limitation as the v1.6.1 and v1.6.2 logo work above.
 
 ## Admin: three screens
 A top level "DigiMark" item in the WordPress sidebar (v1.4.0, replacing the single page that used to
@@ -627,7 +732,7 @@ is correct whether or not the animation happens to be running at that instant.
 - Paper `#f1ece2`, violet `#5a2e91`, ink `#2a1450`, night `#0b0820`, logo cyan `#24a9e0`, International Orange `#f04e23` (sparingly).
 - "DigiMark" in the hero uses logo cyan and is mixed case, not all caps, matching the logo. "DJ" is off-white on the dark hero.
 - Display font: Saira Extra Condensed, 700/800. Text font: Archivo. Buttons and the player status tag are sentence case now, not wide-tracked uppercase, except the venues heading and the name, which stay uppercase display type.
-- Hero layout: the photo is large, the right 55 to 60% of the hero, full height, bleeding to the right edge, with the name overlapping into it on the left. A fade layer washes the left and bottom edges into night so the photo never shows a hard rectangle. Phone: the photo goes full bleed behind everything with a stronger dark wash for text contrast. No hero labels: the name and slogan carry the hero alone (removed entirely in v1.2.1, markup and CSS, Mark's call). The hero keeps only the name, slogan, the two buttons and the photo now (v1.6.0): the player moved to its own section right after, see "Smoothness" above.
+- Hero layout: the photo is large, the right 60% of the hero (left edge at 40%, v1.7.0, down from 42 to 44%), full height, bleeding to the right edge, with the name deliberately overlapping into it on the left. A fade layer washes the left and bottom edges into night so the photo never shows a hard rectangle. Phone: the photo goes full bleed behind everything with a stronger dark wash for text contrast. No hero labels: the name and slogan carry the hero alone (removed entirely in v1.2.1, markup and CSS, Mark's call). The hero keeps only the name, slogan, the two buttons and the photo now (v1.6.0): the player moved to its own section right after, see "Smoothness" above. Left anchored to a shared `--djd-gutter`, not a centered 1600px box, from phone width up through an ultra-wide monitor (v1.7.0, see "Hero layout: left anchored, gutter to gutter" above).
 - Hero intro (about 1.6 to 1.8s, see "Intro: fast, overlapping, waits for the photo and fonts" above): glows bloom first, then the photo fades in with a slight scale in, then "DJ" and "DigiMark" sweep up letter by letter from a full height mask, then slogan and buttons land together, all heavily overlapping rather than running in sequence. The header carries no entrance animation of its own (v1.4.0), the logo and menu pill are simply in place from the first frame. Quick version on a repeat view in the session; `?intro=1` forces the full one. Always plays in full motion, see "Motion: always on, by design". The player's own entrance is no longer part of this gated sequence (v1.6.0, it moved out of the hero, see "Smoothness" above).
 - Hero photo: rotates through whatever is picked in Settings (each with its own focal point), with a TV static transition between photos (v1.6.0, replacing the shutter and the room light color shift, see "Smoothness" above), or the bundled photo if none are picked. Each photo displays still at scale 1 while active, no Ken Burns zoom (removed in v1.6.2, Mark's call: it was causing shimmer and moire against the halftone dot screen, see "Smoothness" above). The riso halftone look (grayscale with a contrast boost, then violet and cyan dot screens, v1.6.0, replacing a flat duotone tint) is baked into the photo file itself server side, not a live CSS filter or blend mode, so any photo Mark adds reads as part of the same look without manual editing and without costing a repaint every frame. The edge fade into night is a CSS overlay on the panel, not baked into the file.
 - Name layers: echo (the drifting violet ghost) and main (the cyan letters) are stacked with CSS Grid, both in the same grid cell, not positioned by hand. Grid items never margin collapse with their container or each other, which is what actually caused v1.2.0's doubled name bug (the padding and negative margin used to make room for descenders collapsed through on one layer and not the other). Keep them grid stacked rather than going back to relative/absolute arithmetic.
@@ -747,32 +852,41 @@ JS do not fully initialize against a static file, so the mobile selector and all
 can render in the wrong state regardless of anything in this plugin.
 
 ## Open items
-- Queued for live review after v1.6.2, not confirmed live yet:
-  1. The glow no longer drifts, sits still after its one time entrance; confirmed locally, not just
-     by reading the CSS, via `getComputedStyle()` sampled at 3s/7s/13s after load (spanning a photo
-     rotation) reading an unchanged identity transform each time, and `document.getAnimations()`
-     showing only the finished one-shot entrance, no second animation. See "Smoothness" above.
-  2. The hero photo no longer runs Ken Burns, displays still at scale 1 while active; confirmed the
-     same way as the glow above (`.djd-hero__photo`'s own transform, unchanged across the same three
-     samples). The TV static transition between photos is otherwise unchanged.
-  3. The logo is centered with the menu pill and its left edge lines up with "DJ DigiMark"'s own
-     left edge, at 912, 1440, 1920 and 390 wide. **Not verified locally**: no real Avada header
-     markup available outside the live site, same limitation as the v1.6.1 logo size/position work,
-     see the note in "Header over the hero" above. Built from Mark's own measured live numbers
-     (912px wide, logged in) rather than guessed, but the actual fix needs confirming against the
-     real header.
-  4. Frame cost re-measured after removing two continuously running animations: no regression (see
-     "Measuring smoothness" above).
-- Resolved in v1.2.1 through v1.6.1, confirmed live: third-level dropdown overlap and colors, mobile
+- Queued for live review after v1.7.0, not confirmed live yet:
+  1. No horizontal scroll and no empty band on the left at 390, 912, 1440, 1920 and 2560 wide;
+     confirmed locally, not just by reading the CSS, via Playwright at all five widths:
+     `.djd-hero`'s own edges match the viewport exactly (no 7px overhang either side), and
+     `document.documentElement.scrollWidth` equals the viewport width exactly at each one (the
+     pre-existing glow overflow this surfaced is also closed now, see "Hero layout" above).
+  2. The logo's left edge lines up with "DJ DigiMark"'s own left edge, at every width: still an
+     unverified formula (`--djd-name-edge`, from v1.6.2), unchanged in substance this release, just
+     now measured against a gutter-based box instead of a fixed one.
+  3. The logo is centered with the menu pill, desktop widths only: a different fix than v1.6.2's
+     (a direct `margin-top` nudge instead of relying on the row's own `align-items: center`, see
+     "Header over the hero" above), after the live numbers showed the v1.6.2 attempt had not
+     actually worked. The mobile menu is untouched (checked only by reading the CSS, not rendering
+     real Avada markup).
+  4. The name scales with the screen, roughly filling the left half at 2000px wide, and the photo
+     panel's new 40% left edge with the name overlapping it; confirmed locally that `.djd-hero__digimark`
+     never wraps to two lines at any of the five widths, and that `.djd-player`'s own left edge
+     matches `--djd-gutter` exactly at each one.
+  5. **Still not verified against the real Avada markup, the one recurring gap across v1.6.1,
+     v1.6.2 and v1.7.0 now**: the logo's own size, left edge and vertical centering. This harness
+     has never had real header markup to render against, only a positioned placeholder; every fix
+     in this area so far has been built from Mark's own measured live numbers rather than guessed,
+     but none of it has been seen rendering by this tool set. If another round on this specific area
+     is needed, that gap is the reason, not a lack of care in the fix itself.
+- Resolved in v1.2.1 through v1.6.2, confirmed live: third-level dropdown overlap and colors, mobile
   header overlapping hero content, reduced motion freezing everything, the intro's own speed, two
   different diagnoses of what was making the old ticker choppy before it was removed outright, the
   v1.4.1 duotone color bug, the v1.4.1/v1.4.2 cream gap and float hook priority warning, the header
   alignment, the venues heading's collapsing spaces, the venue logo color default, the Hero
   Photos/Venues admin screens not loading their picker script, the full duotone-era baking saga
-  (v1.5.1 through v1.5.4, see "Smoothness" above for the short version), and, confirmed live on
-  v1.6.1, the halftone dots reading crisp rather than big and soft, the photo reading bright and
-  clear rather than dark texture, and the logo's bigger size itself (its alignment was not, see
-  above) (see "Venues" and "Smoothness" above for what each of those turned out to be).
+  (v1.5.1 through v1.5.4, see "Smoothness" above for the short version), confirmed live on v1.6.1,
+  the halftone dots reading crisp rather than big and soft and the photo reading bright and clear
+  rather than dark texture, and, confirmed live on v1.7.0 (as the starting point for that batch), the
+  glow no longer drifting and the hero photo no longer running Ken Burns (v1.6.2) (see "Venues" and
+  "Smoothness" above for what each of those turned out to be).
 - After updating, purge Asset CleanUp, Bluehost's cache, and Cloudflare (see "Caching, every time
   something changes") before judging anything on the live page. Most "it didn't change" reports in
   past rounds turned out to be a stale cached copy, not a code issue.

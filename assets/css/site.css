@@ -18,6 +18,15 @@ body.djdigi-theme {
 	   value, not an independent guess kept in sync by hand (v1.6.2, found
 	   live: the logo and the name's visual left edges did not match). */
 	--djd-name-edge: -8px;
+	/* v1.7.0: the one side gutter the header row and every full width hero
+	   page section (hero, player section) start and end at, replacing the
+	   old fixed "1600px centered box, 40px padding" pattern (found live at
+	   2000px wide: about 400px of empty space sat to the left of a
+	   centered box while the photo ran to the right edge, reading
+	   lopsided). Fluid rather than a fixed number so it keeps making sense
+	   from phone width up through an ultra-wide monitor, not just the
+	   widths actually tested live. */
+	--djd-gutter: clamp(24px, 5vw, 120px);
 
 	/* Avada 7 typography variables */
 	--body_typography-font-family: var(--djd-sans);
@@ -38,8 +47,21 @@ body.djdigi-theme {
 /* html has no body class to key off, so the paper color is set directly here.
    Without this, a page shorter than the viewport shows the browser's default
    behind the body, which reads as a gray strip under the footer. */
+/* overflow-x: hidden also lives on body.djdigi-theme itself (below), which
+   is normally enough on its own: per the CSS overflow spec, a root element
+   (html) left at its own default overflow (visible) is supposed to let the
+   BODY's own overflow propagate up and govern the actual viewport
+   scrollbar. v1.7.0, found while testing the 100vw scrollbar fix below:
+   that propagation did not reliably suppress an actual horizontal scroll
+   in this plugin's own test harness (window.scrollTo() still moved the
+   page), pre-existing and unrelated to this release's own changes (fixed
+   size glows, hero.css, overflowing their own box at narrow widths, not
+   something this release touches). Setting it explicitly on html too,
+   not just relying on body's own value to propagate, removes that
+   ambiguity outright regardless of which way a given browser resolves it. */
 html:has(body.djdigi-theme) {
 	background-color: #f1ece2;
+	overflow-x: hidden;
 }
 /* Hero pages specifically: WordPress's own admin bar CSS puts a margin-top
    on html itself when logged in (not a wrapper inside it), which paints
@@ -440,51 +462,64 @@ body.djdigi-has-hero.djdigi-hero-strip .fusion-header-wrapper { top: 46px; }
    of the hero starting below the header instead of behind it (v1.2.3). */
 body.djdigi-has-hero .fusion-header-sticky-height { display: none !important; }
 
-/* Past 1680px wide (1600px box + 40px padding each side) the hero's own
-   content stays inside that box while an unconstrained header would keep
-   stretching to the window edge. Matching the box and its padding here is
-   what lines the logo and menu up with the hero content and the small
-   header dock below. Applies whether or not the header is currently
-   sticky, so nothing shifts sideways on scroll. */
+/* Left-anchored now, not a centered box (v1.7.0, Mark's call, found live:
+   a centered 1600px box left a wide empty band on the left at 2000px and
+   wider). No max-width or auto margins here any more: the header row
+   simply runs the full width of the page, with --djd-gutter (above) as
+   its own side padding, the exact same value .djd-hero__inner uses
+   (hero.css), so the logo starts at the same edge the hero content does
+   and the menu ends at the same edge on the right. Applies whether or not
+   the header is currently sticky, so nothing shifts sideways on scroll. */
 body.djdigi-has-hero .fusion-header {
-	max-width: 1600px;
-	margin-left: auto;
-	margin-right: auto;
-	padding-left: 40px !important;
-	padding-right: 40px !important;
+	padding-left: var(--djd-gutter) !important;
+	padding-right: var(--djd-gutter) !important;
 }
 
 /* Logo and menu level with each other (v1.4.1, found live: the pill sat
    at the very top of the header while the logo carried its own 10px
    margin, so the two read off axis). align-items: center only has any
    effect if this row is already a flex or grid container, which Avada's
-   own header row is; it does nothing if it somehow is not, so this is
-   safe either way. The logo's own margin is reset to 0 so centering
-   alone decides its position instead of fighting a leftover margin.
-   padding-top raised from 20px to 32px (v1.6.1, found live: the logo
-   read as crowded into the top left corner, right under the admin bar)
-   for more breathing room above both the logo and the menu pill. */
+   own header row is assumed to be; kept here as a harmless no-op if it
+   somehow is not (see the real fix below, v1.7.0, which does not depend
+   on this assumption holding). padding-top raised from 20px to 32px
+   (v1.6.1, found live: the logo read as crowded into the top left corner,
+   right under the admin bar) for more breathing room above both the logo
+   and the menu pill. */
 body.djdigi-has-hero .fusion-header-wrapper .fusion-row {
 	align-items: center;
 	padding-top: 32px;
 }
 body.djdigi-has-hero .fusion-logo {
-	margin-top: 0 !important;
+	/* v1.7.0, found live, measured again: the logo and the menu pill start
+	   at the exact same top edge, not the same center, which is only
+	   possible if align-items: center on the row above never actually
+	   applied to these two as flex siblings (a real center would put the
+	   TALLER one's top higher, not level with the shorter one's). v1.6.2's
+	   fix assumed the row's own alignment just needed reinforcing from
+	   inside the logo's own box; the live numbers this time say that
+	   assumption was wrong, not just incomplete. This nudges the logo down
+	   by exactly half the measured height difference instead (72px logo,
+	   40px menu pill, both declared elsewhere in this file), a fix that
+	   works regardless of whether the row around them is actually flex,
+	   grid, or something else entirely. Reset back to 0 on phone (below):
+	   there the logo is 52px and sits beside Avada's own mobile selector,
+	   not this 40px pill, so this specific offset does not apply there. */
+	margin-top: calc((72px - 40px) / 2) !important;
 	/* v1.6.2, found live: margin-left: 0 only lined the logo up with
-	   .fusion-header's own 40px padding box, the same 1600px max-width plus
-	   40px side padding .djd-hero__inner uses (hero.css); it did not line
-	   up with "DJ DigiMark" itself, which sits 8px further left again
-	   (.djd-hero__name's own negative margin). Reading that same
-	   --djd-name-edge custom property here (defined once, above) instead of
-	   a separate 0 keeps the two left edges tied to one value rather than
-	   two independent guesses that can drift apart. */
+	   .fusion-header's own padding box (--djd-gutter, same as
+	   .djd-hero__inner uses, hero.css); it did not line up with "DJ
+	   DigiMark" itself, which sits 8px further left again (.djd-hero__name's
+	   own negative margin). Reading that same --djd-name-edge custom
+	   property here (defined once, above) instead of a separate 0 keeps the
+	   two left edges tied to one value rather than two independent guesses
+	   that can drift apart. Still correct in v1.7.0 now that the base box
+	   itself is gutter-to-gutter rather than a fixed 1600px center. */
 	margin-left: var(--djd-name-edge, -8px) !important;
-	/* v1.6.2, found live: the logo's own vertical center sat 16px below the
-	   menu pill's center at 912px wide, even with align-items: center on
-	   the row above. Centering the image within the logo's own box
-	   directly, rather than relying only on the row's cross-axis alignment,
-	   is what actually closes that gap if the logo's own box (not the row)
-	   is taller than the image Avada puts inside it. */
+	/* v1.6.2 attempt: centering the image within the logo's own box
+	   directly, kept here since it is still a reasonable thing to do on
+	   its own (in case the logo's own box is ever taller than the image
+	   inside it for some other reason), but the margin-top nudge above is
+	   what actually closes the measured 16px gap in v1.7.0, not this. */
 	display: flex !important;
 	align-items: center !important;
 }
@@ -508,6 +543,18 @@ body.djdigi-has-hero .fusion-logo img {
 @media (max-width: 800px) {
 	body.djdigi-has-hero .fusion-logo img {
 		height: 52px !important;
+	}
+	/* v1.7.0: the desktop vertical nudge above is sized for the 72px logo
+	   against the 40px main menu pill, neither of which is on screen down
+	   here (52px logo, Avada's own mobile selector in their place, a
+	   different element with its own alignment). Mark's brief scoped the
+	   vertical centering fix to "desktop widths where the main menu
+	   shows" and asked explicitly not to break the mobile menu, so this
+	   resets back to the logo's own plain top position instead of
+	   carrying the desktop offset down to a context it was never measured
+	   against. */
+	body.djdigi-has-hero .fusion-logo {
+		margin-top: 0 !important;
 	}
 }
 

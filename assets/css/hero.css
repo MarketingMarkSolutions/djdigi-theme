@@ -7,8 +7,18 @@
 
 .djd-hero {
 	position: relative;
-	width: 100vw;
-	margin-left: calc(50% - 50vw);
+	/* v1.7.0, found live: 100vw includes the scrollbar's own width, which
+	   100% does not, so width: 100vw plus margin-left: calc(50% - 50vw)
+	   (the usual trick to break a section out of Avada's own centered,
+	   padded container) sat the hero about 7px too far left and overhung
+	   the same amount on the right, at every width. width: 100% has no
+	   scrollbar in it at all: it simply matches its own parent's content
+	   box, which is already the full, correct page width once the page
+	   itself uses Avada's 100% Width template with a zero padding
+	   container (see readme.txt, "Test page"), the documented, required
+	   setup for any page carrying [djdigi_hero]. No JS measurement needed
+	   either way. */
+	width: 100%;
 	background: var(--djd-night);
 	color: var(--djd-paper);
 	isolation: isolate;
@@ -79,19 +89,23 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 .djd-hero__glow--c { left: 28%; bottom: -35%; width: 900px; height: 900px; background: radial-gradient(circle, rgba(52, 30, 160, 0.4) 0%, rgba(52, 30, 160, 0) 65%); animation-delay: calc(var(--djd-t-glow, 0s) + 0.24s) !important; }
 
 /* ---------------------------------------------------------------------
-   Large photo panel: the right 55 to 60%, full hero height, bleeding to
-   the right edge. Rotating photos share this one frame.
+   Large photo panel: the right 60%, full hero height, bleeding to the
+   right edge. Rotating photos share this one frame. Left edge moved from
+   42 to 44% down to a flat 40% in v1.7.0 (Mark's call, with the hero
+   content no longer capped at a centered 1600px box, see .djd-hero__inner
+   below): the name now deliberately overlaps the photo's own left edge a
+   little rather than sitting entirely beside it. The name stays legible
+   over that overlap on z-index alone (.djd-hero__inner is z-index: 10,
+   well above the photo panel's own z-index: 1 and its edge fade's
+   z-index: 2, below), same left/bottom fade overlay and glow as before.
    ------------------------------------------------------------------ */
 .djd-hero__photos {
 	position: absolute;
 	inset: 0;
-	left: 42%;
+	left: 40%;
 	z-index: 1;
 	overflow: hidden;
 	pointer-events: none;
-}
-@media (min-width: 1100px) {
-	.djd-hero__photos { left: 44%; }
 }
 /* The photo file itself is already a baked riso halftone JPEG (v1.6.0,
    server side: Imagick assisted decode, GD for every pixel operation, see
@@ -261,12 +275,18 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	justify-content: center;
 }
 
+/* Left-anchored now, not a centered 1600px box (v1.7.0, Mark's call, found
+   live: at 2000px wide the centered box left about 400px of empty night
+   background on the left while the photo ran to the right edge, reading
+   lopsided). --djd-gutter (site.css, shared with the header row, see
+   site.css "Header over the hero") is the only thing controlling the left
+   edge now, at every width, so the content starts right where the photo
+   panel's own left fade and the logo above it do, with nothing capping
+   how far it can run right either. */
 .djd-hero__inner {
 	position: relative;
 	z-index: 10;
-	max-width: 1600px;
-	margin: 0 auto;
-	padding: 24px 40px 0;
+	padding: 24px var(--djd-gutter) 0;
 }
 
 /* ---------------------------------------------------------------------
@@ -299,7 +319,7 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 .djd-hero__mask { display: block; overflow: hidden; padding-block: 0.2em; margin-block: -0.2em; }
 .djd-hero__dj {
 	display: block;
-	font-size: clamp(36px, 5.6vw, 84px);
+	font-size: clamp(34px, 3vw, 70px);
 	color: var(--djd-paper);
 	transform: translate3d(0, 100%, 0);
 	opacity: 0;
@@ -309,7 +329,13 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 .djd-hero__digimark {
 	position: relative;
 	display: grid;
-	font-size: clamp(76px, 16.5vw, 240px);
+	/* v1.7.0, Mark's exact numbers: on a 2000px screen the name should fill
+	   roughly the left half. One fluid clamp now, down to phone width (the
+	   old clamp(52px, 19vw, 88px) override at 800px, below, is gone): at
+	   390px wide the vw term alone (9vw = 35px) is already under the 72px
+	   floor, so it simply holds at 72px, which happens to land almost
+	   exactly where the old phone-only override did (about 74px) anyway. */
+	font-size: clamp(72px, 9vw, 200px);
 	text-transform: none;
 }
 .djd-hero__digimark > .djd-hero__mask { grid-area: 1 / 1; }
@@ -357,7 +383,11 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 .djd-hero__slogan {
 	margin: 0 !important;
 	max-width: 560px;
-	font-size: clamp(20px, 2vw, 26px) !important;
+	/* v1.7.0: scaled in proportion to the name's own new clamp (above),
+	   keeping the same min/max ratio to .djd-hero__digimark the old values
+	   had (about 0.26 at the floor, 0.11 at the ceiling), not an
+	   independent guess. */
+	font-size: clamp(19px, 1.1vw, 22px) !important;
 	line-height: 1.3 !important;
 	font-weight: 600;
 	font-stretch: 92%;
@@ -436,8 +466,9 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
    ------------------------------------------------------------------ */
 .djd-player-section {
 	position: relative;
-	width: 100vw;
-	margin-left: calc(50% - 50vw);
+	/* width: 100%, not 100vw: see the identical note on .djd-hero above,
+	   same scrollbar-width bug, same fix. */
+	width: 100%;
 	background: var(--djd-night);
 	color: var(--djd-paper);
 	font-family: var(--djd-sans);
@@ -445,14 +476,19 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 .djd-player-section *,
 .djd-player-section *::before,
 .djd-player-section *::after { box-sizing: border-box; }
+/* Gutter to gutter now, not a centered 1600px box (v1.7.0, Mark's call,
+   "uses the same edges" as the hero): --djd-gutter (site.css) is the same
+   value .djd-hero__inner and the header row use, so the player's own left
+   edge lines up with the hero content above it. */
 .djd-player-section__inner {
-	max-width: 1600px;
-	margin: 0 auto;
-	padding: 48px 40px;
+	padding: 48px var(--djd-gutter);
 }
+/* The card itself also spans gutter to gutter now, not a narrow 760px
+   box centered inside the section (v1.7.0): the artwork stays a fixed
+   size on the left, the title and waveform simply take up whatever
+   width is left. Same tone step background, no outline, no shadow,
+   unchanged either way. */
 .djd-player {
-	max-width: 760px;
-	margin: 0 auto;
 	display: flex;
 	gap: 18px;
 	align-items: center;
@@ -665,10 +701,15 @@ body:not(.djd-intro-ready) .djd-btn {
 }
 @media (max-width: 800px) {
 	body.djdigi-theme { --djd-head-h: 70px; }
-	.djd-hero__inner { padding: 16px 16px 0; }
-	.djd-hero__digimark { font-size: clamp(52px, 19vw, 88px); }
+	/* v1.7.0: horizontal padding is --djd-gutter everywhere now, including
+	   here, the same value the header row uses, so the logo and the name
+	   still line up at phone width too; only the top value is phone
+	   specific. The old .djd-hero__digimark override is gone entirely
+	   (see the font-size comment on the base rule above): the one fluid
+	   clamp already lands close to the same size down here on its own. */
+	.djd-hero__inner { padding: 16px var(--djd-gutter) 0; }
 	.djd-hero__row { padding: 28px 0 40px; }
-	.djd-player-section__inner { padding: 32px 16px; }
+	.djd-player-section__inner { padding: 32px var(--djd-gutter); }
 	.djd-player { flex-wrap: wrap; padding: 14px 16px; gap: 14px; }
 	.djd-player__btn,
 	.djd-player__art { flex-basis: 56px; width: 56px; height: 56px; }

@@ -10,11 +10,14 @@
    container padding (v1.4.0: without this, the night background stopped
    at the container's own width/margins, leaving a visible cream strip of
    the page's own background on both sides, and the section read as a
-   separate block rather than a continuation of the hero above it). */
+   separate block rather than a continuation of the hero above it).
+   width: 100%, not 100vw (v1.7.0): 100vw includes the scrollbar's own
+   width, which sat this section about 7px too far left and overhanging
+   the same amount on the right, same bug and same fix as .djd-hero and
+   .djd-player-section, see hero.css. */
 .djd-venues {
 	position: relative;
-	width: 100vw;
-	margin-left: calc(50% - 50vw);
+	width: 100%;
 	background: var(--djd-night);
 	padding: 56px 40px 64px;
 }
