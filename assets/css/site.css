@@ -12,6 +12,12 @@ body.djdigi-theme {
 	--djd-sans: 'DJD Archivo', 'Archivo', system-ui, sans-serif;
 	--djd-display: 'DJD Saira', 'Saira Extra Condensed', Impact, sans-serif;
 	--djd-head-h: 92px; /* fallback for the instant before hero.js measures the real header */
+	/* The hero name's own left offset (hero.css, .djd-hero__name), shared
+	   here so the header logo (below, "Header: over the hero") can line
+	   its own left edge up against the name's by reading the exact same
+	   value, not an independent guess kept in sync by hand (v1.6.2, found
+	   live: the logo and the name's visual left edges did not match). */
+	--djd-name-edge: -8px;
 
 	/* Avada 7 typography variables */
 	--body_typography-font-family: var(--djd-sans);
@@ -464,13 +470,27 @@ body.djdigi-has-hero .fusion-header-wrapper .fusion-row {
 }
 body.djdigi-has-hero .fusion-logo {
 	margin-top: 0 !important;
-	/* margin-left: 0 lines the logo's own left edge up with .fusion-header's
-	   own 40px padding (above, ".fusion-header"), the same 1600px max-width
-	   plus 40px side padding pattern .djd-hero__inner uses for the name and
-	   slogan (hero.css), so the logo reads as the top of the same left hand
-	   column as "DJ DigiMark" and the slogan underneath it, not its own,
-	   slightly different, left edge. */
-	margin-left: 0 !important;
+	/* v1.6.2, found live: margin-left: 0 only lined the logo up with
+	   .fusion-header's own 40px padding box, the same 1600px max-width plus
+	   40px side padding .djd-hero__inner uses (hero.css); it did not line
+	   up with "DJ DigiMark" itself, which sits 8px further left again
+	   (.djd-hero__name's own negative margin). Reading that same
+	   --djd-name-edge custom property here (defined once, above) instead of
+	   a separate 0 keeps the two left edges tied to one value rather than
+	   two independent guesses that can drift apart. */
+	margin-left: var(--djd-name-edge, -8px) !important;
+	/* v1.6.2, found live: the logo's own vertical center sat 16px below the
+	   menu pill's center at 912px wide, even with align-items: center on
+	   the row above. Centering the image within the logo's own box
+	   directly, rather than relying only on the row's cross-axis alignment,
+	   is what actually closes that gap if the logo's own box (not the row)
+	   is taller than the image Avada puts inside it. */
+	display: flex !important;
+	align-items: center !important;
+}
+body.djdigi-has-hero .fusion-logo a {
+	display: flex !important;
+	align-items: center !important;
 }
 /* Logo size (v1.6.1, found live: about 48px tall, crowded and hard to
    read over the busiest part of the background). Avada sets width and

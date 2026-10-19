@@ -61,13 +61,15 @@
 
 	/* -----------------------------------------------------------------------
 	 * Rotating hero photos: a TV static transition (hero.css, v1.6.0,
-	 * replacing the shutter and the room light both), Ken Burns per photo
-	 * (always running on the img itself, independent of the static layer),
-	 * pause when the tab is hidden, and only ever warm the one photo
-	 * coming up next. The static layer fades in, the active photo swaps
-	 * underneath it right at the peak (with a brief jitter), then it fades
-	 * back out: see PEAK_MS/TOTAL_MS below, matched to hero.css's own
-	 * djd-static-fade timing (0 to 44% to 100% over 500ms).
+	 * replacing the shutter and the room light both), pause when the tab
+	 * is hidden, and only ever warm the one photo coming up next. No Ken
+	 * Burns zoom any more (v1.6.2, Mark's call: scaling a fine halftone dot
+	 * screen caused shimmer and moire against it): each photo just
+	 * displays still, at scale 1, like a print, while it is active. The
+	 * static layer fades in, the active photo swaps underneath it right at
+	 * the peak (with a brief jitter), then it fades back out: see
+	 * PEAK_MS/TOTAL_MS below, matched to hero.css's own djd-static-fade
+	 * timing (0 to 44% to 100% over 500ms).
 	 * -------------------------------------------------------------------- */
 	(function photoRotation() {
 		var wrap = hero.querySelector('.djd-hero__photos');
@@ -76,16 +78,7 @@
 		if (!frames.length) return;
 		var staticLayer = wrap.querySelector('.djd-hero__static');
 
-		function restartKenBurns(frame) {
-			var img = frame.querySelector('.djd-hero__photo');
-			if (!img) return;
-			img.classList.remove('is-kenburns');
-			void img.offsetWidth; // force reflow so the animation restarts
-			img.classList.add('is-kenburns');
-		}
-
 		var active = frames.filter(function (f) { return f.classList.contains('is-active'); })[0] || frames[0];
-		restartKenBurns(active);
 
 		if (frames.length < 2) return;
 
@@ -111,7 +104,6 @@
 			setTimeout(function () {
 				prevFrame.classList.remove('is-active');
 				nextFrame.classList.add('is-active');
-				restartKenBurns(nextFrame);
 				nextFrame.classList.add('is-jitter');
 				setTimeout(function () {
 					nextFrame.classList.remove('is-jitter');
@@ -163,13 +155,14 @@
 			document.body.classList.add('djd-intro-ready');
 			var introDone = document.body.classList.contains('djd-quick-intro') ? 900 : 1800;
 			setTimeout(function () {
-				// Only the purely one-shot elements: the glow, the photo,
-				// the echo and each EQ bar all keep an infinite companion
-				// animation running forever (drift, Ken Burns, the wave),
-				// so will-change stays on those rather than coming off
-				// right as they are still actively animating.
+				// Only the echo and each EQ bar keep an infinite companion
+				// animation running forever (drift, the wave), so
+				// will-change stays on those rather than coming off right
+				// as they are still actively animating. The glow (v1.6.2:
+				// its own drift is gone, one-shot entrance like the rest
+				// of this group now) and the photo are included here too.
 				var animated = hero.querySelectorAll(
-					'.djd-in-dj, .djd-letter, .djd-hero__slogan, .djd-eq, .djd-btn, .djd-hero__photo-frame.is-first'
+					'.djd-in-dj, .djd-letter, .djd-hero__slogan, .djd-eq, .djd-btn, .djd-hero__photo-frame.is-first, .djd-hero__glow'
 				);
 				animated.forEach(function (el) { el.style.willChange = 'auto'; });
 			}, introDone);

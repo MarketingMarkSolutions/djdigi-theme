@@ -69,10 +69,14 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
    violet heavy bake, a general wash across most of the panel rather than
    the left/bottom edge fades the brief asked to keep. Alpha values
    reduced across all three; still reads as a glow, no longer competes
-   with the photo for attention. */
+   with the photo for attention. v1.6.2 removed the drift these glows used
+   to run (see djd-glow-in, further down): with the glows sitting above the
+   photo since v1.5.0, a slowly sliding color wash over the halftone dots
+   read as a color changer rather than a glow, Mark's call. Each one now
+   only plays its one time entrance and then sits still. */
 .djd-hero__glow--a { left: -12%; top: -25%; width: 1000px; height: 1000px; background: radial-gradient(circle, rgba(90, 46, 145, 0.38) 0%, rgba(90, 46, 145, 0) 65%); }
-.djd-hero__glow--b { right: 2%; top: -10%; width: 820px; height: 820px; background: radial-gradient(circle, rgba(36, 169, 224, 0.42) 0%, rgba(36, 169, 224, 0) 65%); animation-delay: calc(var(--djd-t-glow, 0s) + 0.12s), 1.9s !important; animation-direction: normal, alternate-reverse !important; }
-.djd-hero__glow--c { left: 28%; bottom: -35%; width: 900px; height: 900px; background: radial-gradient(circle, rgba(52, 30, 160, 0.4) 0%, rgba(52, 30, 160, 0) 65%); animation-delay: calc(var(--djd-t-glow, 0s) + 0.24s), 2.1s !important; }
+.djd-hero__glow--b { right: 2%; top: -10%; width: 820px; height: 820px; background: radial-gradient(circle, rgba(36, 169, 224, 0.42) 0%, rgba(36, 169, 224, 0) 65%); animation-delay: calc(var(--djd-t-glow, 0s) + 0.12s) !important; }
+.djd-hero__glow--c { left: 28%; bottom: -35%; width: 900px; height: 900px; background: radial-gradient(circle, rgba(52, 30, 160, 0.4) 0%, rgba(52, 30, 160, 0) 65%); animation-delay: calc(var(--djd-t-glow, 0s) + 0.24s) !important; }
 
 /* ---------------------------------------------------------------------
    Large photo panel: the right 55 to 60%, full hero height, bleeding to
@@ -93,19 +97,17 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
    server side: Imagick assisted decode, GD for every pixel operation, see
    djdigi-theme.php; a flat duotone tint through v1.5.4). No CSS filter and
    no mix-blend-mode layer on top of it, and no mask-image on this element
-   either: all three were the actual cause of the hero photo panel
-   repainting every frame during the Ken Burns zoom (see CLAUDE.md,
-   "Smoothness"), a filter or a blend mode forces the browser to recompute
-   color for the whole layer on every frame it moves or changes, same
-   family of cost as backdrop-filter. What is left here is a plain image
-   with only a transform animating it, which is cheap to composite.
+   either: all three force the browser to recompute color for the whole
+   layer on every frame something behind or on top of it changes, same
+   family of cost as backdrop-filter. The photo itself no longer moves at
+   all now either (v1.6.2, removing the Ken Burns zoom): scaling a fine
+   halftone dot screen caused shimmer and moire, Mark's call, and it was
+   cheap to composite but not free. It displays still, at scale 1, like a
+   print; see CLAUDE.md, "Smoothness".
 
    The frame (not the img) carries the rotation's own visibility and
-   transition state; the img inside it only ever runs Ken Burns, which
-   keeps running uninterrupted through a rotation since nothing about the
-   frame's own animation touches the img's transform at all, two separate
-   elements composing their transforms visually rather than two
-   animations fighting over one element's transform property. */
+   transition state; swapping which frame is active is what changes the
+   photo on screen now, not anything animating the img itself. */
 .djd-hero__photo-frame {
 	position: absolute;
 	inset: 0;
@@ -120,9 +122,7 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
-	will-change: transform;
 }
-.djd-hero__photo.is-kenburns { animation: djd-kenburns 7.6s linear forwards; }
 /* Edge fade into night, left and bottom, wide and eased (several stops,
    not one linear ramp). A static overlay on the panel itself (v1.5.0:
    moved back from being baked into the photo file, see djdigi-theme.php
@@ -287,7 +287,7 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	display: flex;
 	flex-direction: column;
 	gap: clamp(8px, 1.4vw, 20px);
-	margin: 0 0 0 -8px !important;
+	margin: 0 0 0 var(--djd-name-edge, -8px) !important;
 	padding: 0 !important;
 	font-family: var(--djd-display) !important;
 	font-weight: 800 !important;
@@ -581,8 +581,6 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
    how the whole thing waits on the photo and fonts before it starts.
    ------------------------------------------------------------------ */
 @keyframes djd-glow-in { from { opacity: 0; transform: translate3d(0, 0, 0) scale(0.6); } to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } }
-@keyframes djd-glow-drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(60px, 30px, 0) scale(1.12); } }
-@keyframes djd-kenburns { from { transform: scale(1); } to { transform: scale(1.06); } }
 @keyframes djd-mask-rise { from { transform: translate3d(0, 100%, 0); opacity: 0; } to { transform: translate3d(0, 0, 0); opacity: 1; } }
 @keyframes djd-letter-rise {
 	from { transform: translate3d(0, 130%, 0); opacity: 0; }
@@ -602,7 +600,7 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	50% { transform: translate3d(0, -2px, 0); }
 }
 
-.djd-hero__glow { animation: djd-glow-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-glow, 0s) both, djd-glow-drift 16s ease-in-out calc(var(--djd-t-glow, 0s) + 0.6s) infinite alternate; }
+.djd-hero__glow { animation: djd-glow-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-glow, 0s) both; }
 
 /* Photo pull-focus: a short fade with a slight scale in (1.04 to 1), not a
    heavy zoom and blur: a blur animation forces a repaint every frame,
@@ -610,8 +608,10 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
    photo on page load plays this (.is-first, set once in the markup and
    never touched again, see djdigi-theme.php); every later photo arrives
    with the shutter above instead, triggered by rotation (.is-entering).
-   Kept on the frame, not the img, which only ever runs Ken Burns, see the
-   note above .djd-hero__photo-frame. */
+   Kept on the frame, not the img, which no longer animates at all once
+   this entrance ends (v1.6.2 removed the Ken Burns zoom, see the note
+   above .djd-hero__photo-frame), so the frame ends this animation at
+   scale(1) and nothing further ever scales or moves the photo. */
 .djd-hero__photo-frame.is-first {
 	animation: djd-photo-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-photo, 0.15s) both;
 }
@@ -628,7 +628,12 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
    counting from that moment, not from page paint. will-change hints the
    browser to promote these to their own layer ahead of time; hero.js
    clears it once the entrance is done, since leaving it on forever just
-   reserves GPU memory nothing is still animating. */
+   reserves GPU memory nothing is still animating. The glow is included in
+   that clear now too (v1.6.2): it used to drift forever, which is why it
+   was left out of hero.js's clear list before, but now it is a one-shot
+   entrance like the rest of this group. Only the echo and each EQ bar
+   still keep an infinite companion animation running (drift, the wave),
+   so only those two stay out of hero.js's clear list. */
 body:not(.djd-intro-ready) .djd-hero__glow,
 body:not(.djd-intro-ready) .djd-hero__photo-frame.is-first,
 body:not(.djd-intro-ready) .djd-in-dj,

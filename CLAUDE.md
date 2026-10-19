@@ -163,6 +163,31 @@ refresh, took five rounds. What finally worked:
   confirm live that the size and alignment actually land, and that nothing about Avada's own logo
   markup (a possible `.fusion-logo-1x`/`.fusion-logo-2x` retina pair, or similar) needs a more
   specific selector.
+- **Logo centered with the menu, left edge lined up with the name, by measured numbers (v1.6.2).**
+  Mark measured live, logged in: at 912px wide, the logo's own vertical center sat at 100px while
+  the menu pill's center sat at 84px (16px off, even with `align-items: center` on the row, see
+  above), and the logo's left edge sat at 40px while "DJ DigiMark"'s own visual left edge sat at
+  25px (`margin-left: 0` only lined the logo up with `.fusion-header`'s 40px padding box, not with
+  the name itself, which sits 8px further left again from its own negative margin, see
+  `.djd-hero__name` in hero.css). Two fixes:
+  - **Vertical**: `.fusion-logo` (and its own link) get `display: flex; align-items: center;`
+    directly, not just relying on the row's own `align-items: center`. If the row centers its
+    columns correctly but the logo's own box (not the row) is taller than the image Avada puts
+    inside it, which is the likely cause here, the row's alignment alone cannot fix an offset that
+    lives inside the logo's own box; centering the image within its own box directly does, no
+    matter which one it actually turns out to be.
+  - **Horizontal**: a new shared custom property, `--djd-name-edge: -8px` (site.css, on
+    `body.djdigi-theme`), is read by both `.djd-hero__name`'s own margin and `.fusion-logo`'s
+    margin-left now, instead of each carrying its own independent value (0 for the logo, -8px for
+    the name) that can silently drift apart. This is a deliberate one value, read in two places,
+    per Mark's own instruction ("use the same container and padding values the hero content uses,
+    not a hardcoded offset"); it only accounts for the name's own explicit negative margin, not
+    whatever the Saira Extra Condensed font's own glyph rendering (left side bearing on the bold "D")
+    might additionally contribute, which this plugin has no principled way to read or replicate for
+    an image. **Not verified against the real Avada markup, same caveat as the v1.6.1 bullet above**:
+    written from Mark's measured numbers and the standard `.fusion-logo` pattern, not from seeing it
+    render. If the left edges still do not quite line up after this, the gap that is left is most
+    likely that font bearing component, not the shared container value.
 
 If the header ever shows a solid background again, check these in order: whether the `<style
 id="djdt-header-bg-kill">` block is actually printing after Avada's own dynamic stylesheet in the
@@ -198,9 +223,9 @@ keyframes): pausing from the very first paint freezes an animation's timeline be
 has even started counting, so the delay only starts once hero.js adds `djd-intro-ready` to body,
 not from raw page load. Each element also carries `will-change: transform, opacity` for that same
 wait, which hero.js clears afterward, but only on the purely one-shot elements (the slogan, buttons,
-player, DJ, each letter): the glow, the photo, the echo and each EQ bar all keep an infinite
-companion animation (drift, Ken Burns, the wave) running forever, so will-change stays on those
-rather than coming off while they are still actively animating.
+player, DJ, each letter, and, since v1.6.2, the glow and the photo frame too): the echo and each EQ
+bar are the only two left with an infinite companion animation (drift, the wave) running forever, so
+will-change stays on those rather than coming off while they are still actively animating.
 
 Adding a new entrance-animated element: give it its own `--djd-t-*` delay as usual, and add its
 selector to both the `body:not(.djd-intro-ready) ...` pause list and the plain `will-change` list
@@ -417,14 +442,44 @@ crossfaded. Fixed by moving the tint server side, baked into the file itself onc
   `.djd-hero__photos` at all.
 
 **The seam's real fix (v1.5.0) is layer order, not where the fade is computed, and this is still
-true.** Bottom to top: the night background, the photo panel (plain image, Ken Burns, transform
-only), a static CSS gradient overlay on the panel fading its left and bottom edges to night
+true.** Bottom to top: the night background, the photo panel (a plain static image now, see below),
+a static CSS gradient overlay on the panel fading its left and bottom edges to night
 (`.djd-hero__photos::after`, wide, eased, several stops), then the glow on top of all of that (below
 the text and UI). A CSS overlay on the panel always covers the same edge of the panel regardless of
 what the photo content underneath is doing, unlike something baked into the file; and with the glow
 above the photo instead of behind it, it washes continuously across wherever the panel's actual edge
-falls, so no seam can show at any width regardless of photo aspect ratio or Ken Burns scale. Glows
-stay plain radial gradients with alpha the whole time, no filter, no blend mode, no mask.
+falls, so no seam can show at any width regardless of photo aspect ratio. Glows stay plain radial
+gradients with alpha the whole time, no filter, no blend mode, no mask.
+
+**v1.6.2 stopped both the glow and the hero photo moving on their own, Mark's call after a live
+review of v1.6.0.** Two separate, unrelated motions, two separate fixes:
+- **The glow no longer drifts.** Each glow used to run `djd-glow-in` (the one time entrance) and
+  then `djd-glow-drift` forever after, a slow 16s loop sliding and scaling it. Harmless while the
+  glows sat behind the photo, but they have sat above it since v1.5.0 (closing the seam, see
+  "Smoothness" above), so a moving color wash sliding over the halftone dots read as a color changer
+  rather than a glow, and was tiring to look at. `djd-glow-drift` is removed entirely (the keyframes
+  and the second animation on `.djd-hero__glow`, hero.css); each glow now plays its one time
+  entrance and sits still. Since the glow is no longer infinitely animating, it is now included in
+  hero.js's `will-change: auto` cleanup after the intro finishes too (it used to be deliberately left
+  out, since clearing it while the drift was still running would have undone the hint for an
+  animation that was still active).
+- **No more Ken Burns.** Each hero photo used to run `djd-kenburns` (`scale(1)` to `scale(1.06)`,
+  7.6s, restarted on every rotation, `.is-kenburns` toggled in hero.js) continuously while active.
+  Scaling a fine halftone dot screen (the riso bake, see "Smoothness" above) causes shimmer and
+  moire, an interference pattern between the dot grid and the scaling/resampling, which got more
+  visible, not less, once the dots got finer and crisper in v1.6.1. Removed entirely, CSS and JS
+  both (`djd-kenburns` keyframes and the `.is-kenburns` rule gone from hero.css, `restartKenBurns()`
+  gone from hero.js): the photo now displays still, at scale 1, like a print. The only thing that
+  still moves the photo frame at all is the one time `djd-photo-in` fade-and-scale on the very first
+  photo on page load, which ends at `scale(1)` and has nothing after it, and the brief 1 to 2px
+  `djd-static-jitter` during a rotation transition, kept exactly as it was, see "The crossfade" below.
+  The TV static transition itself is unchanged.
+- Verified with a Playwright page, not just by reading the CSS: `getComputedStyle()` on both
+  `.djd-hero__glow` and `.djd-hero__photo` sampled at 3s, 7s and 13s after load (spanning at least
+  one photo rotation) read an unchanged, identity transform (`matrix(1, 0, 0, 1, 0, 0)` or `none`)
+  at every sample, and `document.getAnimations()` on the glow shows only `djd-glow-in`, already
+  finished. Re-ran the same frame cost measurement as v1.6.0 (see "Measuring smoothness" below)
+  afterward: no regression, if anything one less thing animating forever.
 
 **The crossfade between rotating photos is TV static now, not a shutter (v1.6.0, replacing the
 shutter entirely, Mark's call).** The shutter (`djd-shutter-open`/`djd-shutter-settle` keyframes,
@@ -442,8 +497,8 @@ the frame's own `clip-path`/`scale` animation, `is-entering`) is gone. In its pl
   right then (hidden behind the static, so the swap itself is instant, no crossfade of the photos
   themselves needed), adds `.is-jitter` to the incoming frame for a brief 1 to 2px horizontal
   jitter (`@keyframes djd-static-jitter`, `steps(4)`, about 110ms), then removes `.is-static` at
-  `TOTAL_MS` (500ms). Ken Burns restarts on the incoming frame the same way it always did, keeps
-  running uninterrupted through the whole transition.
+  `TOTAL_MS` (500ms). This transition is unchanged by v1.6.2's removal of Ken Burns (see
+  "Smoothness" above); the jitter is still the only thing that briefly moves the incoming frame.
 - Only the very first photo on page load still plays the older fade-and-scale entrance
   (`djd-photo-in`, `.is-first`), unchanged; every later photo arrives via the static transition.
 
@@ -574,7 +629,7 @@ is correct whether or not the animation happens to be running at that instant.
 - Display font: Saira Extra Condensed, 700/800. Text font: Archivo. Buttons and the player status tag are sentence case now, not wide-tracked uppercase, except the venues heading and the name, which stay uppercase display type.
 - Hero layout: the photo is large, the right 55 to 60% of the hero, full height, bleeding to the right edge, with the name overlapping into it on the left. A fade layer washes the left and bottom edges into night so the photo never shows a hard rectangle. Phone: the photo goes full bleed behind everything with a stronger dark wash for text contrast. No hero labels: the name and slogan carry the hero alone (removed entirely in v1.2.1, markup and CSS, Mark's call). The hero keeps only the name, slogan, the two buttons and the photo now (v1.6.0): the player moved to its own section right after, see "Smoothness" above.
 - Hero intro (about 1.6 to 1.8s, see "Intro: fast, overlapping, waits for the photo and fonts" above): glows bloom first, then the photo fades in with a slight scale in, then "DJ" and "DigiMark" sweep up letter by letter from a full height mask, then slogan and buttons land together, all heavily overlapping rather than running in sequence. The header carries no entrance animation of its own (v1.4.0), the logo and menu pill are simply in place from the first frame. Quick version on a repeat view in the session; `?intro=1` forces the full one. Always plays in full motion, see "Motion: always on, by design". The player's own entrance is no longer part of this gated sequence (v1.6.0, it moved out of the hero, see "Smoothness" above).
-- Hero photo: rotates through whatever is picked in Settings (each with its own focal point), with a slow Ken Burns zoom and a TV static transition between photos (v1.6.0, replacing the shutter and the room light color shift, see "Smoothness" above), or the bundled photo if none are picked. The riso halftone look (grayscale with a contrast boost, then violet and cyan dot screens, v1.6.0, replacing a flat duotone tint) is baked into the photo file itself server side, not a live CSS filter or blend mode, so any photo Mark adds reads as part of the same look without manual editing and without costing a repaint every frame. The edge fade into night is a CSS overlay on the panel, not baked into the file.
+- Hero photo: rotates through whatever is picked in Settings (each with its own focal point), with a TV static transition between photos (v1.6.0, replacing the shutter and the room light color shift, see "Smoothness" above), or the bundled photo if none are picked. Each photo displays still at scale 1 while active, no Ken Burns zoom (removed in v1.6.2, Mark's call: it was causing shimmer and moire against the halftone dot screen, see "Smoothness" above). The riso halftone look (grayscale with a contrast boost, then violet and cyan dot screens, v1.6.0, replacing a flat duotone tint) is baked into the photo file itself server side, not a live CSS filter or blend mode, so any photo Mark adds reads as part of the same look without manual editing and without costing a repaint every frame. The edge fade into night is a CSS overlay on the panel, not baked into the file.
 - Name layers: echo (the drifting violet ghost) and main (the cyan letters) are stacked with CSS Grid, both in the same grid cell, not positioned by hand. Grid items never margin collapse with their container or each other, which is what actually caused v1.2.0's doubled name bug (the padding and negative margin used to make room for descenders collapsed through on one layer and not the other). Keep them grid stacked rather than going back to relative/absolute arithmetic.
 - Scroll: no scroll driven effect on the hero any more (v1.6.0, the scale-into-a-card scroll shrink effect was removed entirely, Mark's call: the hero now flows straight into the player section and venues below it instead, see "Smoothness" above). The photo wall that used to slide in around the old scroll shrink (v1.2.0 and v1.2.1) was already removed entirely in v1.2.2, Mark's call; if tiles come back later they need rebuilding from scratch, not un-reverting either of these.
 - Pride EQ: a shared sine wave drives all 6 bars (`djd-eq-wave`), each with its own `animation-delay` so the motion rolls left to right through the colors, plus a small separate drift animation for a fabric feel, rather than each bar bouncing independently.
@@ -654,7 +709,12 @@ venues beam and marquee, all running): 1 frame out of 1631 exceeded 25ms (a sing
 10 seconds, avg 6.13ms, p95 6.20ms; a follow-up pass with network requests to Mixcloud blocked still
 showed one isolated spike at a different point in the window, so it is not the player's own widget
 preload, more likely a one-off layout or GC pause unrelated to the continuously running animations
-rather than sustained jank from anything new in this release. First run of this measurement after
+rather than sustained jank from anything new in this release. v1.6.2 result (glow drift and Ken
+Burns both removed, TV static transition, player section and venues beam/marquee all still running):
+2 frames out of 1628 exceeded 25ms (worst 102.9ms) over 10 seconds, avg 6.14ms, p95 6.20ms,
+essentially identical to the v1.6.0 numbers; removing two continuously running animations did not
+regress anything and the one-off spike pattern looks like the same kind of isolated pause as before,
+not sustained jank. First run of this measurement after
 v1.6.0 came back far worse (avg 27ms, 164 dropped frames) with `chromium.launch()` given explicit
 `--use-gl=desktop --enable-gpu` args; removing those entirely and launching with just `headless:
 false` is what produced the clean numbers above, confirmed by a plain blank-page baseline
@@ -687,28 +747,32 @@ JS do not fully initialize against a static file, so the mobile selector and all
 can render in the wrong state regardless of anything in this plugin.
 
 ## Open items
-- Queued for live review after v1.6.1, not confirmed live yet (confirmed in a local Playwright
-  harness, real markup and CSS/JS, 1920, 1440 and 390 wide, the three real baked source files, plus
-  the headed trace in "Measuring smoothness" above):
-  1. Hero photo dots are fine and crisp up close (about 3 to 4px at full output size), not big and
-     soft, even for the two hero photos whose source is only 800px.
-  2. The photo reads bright and clear at a glance, the face/subject and the equipment legible, not
-     as dark, hard to make out texture; highlights stay close to paper white.
-  3. The logo is noticeably bigger (about 72px desktop, 52px phone), with more room above it, and
-     its left edge lines up with the left edge of "DJ DigiMark" and the slogan under it. **Not
-     verified locally**: no real Avada header markup available outside the live site, see the note
-     in "Header over the hero" above.
-  4. Everything from v1.6.0 (riso halftone look generally, the TV static transition, the fixed
-     glow, no hard line at the hero's bottom edge, no scroll shrink, the player as its own section
-     with `player="no"` working) still holds, see the v1.6.0 list this replaces for the specifics.
-- Resolved in v1.2.1 through v1.5.4, confirmed live: third-level dropdown overlap and colors, mobile
+- Queued for live review after v1.6.2, not confirmed live yet:
+  1. The glow no longer drifts, sits still after its one time entrance; confirmed locally, not just
+     by reading the CSS, via `getComputedStyle()` sampled at 3s/7s/13s after load (spanning a photo
+     rotation) reading an unchanged identity transform each time, and `document.getAnimations()`
+     showing only the finished one-shot entrance, no second animation. See "Smoothness" above.
+  2. The hero photo no longer runs Ken Burns, displays still at scale 1 while active; confirmed the
+     same way as the glow above (`.djd-hero__photo`'s own transform, unchanged across the same three
+     samples). The TV static transition between photos is otherwise unchanged.
+  3. The logo is centered with the menu pill and its left edge lines up with "DJ DigiMark"'s own
+     left edge, at 912, 1440, 1920 and 390 wide. **Not verified locally**: no real Avada header
+     markup available outside the live site, same limitation as the v1.6.1 logo size/position work,
+     see the note in "Header over the hero" above. Built from Mark's own measured live numbers
+     (912px wide, logged in) rather than guessed, but the actual fix needs confirming against the
+     real header.
+  4. Frame cost re-measured after removing two continuously running animations: no regression (see
+     "Measuring smoothness" above).
+- Resolved in v1.2.1 through v1.6.1, confirmed live: third-level dropdown overlap and colors, mobile
   header overlapping hero content, reduced motion freezing everything, the intro's own speed, two
   different diagnoses of what was making the old ticker choppy before it was removed outright, the
   v1.4.1 duotone color bug, the v1.4.1/v1.4.2 cream gap and float hook priority warning, the header
   alignment, the venues heading's collapsing spaces, the venue logo color default, the Hero
-  Photos/Venues admin screens not loading their picker script, and the full duotone-era baking saga
-  (v1.5.1 through v1.5.4, see "Smoothness" above for the short version)
-  (see "Venues" and "Smoothness" above for what each of those turned out to be).
+  Photos/Venues admin screens not loading their picker script, the full duotone-era baking saga
+  (v1.5.1 through v1.5.4, see "Smoothness" above for the short version), and, confirmed live on
+  v1.6.1, the halftone dots reading crisp rather than big and soft, the photo reading bright and
+  clear rather than dark texture, and the logo's bigger size itself (its alignment was not, see
+  above) (see "Venues" and "Smoothness" above for what each of those turned out to be).
 - After updating, purge Asset CleanUp, Bluehost's cache, and Cloudflare (see "Caching, every time
   something changes") before judging anything on the live page. Most "it didn't change" reports in
   past rounds turned out to be a stale cached copy, not a code issue.
