@@ -369,6 +369,38 @@ crossfaded. Fixed by moving the duotone tint server side:
   browser access to the live host from this tool set), so treat the memory/time theory as the best
   explanation that fits the symptoms, not a confirmed root cause; if a hero photo is still stuck
   after this ships, the admin notice is the next place to look, and it will at least say why.
+- **v1.5.4, the v1.5.3 fix was right that it wasn't a crash: Mark confirmed live that the rebake
+  actually ran and rewrote all three files at a specific timestamp, and the output was still flat
+  gray.** Downloaded the three real source files (`banner-slider-1.jpg`, `banner-slider-3.jpg`,
+  both 800x800; `digimark-the-cafe-sf.jpg`, 1110x1030, confirming the 800px width itself was never
+  a bug, just the source's own size, and that this recipe correctly never upscales) and ran
+  `djdt_bake_duotone_imagick()`/`_gd()` against them directly with a local PHP 8.3 plus Imagick
+  7.1.1/ImageMagick 7.1.1, both paths: both produced a correct violet to cyan duotone, not
+  reproducible locally. The prime suspect for why the live host differs: the gradient this used to
+  build with `newPseudoImage( 256, 1, 'gradient:...' )` depends on ImageMagick's `'gradient:'`
+  pseudo coder, which a hardened shared host's `policy.xml` commonly disables for security (the
+  same class of policy that blocks `'pattern:'`, `'label:'`, and similar procedural coders); some
+  ImageMagick builds hand back a flat neutral image instead of throwing when a coder is blocked,
+  clutting every gray level to the same flat result with nothing to catch. `djdt_imagick_duotone_gradient()`
+  rebuilds the same 256x1 lookup by hand through a plain pixel iterator instead, which depends on no
+  coder at all, and `setImageType( Imagick::IMGTYPE_TRUECOLOR )` runs right before the write as cheap
+  insurance against a stale grayscale type surviving the earlier colorspace round trip. **Neither
+  guess could be confirmed against the live host directly** (still no shell access to it), so the
+  real backstop is `djdt_bake_is_gray()`: samples a grid of points in the baked JPEG right after any
+  bake that reported success, and if none of them show real color (every real duotone pixel has
+  unequal R/G/B, even at the gradient's own black and white extremes, so finding even one colorful
+  sample is enough to pass), the bake is treated as a failure exactly like an exception would be: the
+  bad file is deleted, `'_djdt_bake_error'` records `"baked gray, no violet or cyan at all"`, and
+  `djdt_ensure_duotone()` returns `''`, which makes the hero shortcode's existing fallback serve the
+  unprocessed original instead of a broken file. Keep this check; it is what catches a bug like this
+  one regardless of which library or host-specific quirk causes it next time. `DJDT_DUOTONE_RECIPE`
+  was bumped to 4 specifically because the three stuck photos already carried `'_djdt_bake_ver' = 3`
+  on the live site (the v1.5.3 rebake really did stamp it, the output was just gray); without the
+  bump the per-photo version check would have seen them as already correctly baked and never
+  retried them with the new gradient. Verified by running `djdt_ensure_duotone()` itself, unmodified,
+  straight out of this file (WordPress functions stubbed, both with and without the Imagick
+  extension loaded) against all three real source files; both the Imagick and the GD path produced
+  a correctly colored file for all three.
 - The baked file's path is cached in postmeta (`_djdt_duotone_jpg`); `djdt_duotone_url()`
   regenerates it on demand if that meta or the file is ever missing, so a photo saved before v1.4.0
   self heals the first time it is needed, no resave required. If neither Imagick nor GD is

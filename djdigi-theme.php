@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, and [djdigi_venues] for djdigimark.com.
- * Version: 1.5.3
+ * Version: 1.5.4
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.5.3' );
+define( 'DJDT_VERSION', '1.5.4' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -634,7 +634,14 @@ define( 'DJDT_DUOTONE_MAX_DIM', 2000 );
 // already baked file needs regenerating to look right, so a recipe fix
 // reaches photos Mark already picked without him needing to resave Hero
 // Photos (see the admin_init hook below).
-define( 'DJDT_DUOTONE_RECIPE', 3 );
+//
+// v1.5.4: bumped to 4. The three photos stuck gray on the live site
+// already carry '_djdt_bake_ver' = 3 (confirmed live: the v1.5.3 rebake
+// did run and did stamp it, the output was just gray), so leaving this at
+// 3 would have the admin_init check see them as already correctly baked
+// and never retry them with the new gradient. Bumping it is what actually
+// gets the fix in front of those specific photos.
+define( 'DJDT_DUOTONE_RECIPE', 4 );
 
 /**
  * Returns the baked duotone URL for a hero photo attachment, generating
@@ -702,12 +709,33 @@ function djdt_ensure_duotone( $id ) {
 		$ok = djdt_bake_duotone_gd( $src_path, $abs_jpg );
 	}
 
+	$gray_reason = '';
+	if ( $ok && djdt_bake_is_gray( $abs_jpg ) ) {
+		// v1.5.4, confirmed live: the bake can report success and still
+		// write a file with no violet or cyan in it at all, R = G = B
+		// everywhere, same symptom as the already-fixed v1.4.1 bug but
+		// not reproducible locally against the real source photos with a
+		// stock Imagick/GD, so something about the live host's install is
+		// the actual trigger (ImageMagick's policy.xml commonly disables
+		// the 'gradient:' pseudo coder on hardened shared hosts, which
+		// djdt_bake_duotone_imagick() depended on until this version, see
+		// djdt_imagick_duotone_gradient() below). Whatever the cause, a
+		// bake that comes out flat gray is sampled and caught here rather
+		// than trusted, the bad file is removed, and this falls through
+		// to the ! $ok branch below exactly as if baking had failed
+		// outright, which is what makes the hero shortcode's existing
+		// fallback serve the unprocessed original instead.
+		@unlink( $abs_jpg );
+		$ok          = false;
+		$gray_reason = 'baked gray, no violet or cyan at all';
+	}
+
 	if ( ! $ok ) {
 		delete_post_meta( $id, '_djdt_duotone_jpg' );
 		// Leftovers from the v1.4.1 WebP recipe, no longer written or read.
 		delete_post_meta( $id, '_djdt_duotone_webp' );
 		delete_post_meta( $id, '_djdt_bake_ver' );
-		djdt_set_bake_error( $id, 'Imagick and GD both failed or are unavailable' );
+		djdt_set_bake_error( $id, $gray_reason ? $gray_reason : 'Imagick and GD both failed or are unavailable' );
 		return '';
 	}
 	delete_post_meta( $id, '_djdt_bake_error' );
@@ -731,6 +759,46 @@ function djdt_set_bake_error( $id, $reason ) {
 }
 
 /**
+ * Samples a grid of pixels in a baked JPEG and reports whether it is
+ * actually flat gray, R = G = B everywhere sampled, rather than a real
+ * violet to cyan duotone (v1.5.4). Used right after a bake that reported
+ * success, since "the library returned true" and "the file is actually
+ * tinted" turned out live not to be the same thing, see the note on
+ * djdt_ensure_duotone() above. Uses GD purely to read pixels back, on
+ * purpose, regardless of which library produced the file: this is a
+ * sanity check on the output, not another encode path to trust.
+ */
+function djdt_bake_is_gray( $path ) {
+	$img = @imagecreatefromjpeg( $path );
+	if ( ! $img ) {
+		return true;
+	}
+	$w        = imagesx( $img );
+	$h        = imagesy( $img );
+	$colorful = 0;
+	// A grid of sample points, not every pixel: a real violet to cyan
+	// duotone has visibly unequal R, G, B at virtually every pixel (even
+	// the gradient's own black and white extremes map to violet and
+	// cyan, both of which have unequal channels), so finding even one
+	// genuinely colorful sample point is enough to call the bake good.
+	for ( $gy = 1; $gy <= 6; $gy++ ) {
+		for ( $gx = 1; $gx <= 6; $gx++ ) {
+			$x   = (int) ( $w * $gx / 7 );
+			$y   = (int) ( $h * $gy / 7 );
+			$rgb = imagecolorat( $img, $x, $y );
+			$r   = ( $rgb >> 16 ) & 0xFF;
+			$g   = ( $rgb >> 8 ) & 0xFF;
+			$b   = $rgb & 0xFF;
+			if ( max( $r, $g, $b ) - min( $r, $g, $b ) > 8 ) {
+				$colorful++;
+			}
+		}
+	}
+	imagedestroy( $img );
+	return 0 === $colorful;
+}
+
+/**
  * Imagick: grayscale, back to sRGB (the v1.4.1 color bug: clutImage ran
  * while the image was still in the GRAY colorspace, which has no color
  * channels left for the gradient to write into, so every baked photo
@@ -750,7 +818,60 @@ function djdt_set_bake_error( $id, $reason ) {
  * djdt_ensure_duotone() above. The resource limits are the same safety net
  * ImageMagick already offers for exactly this, set explicitly rather than
  * left at whatever a shared host's php.ini happens to default to.
+ *
+ * v1.5.4, confirmed live: three hero photos baked as flat gray, R = G = B,
+ * no exception thrown, with every check above passing. Not reproducible
+ * locally against the real source photos with a stock Imagick 7.1.1 and
+ * ImageMagick 7.1.1, so something about the live host's own ImageMagick
+ * install is the trigger, not this recipe's math. The prime suspect: the
+ * gradient this used to build with `newPseudoImage( 256, 1, 'gradient:...'
+ * )` depends on ImageMagick's 'gradient:' pseudo coder, which a hardened
+ * shared host's policy.xml commonly disables for security (the same class
+ * of policy that blocks 'pattern:', 'label:', and similar procedural
+ * coders); some ImageMagick builds hand back a flat neutral image instead
+ * of throwing when a coder is blocked, which would clut every gray level
+ * to the same flat result with nothing to catch. Rebuilt below
+ * (djdt_imagick_duotone_gradient()) using only a pixel iterator, which
+ * depends on no coder at all. setImageType() before the write is cheap
+ * insurance on top of that: a grayscale-derived image can otherwise carry
+ * a stale "this is grayscale" type through to the JPEG encoder even after
+ * transformImageColorspace() back to sRGB, which would write a real
+ * single-component grayscale JPEG regardless of what the pixel data
+ * actually holds. Neither fix could be confirmed against the live host
+ * directly (no shell access to it from this tool set); djdt_bake_is_gray()
+ * below is the backstop if either guess is wrong.
  */
+
+/**
+ * Builds the 256x1 violet to cyan lookup image djdt_bake_duotone_imagick()
+ * clut's against, pixel by pixel through a plain Imagick pixel iterator
+ * (v1.5.4). Deliberately not `newPseudoImage( 256, 1, 'gradient:...' )`,
+ * the original recipe: that depends on ImageMagick's 'gradient:' pseudo
+ * coder, which policy.xml can disable, see the note above. A pixel
+ * iterator is core Imagick API, not a coder, so there is nothing here for
+ * a hardened policy to block.
+ */
+function djdt_imagick_duotone_gradient() {
+	list( $vr, $vg, $vb ) = djdt_hex_rgb( DJDT_DUOTONE_VIOLET );
+	list( $cr, $cg, $cb ) = djdt_hex_rgb( DJDT_DUOTONE_CYAN );
+	$gradient = new Imagick();
+	$gradient->newImage( 256, 1, new ImagickPixel( DJDT_DUOTONE_VIOLET ) );
+	$iterator = $gradient->getPixelIterator();
+	foreach ( $iterator as $row ) {
+		foreach ( $row as $x => $pixel ) {
+			$t = $x / 255;
+			$pixel->setColor( sprintf(
+				'rgb(%d,%d,%d)',
+				(int) round( $vr + ( $cr - $vr ) * $t ),
+				(int) round( $vg + ( $cg - $vg ) * $t ),
+				(int) round( $vb + ( $cb - $vb ) * $t )
+			) );
+		}
+		$iterator->syncIterator();
+	}
+	return $gradient;
+}
+
 function djdt_bake_duotone_imagick( $src_path, $dest_jpg ) {
 	try {
 		$img = new Imagick();
@@ -793,11 +914,15 @@ function djdt_bake_duotone_imagick( $src_path, $dest_jpg ) {
 		// intensity (still grayscale in effect, R = G = B, just with
 		// color channels available again), so black maps to violet, white
 		// to cyan, and every gray level in between to the matching point
-		// on the gradient.
-		$gradient = new Imagick();
-		$gradient->newPseudoImage( 256, 1, 'gradient:' . DJDT_DUOTONE_VIOLET . '-' . DJDT_DUOTONE_CYAN );
+		// on the gradient. Built by hand (see the v1.5.4 note above), not
+		// with the 'gradient:' pseudo coder.
+		$gradient = djdt_imagick_duotone_gradient();
 		$img->clutImage( $gradient );
 		$gradient->destroy();
+		// v1.5.4: forces the JPEG encoder to actually write 3 components.
+		// Belt and suspenders alongside the hand built gradient above, see
+		// the note on this function.
+		$img->setImageType( Imagick::IMGTYPE_TRUECOLOR );
 		$img->setImageFormat( 'jpeg' );
 		$img->setImageCompressionQuality( 86 );
 		wp_mkdir_p( dirname( $dest_jpg ) );
