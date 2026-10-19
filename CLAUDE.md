@@ -265,8 +265,10 @@ at all). `djdt_logo_default_color()` picks White only for an SVG (vector, counte
 convention) or a PNG/WebP that a pixel sampling pass (`djdt_image_has_alpha()`, GD, a grid of
 sample points rather than every pixel) actually finds to carry real transparency, not just an alpha
 channel that happens to be fully opaque; everything else, a JPG above all, defaults to Original.
-This runs once for every existing venue on update (`DJDT_LOGO_COLOR_RECIPE`, same version-gated
-`admin_init` pattern as the duotone regeneration below) so Mark did not have to fix Necto by hand,
+This runs once for every existing venue on update (`DJDT_LOGO_COLOR_RECIPE`, a version-gated
+`admin_init` pattern; the duotone regeneration below used to share this exact pattern but moved to
+a per-photo postmeta check in v1.5.1, see "Smoothness" below for why) so Mark did not have to fix
+Necto by hand,
 and again for a freshly picked logo in admin.js (a lighter mime-only guess there, since the browser
 does not have the file's own pixel data to sample). Mark can still override per venue from the
 dropdown either way. SVG logos
@@ -326,11 +328,20 @@ crossfaded. Fixed by moving the duotone tint server side:
   mask functions, and the `<picture>`/`<source type="image/webp">` markup are all gone). The real
   fix for the seam turned out to be about where the fade and the glow sit relative to each other,
   not where the fade is computed, see below.
-- Baked files regenerate for every existing hero photo once per `DJDT_DUOTONE_RECIPE` bump (an
-  `admin_init` hook, version gated via the `djdt_duotone_recipe_done` option, same pattern used for
-  the logo color default), so a recipe fix reaches photos Mark already picked without him needing to
-  resave Hero Photos. Bump `DJDT_DUOTONE_RECIPE` again any time `djdt_bake_duotone_imagick`/`_gd`
-  changes in a way that means an already baked file would look wrong until regenerated.
+- Baked files regenerate for any existing hero photo whose own `_djdt_bake_ver` postmeta does not
+  match the current `DJDT_DUOTONE_RECIPE` (an `admin_init` hook), so a recipe fix reaches photos
+  Mark already picked without him needing to resave Hero Photos. Bump `DJDT_DUOTONE_RECIPE` again
+  any time `djdt_bake_duotone_imagick`/`_gd` changes in a way that means an already baked file
+  would look wrong until regenerated. v1.5.1, found live: three hero photos were still the gray,
+  800px v1.4.0 bakes after two version bumps that should have fixed them. The earlier version of
+  this hook gated the whole pass behind one global option (`djdt_duotone_recipe_done`) marked done
+  once the loop finished, with no record of whether any individual photo's bake had actually
+  succeeded, so a photo that failed to rebake (a corrupt source file, an Imagick exception) looked
+  identical to a successful one from the hook's point of view and never got retried. Checking each
+  photo's own `_djdt_bake_ver` instead of the previous version-done option means a photo that
+  failed to rebake keeps getting retried on the next admin page load regardless of what the rest of
+  the pass already did, and a freshly added photo is always caught too. Do not reintroduce a single
+  global "already ran" flag for this; the per-photo meta check is the fix.
 - The baked file's path is cached in postmeta (`_djdt_duotone_jpg`); `djdt_duotone_url()`
   regenerates it on demand if that meta or the file is ever missing, so a photo saved before v1.4.0
   self heals the first time it is needed, no resave required. If neither Imagick nor GD is

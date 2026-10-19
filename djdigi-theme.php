@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, and [djdigi_venues] for djdigimark.com.
- * Version: 1.5.0
+ * Version: 1.5.1
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.5.0' );
+define( 'DJDT_VERSION', '1.5.1' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -588,7 +588,8 @@ add_action( 'wp_head', function () {
 
 /* -------------------------------------------------------------------------
  * Hero photo duotone baking (v1.4.0, color fixed in v1.4.1, edge fades
- * moved back out to CSS in v1.5.0)
+ * moved back out to CSS in v1.5.0, per-photo bake version tracking in
+ * v1.5.1 so a stuck rebake can be told apart from a correct one)
  * Generated once, when a photo is saved into Hero Photos (djdt_sanitize's
  * 'photos' branch), not on every front end page load: grayscale, then a
  * violet to cyan duotone, baked straight into a plain JPEG. The front end
@@ -664,9 +665,14 @@ function djdt_ensure_duotone( $id ) {
 		delete_post_meta( $id, '_djdt_duotone_jpg' );
 		// Leftovers from the v1.4.1 WebP recipe, no longer written or read.
 		delete_post_meta( $id, '_djdt_duotone_webp' );
+		delete_post_meta( $id, '_djdt_bake_ver' );
 		return '';
 	}
 	update_post_meta( $id, '_djdt_duotone_jpg', $rel_jpg );
+	// Stamped with the recipe that produced this file, so the admin_init
+	// pass below can tell a correctly baked photo from one still waiting
+	// on a rebake, per photo, see the note there.
+	update_post_meta( $id, '_djdt_bake_ver', DJDT_DUOTONE_RECIPE );
 	delete_post_meta( $id, '_djdt_duotone_webp' );
 	return trailingslashit( $upload_dir['baseurl'] ) . $rel_jpg;
 }
@@ -830,30 +836,44 @@ function djdt_hex_rgb( $hex ) {
 }
 
 /**
- * Regenerates every already saved hero photo's baked copies once per
- * DJDT_DUOTONE_RECIPE bump, so a recipe fix (like the v1.4.1 color bug)
- * reaches photos Mark already picked without him needing to resave Hero
- * Photos. Runs for an admin on any admin page load, not just the Hero
- * Photos screen, since otherwise it would never run at all until he
- * happened to visit that one screen.
+ * Rebakes any saved hero photo whose own '_djdt_bake_ver' postmeta does not
+ * match the current DJDT_DUOTONE_RECIPE, so a recipe fix (like the v1.4.1
+ * color bug or the v1.5.0 max dimension bump) reaches photos Mark already
+ * picked without him needing to resave Hero Photos. Runs for an admin on
+ * any admin page load, not just the Hero Photos screen (otherwise it would
+ * never run until he happened to visit that one screen), and not on the
+ * front end, since baking is too slow to do on a visitor's page load.
+ *
+ * v1.5.1, found live: three hero photos were still the gray, 800px v1.4.0
+ * bakes after two version bumps that should have fixed them. The previous
+ * version of this hook gated the whole pass behind one global option
+ * ('djdt_duotone_recipe_done') set to the recipe number once the loop
+ * finished, with no per-photo record of whether that photo's own bake
+ * actually succeeded. Baking is not guaranteed to succeed (a corrupt
+ * source file, an Imagick exception, a host hiccup), djdt_ensure_duotone()
+ * just returns '' and moves on when it fails, so a failed photo and a
+ * successful one both still looked, from this hook's point of view, like
+ * "the pass ran", and the global option never came back around to retry
+ * it. Checking each photo's own '_djdt_bake_ver' instead means a photo
+ * that failed to rebake keeps getting retried on the next admin page load
+ * no matter what the global pass already did, and a freshly added photo
+ * is always caught too. The per-photo check itself is a cheap postmeta
+ * read; only an actual mismatch pays for the real bake.
  */
 add_action( 'admin_init', function () {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
-	if ( (int) get_option( 'djdt_duotone_recipe_done', 0 ) >= DJDT_DUOTONE_RECIPE ) {
+	$rows = djdt_get( 'hero_photos' );
+	if ( ! is_array( $rows ) ) {
 		return;
 	}
-	$rows = djdt_get( 'hero_photos' );
-	if ( is_array( $rows ) ) {
-		foreach ( $rows as $row ) {
-			$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
-			if ( $id > 0 ) {
-				djdt_ensure_duotone( $id );
-			}
+	foreach ( $rows as $row ) {
+		$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+		if ( $id > 0 && (int) get_post_meta( $id, '_djdt_bake_ver', true ) !== DJDT_DUOTONE_RECIPE ) {
+			djdt_ensure_duotone( $id );
 		}
 	}
-	update_option( 'djdt_duotone_recipe_done', DJDT_DUOTONE_RECIPE );
 } );
 
 /**
