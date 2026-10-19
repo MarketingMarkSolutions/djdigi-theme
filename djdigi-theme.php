@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, and [djdigi_venues] for djdigimark.com.
- * Version: 1.5.1
+ * Version: 1.5.2
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.5.1' );
+define( 'DJDT_VERSION', '1.5.2' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -87,10 +87,13 @@ function djdt_is_active() {
  * WordPress shows for the top level link itself rather than a 4th entry.
  */
 add_action( 'admin_menu', function () {
-	add_menu_page( 'DigiMark Theme', 'DigiMark', 'manage_options', 'djdigi-theme', 'djdt_render_settings_theme', 'dashicons-format-audio' );
-	add_submenu_page( 'djdigi-theme', 'Theme Settings', 'Theme Settings', 'manage_options', 'djdigi-theme', 'djdt_render_settings_theme' );
-	add_submenu_page( 'djdigi-theme', 'Hero Photos', 'Hero Photos', 'manage_options', 'djdigi-theme-photos', 'djdt_render_settings_photos' );
-	add_submenu_page( 'djdigi-theme', 'Venues', 'Venues', 'manage_options', 'djdigi-theme-venues', 'djdt_render_settings_venues' );
+	global $djdt_admin_hooks;
+	$djdt_admin_hooks = array(
+		add_menu_page( 'DigiMark Theme', 'DigiMark', 'manage_options', 'djdigi-theme', 'djdt_render_settings_theme', 'dashicons-format-audio' ),
+		add_submenu_page( 'djdigi-theme', 'Theme Settings', 'Theme Settings', 'manage_options', 'djdigi-theme', 'djdt_render_settings_theme' ),
+		add_submenu_page( 'djdigi-theme', 'Hero Photos', 'Hero Photos', 'manage_options', 'djdigi-theme-photos', 'djdt_render_settings_photos' ),
+		add_submenu_page( 'djdigi-theme', 'Venues', 'Venues', 'manage_options', 'djdigi-theme-venues', 'djdt_render_settings_venues' ),
+	);
 } );
 
 /**
@@ -118,13 +121,23 @@ add_action( 'admin_init', function () {
 
 /**
  * Only our own settings screens need the media frame and the picker script.
- * add_menu_page's own page and the two add_submenu_page screens each get
- * their own hook suffix (WordPress convention: "{parent_slug}_page_{slug}",
- * except the first one, which is "toplevel_page_{slug}").
+ *
+ * v1.5.2, found live: this used to compare $hook against hard coded
+ * strings guessed from the usual WordPress convention ("{parent_slug}_page_
+ * {slug}", or "toplevel_page_{slug}" for the first one). That guess was
+ * wrong: WordPress actually builds a submenu's hook suffix from the parent
+ * menu's sanitized MENU TITLE, not its slug, so with a parent menu titled
+ * "DigiMark" the real hooks were "digimark_page_djdigi-theme-photos" and
+ * "digimark_page_djdigi-theme-venues", not "djdigi-theme_page_...". The
+ * hard coded strings never matched, so admin.js never loaded on Hero Photos
+ * or Venues: no media picker, no rendered rows, Add did nothing. Fixed by
+ * reading the real hook suffixes straight from what add_menu_page() and
+ * add_submenu_page() themselves returned (global $djdt_admin_hooks, set in
+ * the admin_menu callback above), never guessed again.
  */
 add_action( 'admin_enqueue_scripts', function ( $hook ) {
-	$our_hooks = array( 'toplevel_page_djdigi-theme', 'djdigi-theme_page_djdigi-theme-photos', 'djdigi-theme_page_djdigi-theme-venues' );
-	if ( ! in_array( $hook, $our_hooks, true ) ) {
+	global $djdt_admin_hooks;
+	if ( ! in_array( $hook, (array) $djdt_admin_hooks, true ) ) {
 		return;
 	}
 	wp_enqueue_media();

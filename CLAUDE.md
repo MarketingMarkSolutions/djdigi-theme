@@ -416,6 +416,19 @@ sanitizer. The old URL, `wp-admin/options-general.php?page=djdigi-theme`, redire
 Theme Settings page (`admin_init`, checked against `$pagenow` and `$_GET['page']`) so an old
 bookmark still lands somewhere real.
 
+**Never hard code these screens' hook suffixes.** v1.5.2, found live: the `admin_enqueue_scripts`
+check that loads `admin.js`/`admin.css` (media frame, the photo and venue pickers) compared `$hook`
+against hard coded strings guessed from the usual convention, "{parent_slug}_page_{slug}" ("toplevel_
+page_{slug}" for the first one). That guess was wrong: WordPress actually builds a submenu's hook
+suffix from the parent menu's sanitized MENU TITLE, not its slug, and the menu title here is
+"DigiMark", not "djdigi-theme". The real hooks were `digimark_page_djdigi-theme-photos` and
+`digimark_page_djdigi-theme-venues`, so the hard coded strings never matched, admin.js never
+loaded on Hero Photos or Venues, and the picker, the rendered rows, and Add all silently did
+nothing. Fixed by capturing what `add_menu_page()` and `add_submenu_page()` themselves return
+(global `$djdt_admin_hooks`, set in the `admin_menu` callback) and comparing against that instead
+of any guessed string. If this menu is ever restructured, never hard code a hook suffix again,
+always read it back from what WordPress actually returned.
+
 ## Cream gaps from wpautop (v1.4.1, fixed properly in v1.4.2)
 Found live: a cream gap above the hero, another between the hero and venues, and another above the
 footer. Cause: `wpautop` (WordPress core, runs on the raw post content before shortcodes expand)
