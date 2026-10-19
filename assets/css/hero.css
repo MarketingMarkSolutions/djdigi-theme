@@ -61,9 +61,18 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
    ------------------------------------------------------------------ */
 .djd-hero__glows { position: absolute; left: 0; right: 0; top: 0; bottom: -260px; z-index: 3; pointer-events: none; }
 .djd-hero__glow { position: absolute; border-radius: 50%; }
-.djd-hero__glow--a { left: -12%; top: -25%; width: 1000px; height: 1000px; background: radial-gradient(circle, rgba(90, 46, 145, 0.62) 0%, rgba(90, 46, 145, 0) 65%); }
-.djd-hero__glow--b { right: 2%; top: -10%; width: 820px; height: 820px; background: radial-gradient(circle, rgba(36, 169, 224, 0.5) 0%, rgba(36, 169, 224, 0) 65%); animation-delay: calc(var(--djd-t-glow, 0s) + 0.12s), 1.9s !important; animation-direction: normal, alternate-reverse !important; }
-.djd-hero__glow--c { left: 28%; bottom: -35%; width: 900px; height: 900px; background: radial-gradient(circle, rgba(52, 30, 160, 0.7) 0%, rgba(52, 30, 160, 0) 65%); animation-delay: calc(var(--djd-t-glow, 0s) + 0.24s), 2.1s !important; }
+/* v1.6.1, found live: the photo read as dark texture overall, on top of
+   the bake itself reading dark (fixed separately, see djdigi-theme.php,
+   djdt_halftone_gray()). The glow sits above the photo on purpose (see
+   the note above, closing the seam), but at the old alpha values it was
+   a second, page level layer of darkening stacked on top of an already
+   violet heavy bake, a general wash across most of the panel rather than
+   the left/bottom edge fades the brief asked to keep. Alpha values
+   reduced across all three; still reads as a glow, no longer competes
+   with the photo for attention. */
+.djd-hero__glow--a { left: -12%; top: -25%; width: 1000px; height: 1000px; background: radial-gradient(circle, rgba(90, 46, 145, 0.38) 0%, rgba(90, 46, 145, 0) 65%); }
+.djd-hero__glow--b { right: 2%; top: -10%; width: 820px; height: 820px; background: radial-gradient(circle, rgba(36, 169, 224, 0.42) 0%, rgba(36, 169, 224, 0) 65%); animation-delay: calc(var(--djd-t-glow, 0s) + 0.12s), 1.9s !important; animation-direction: normal, alternate-reverse !important; }
+.djd-hero__glow--c { left: 28%; bottom: -35%; width: 900px; height: 900px; background: radial-gradient(circle, rgba(52, 30, 160, 0.4) 0%, rgba(52, 30, 160, 0) 65%); animation-delay: calc(var(--djd-t-glow, 0s) + 0.24s), 2.1s !important; }
 
 /* ---------------------------------------------------------------------
    Large photo panel: the right 55 to 60%, full hero height, bleeding to

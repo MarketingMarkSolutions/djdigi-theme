@@ -454,13 +454,41 @@ body.djdigi-has-hero .fusion-header {
    effect if this row is already a flex or grid container, which Avada's
    own header row is; it does nothing if it somehow is not, so this is
    safe either way. The logo's own margin is reset to 0 so centering
-   alone decides its position instead of fighting a leftover margin. */
+   alone decides its position instead of fighting a leftover margin.
+   padding-top raised from 20px to 32px (v1.6.1, found live: the logo
+   read as crowded into the top left corner, right under the admin bar)
+   for more breathing room above both the logo and the menu pill. */
 body.djdigi-has-hero .fusion-header-wrapper .fusion-row {
 	align-items: center;
-	padding-top: 20px;
+	padding-top: 32px;
 }
 body.djdigi-has-hero .fusion-logo {
 	margin-top: 0 !important;
+	/* margin-left: 0 lines the logo's own left edge up with .fusion-header's
+	   own 40px padding (above, ".fusion-header"), the same 1600px max-width
+	   plus 40px side padding pattern .djd-hero__inner uses for the name and
+	   slogan (hero.css), so the logo reads as the top of the same left hand
+	   column as "DJ DigiMark" and the slogan underneath it, not its own,
+	   slightly different, left edge. */
+	margin-left: 0 !important;
+}
+/* Logo size (v1.6.1, found live: about 48px tall, crowded and hard to
+   read over the busiest part of the background). Avada sets width and
+   height as attributes directly on the <img> itself, which beats a plain
+   CSS rule on specificity alone; !important is what actually wins here,
+   not just a higher selector. width: auto keeps the image's own aspect
+   ratio once height is forced, rather than stretching it. No glow,
+   outline or backdrop added behind it, on purpose: a plain, larger mark
+   is what was asked for, nothing more. */
+body.djdigi-has-hero .fusion-logo img {
+	height: 72px !important;
+	width: auto !important;
+	max-height: none !important;
+}
+@media (max-width: 800px) {
+	body.djdigi-has-hero .fusion-logo img {
+		height: 52px !important;
+	}
 }
 
 body.djdigi-has-hero .fusion-secondary-header {

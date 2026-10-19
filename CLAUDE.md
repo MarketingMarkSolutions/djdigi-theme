@@ -141,11 +141,28 @@ refresh, took five rounds. What finally worked:
 - **Logo and menu level with each other (v1.4.1).** Found live: the menu pill sat right at the top
   edge of the header while the logo carried its own 10px margin from Avada, so the two read off
   axis from each other. `body.djdigi-has-hero .fusion-header-wrapper .fusion-row { align-items:
-  center; padding-top: 20px; }` plus `body.djdigi-has-hero .fusion-logo { margin-top: 0 !important;
-  }` (site.css) centers both on the same line instead. `align-items` only does anything if that row
+  center; padding-top: 32px; }` (32px, up from 20px in v1.6.1, see below) plus
+  `body.djdigi-has-hero .fusion-logo { margin-top: 0 !important; margin-left: 0 !important; }`
+  (site.css) centers both on the same line instead. `align-items` only does anything if that row
   is already a flex or grid container, which Avada's own header row is; if a future Avada update
   changes that, the rule is harmless (a no-op) rather than broken, but the actual centering would
   need rebuilding.
+- **Logo bigger, more breathing room, lined up with the hero content (v1.6.1).** Found live: the
+  logo read about 48px tall, crowded into the top left corner under the admin bar, over the
+  busiest part of the background. `body.djdigi-has-hero .fusion-logo img { height: 72px !important;
+  width: auto !important; }` (52px on phone, `@media (max-width: 800px)`) forces the size: Avada
+  sets width/height as attributes directly on the `<img>`, which beats a plain CSS rule on
+  specificity alone, `!important` is what actually wins. `padding-top` on the header row raised
+  from 20px to 32px for more room above both the logo and the pill. `.fusion-logo`'s own
+  `margin-left: 0 !important` lines its left edge up with `.fusion-header`'s own 40px side padding
+  (above), the same 1600px max-width plus 40px padding pattern `.djd-hero__inner` uses (hero.css),
+  so the logo reads as the top of the same left hand column as "DJ DigiMark" and the slogan under
+  it. No glow, outline or backdrop added, a plain larger mark only. **Not verified against the real
+  Avada markup**: no browser or live site access from this tool set, written defensively against
+  the standard `.fusion-logo` / `.fusion-logo img` pattern Avada uses elsewhere in this file;
+  confirm live that the size and alignment actually land, and that nothing about Avada's own logo
+  markup (a possible `.fusion-logo-1x`/`.fusion-logo-2x` retina pair, or similar) needs a more
+  specific selector.
 
 If the header ever shows a solid background again, check these in order: whether the `<style
 id="djdt-header-bg-kill">` block is actually printing after Avada's own dynamic stylesheet in the
@@ -309,10 +326,37 @@ crossfaded. Fixed by moving the tint server side, baked into the file itself onc
   look** (Mark's reference: his own riso flyer), Mark's call: grayscale with a contrast boost, then
   two rotated dot screens, violet for the shadows (75 degree screen angle) and cyan for the mids (15
   degrees), on a near white paper ground (`#eef6fa`), the violet layer offset 2px right and 1px down
-  from the cyan layer so the two screens read slightly off register, like a real riso print. Dot
-  cell size is derived from the output's own long side (about 6px at a full 2000px output, floored
-  at 5px) rather than fixed, so a smaller, never upscaled source still reads as clearly dotted up
-  close rather than shrinking into a fine, muddy texture.
+  from the cyan layer so the two screens read slightly off register, like a real riso print.
+- **v1.6.1, found live: the dots read big and soft, and the whole photo read as dark texture, face
+  and decks hard to make out.** Two separate causes, two separate fixes:
+  - **Soft dots**: `djdt_halftone_decode_gd()` only ever downscaled to `DJDT_HALFTONE_MAX_DIM`,
+    never up, so an 800px source (two of the three live hero photos) got its dot screen generated
+    at 800px and was then stretched up by the browser to fill the photo panel along with everything
+    else, dots included, which is what read as big and soft rather than crisp. Fixed by always
+    resizing to exactly `DJDT_HALFTONE_MAX_DIM` on the long side now, up or down (Lanczos in
+    Imagick, `imagecopyresampled` in GD, both before the halftone screen is drawn), the one
+    deliberate exception to "never upscale" anywhere in this plugin: the point is the dot screen
+    itself always gets generated at full resolution, and the halftone's own texture hides the
+    softness an enlarged photo would otherwise show plainly. Cell size also went finer alongside
+    this, about 3 to 4px at `DJDT_HALFTONE_MAX_DIM` now (`$long / 550`), down from about 6px
+    (`$long / 333`), since the output is effectively always at that same full resolution now rather
+    than sometimes being a smaller, coarser canvas.
+  - **Dark overall**: `djdt_halftone_gray()` raised its contrast (`-50`, up from `-32`) and added
+    `imagegammacorrect( $gray, 1.0, 1.35 )` after it, a mid gamma lift that brightens the midtones
+    specifically while leaving true black and true white exactly where they are (unlike a flat
+    brightness shift, which would also wash out the highlights this recipe wants to stay close to
+    paper white). The violet "shadow" layer's own cutoff also narrowed (`djdt_halftone_layer()`,
+    `$l / 0.38`, down from `$l / 0.55`), so it claims less of the tonal range now and more of what
+    used to read as deep violet shadow reads as cyan, or breaks through to paper, instead. On the
+    page, hero.css's glow alpha values also came down across all three (`.djd-hero__glow--a/b/c`,
+    roughly 0.62/0.5/0.7 down to 0.38/0.42/0.4): the glow sits above the photo on purpose (closing
+    the seam, see below), but at the old values it was a second, page level layer of darkening
+    stacked on an already dark bake, closer to a general wash across the panel than the left/bottom
+    edge fades that are supposed to be the only things softening the photo.
+  - `DJDT_HALFTONE_RECIPE` bumped to 2 for both of these, forcing every hero photo to rebake once
+    with a fresh, unique file name (see below), verified by baking all three real source files
+    again with the actual updated code and looking at the output, not just reasoning about the
+    parameters.
 - **The decode/render split (v1.6.0) is what actually fixed the "live host only" gray bug below for
   good.** `djdt_halftone_decode_gd()` uses Imagick, when available, only to ping, read, orient and
   resize a source photo (the same memory safe `'jpeg:size'` scaled decode as the v1.5.3 fix),
@@ -643,26 +687,20 @@ JS do not fully initialize against a static file, so the mobile selector and all
 can render in the wrong state regardless of anything in this plugin.
 
 ## Open items
-- Queued for live review after v1.6.0, not confirmed live yet (confirmed in a local Playwright
-  harness, real markup and CSS/JS, both 1440 and 390 wide, plus the headed trace in "Measuring
-  smoothness" above):
-  1. Hero photos show as a riso halftone (visible violet and cyan dots, off register, reads as a
-     photo at a glance), not gray, not a flat duotone tint. Dots stay clearly visible at an 800px
-     source width too, not just the larger one.
-  2. The rotation transition reads as TV static (a brief noise flicker with scanlines, a short
-     jitter on the incoming photo), not a shutter or a crossfade. Ken Burns keeps running
-     uninterrupted through it.
-  3. The glow no longer shifts color between rotations (the "room light" is gone, one fixed violet
-     and cyan set throughout).
-  4. No hard line anywhere across the hero's own bottom edge at any width; the glow should read as
-     bleeding into the page rather than ending in a clipped circle.
-  5. No scroll driven shrink or rounding on the hero at all any more.
-  6. The Mixcloud player is its own section right after the hero, not inside it: no outlined box
-     around it, just a gentle tone step on the card itself, with the hero, the player section and
-     venues all reading as one continuous night scene with no visible seam between any of them.
-     `[djdigi_hero player="no"]` should render the hero with no player section at all.
-  7. Photos still hold about 6 seconds each and still pause rotating when the browser tab is not
-     in focus (unchanged).
+- Queued for live review after v1.6.1, not confirmed live yet (confirmed in a local Playwright
+  harness, real markup and CSS/JS, 1920, 1440 and 390 wide, the three real baked source files, plus
+  the headed trace in "Measuring smoothness" above):
+  1. Hero photo dots are fine and crisp up close (about 3 to 4px at full output size), not big and
+     soft, even for the two hero photos whose source is only 800px.
+  2. The photo reads bright and clear at a glance, the face/subject and the equipment legible, not
+     as dark, hard to make out texture; highlights stay close to paper white.
+  3. The logo is noticeably bigger (about 72px desktop, 52px phone), with more room above it, and
+     its left edge lines up with the left edge of "DJ DigiMark" and the slogan under it. **Not
+     verified locally**: no real Avada header markup available outside the live site, see the note
+     in "Header over the hero" above.
+  4. Everything from v1.6.0 (riso halftone look generally, the TV static transition, the fixed
+     glow, no hard line at the hero's bottom edge, no scroll shrink, the player as its own section
+     with `player="no"` working) still holds, see the v1.6.0 list this replaces for the specifics.
 - Resolved in v1.2.1 through v1.5.4, confirmed live: third-level dropdown overlap and colors, mobile
   header overlapping hero content, reduced motion freezing everything, the intro's own speed, two
   different diagnoses of what was making the old ticker choppy before it was removed outright, the

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, and [djdigi_venues] for djdigimark.com.
- * Version: 1.6.0
+ * Version: 1.6.1
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.6.0' );
+define( 'DJDT_VERSION', '1.6.1' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -641,7 +641,13 @@ define( 'DJDT_HALFTONE_MAX_DIM', 2000 );
 // Photos (see the admin_init hook below). Baked into the filename itself
 // now (djdt_halftone_filename()), so a bump also forces a fresh URL, not
 // just a fresh file.
-define( 'DJDT_HALFTONE_RECIPE', 1 );
+//
+// v1.6.1: bumped to 2. Found live: the bake was running at the source
+// photo's own size (800px for two of the three hero photos), then the
+// browser stretched that up to fill the photo panel, which is what read
+// as soft, oversized dots; and the recipe was reading too dark overall.
+// Fixed below, see the note on djdt_halftone_decode_gd().
+define( 'DJDT_HALFTONE_RECIPE', 2 );
 
 /**
  * Returns the baked halftone URL for a hero photo attachment, generating
@@ -807,14 +813,15 @@ function djdt_bake_is_gray( $path ) {
 
 /**
  * Decodes a source photo into a plain GD truecolor resource, oriented and
- * resized to DJDT_HALFTONE_MAX_DIM (never upscaled). Imagick assisted when
- * available, purely for a safe, memory bounded decode: pings the file for
- * its real dimensions first and, for a source larger than needed, sets
- * 'jpeg:size' before the real read so libjpeg decodes at a reduced scale
- * directly instead of decoding the original at full resolution only to
- * immediately throw most of it away in the resize below (the same
- * reasoning as the old duotone recipe's v1.5.3 fix). Once decoded and
- * resized, Imagick's own job ends: the image is handed to GD
+ * resized so its long side is exactly DJDT_HALFTONE_MAX_DIM, up or down
+ * (v1.6.1: previously only ever downscaled; see the note below). Imagick
+ * assisted when available, purely for a safe, memory bounded decode: pings
+ * the file for its real dimensions first and, for a source larger than
+ * needed, sets 'jpeg:size' before the real read so libjpeg decodes at a
+ * reduced scale directly instead of decoding the original at full
+ * resolution only to immediately throw most of it away in the resize
+ * below (the same reasoning as the old duotone recipe's v1.5.3 fix). Once
+ * decoded and resized, Imagick's own job ends: the image is handed to GD
  * (imagecreatefromstring on a PNG blob) and every pixel operation from
  * there on, for both the Imagick assisted path and the Imagick
  * unavailable fallback below, runs through the exact same GD code in
@@ -832,6 +839,21 @@ function djdt_bake_is_gray( $path ) {
  * handful of core operations already proven to work on the live host, and
  * does not touch a clut, a pseudo image, or any other procedural coder at
  * all.
+ *
+ * v1.6.1, found live: a source photo smaller than DJDT_HALFTONE_MAX_DIM
+ * (two of the three hero photos are 800px) was baked at its own, smaller
+ * size, then stretched up by the browser to fill the photo panel, which
+ * is what read as big, soft dots rather than crisp ones: the dot screen
+ * itself was generated small and then enlarged along with everything
+ * else, instead of being generated at the final size to begin with. This
+ * is the one deliberate exception to "never upscale" anywhere in this
+ * plugin: a smooth Lanczos (Imagick) or bicubic-equivalent
+ * (imagecopyresampled, GD) upscale of the grayscale source, before the
+ * halftone screen is drawn, so the dot screen itself is always generated
+ * at the full target resolution regardless of the source's own size, and
+ * the halftone's own dot pattern hides the softness an enlarged photo
+ * would otherwise show plainly. Still capped at DJDT_HALFTONE_MAX_DIM on
+ * the long side either way, just no longer only ever scaling down to it.
  */
 function djdt_halftone_decode_gd( $src_path ) {
 	if ( class_exists( 'Imagick' ) ) {
@@ -851,15 +873,13 @@ function djdt_halftone_decode_gd( $src_path ) {
 			if ( method_exists( $img, 'autoOrientImage' ) ) {
 				$img->autoOrientImage();
 			}
-			$w   = $img->getImageWidth();
-			$h   = $img->getImageHeight();
-			$max = max( $w, $h );
-			if ( $max > DJDT_HALFTONE_MAX_DIM ) {
-				$scale = DJDT_HALFTONE_MAX_DIM / $max;
-				$w     = (int) round( $w * $scale );
-				$h     = (int) round( $h * $scale );
-				$img->resizeImage( $w, $h, Imagick::FILTER_LANCZOS, 1 );
-			}
+			$w     = $img->getImageWidth();
+			$h     = $img->getImageHeight();
+			$max   = max( $w, $h );
+			$scale = DJDT_HALFTONE_MAX_DIM / $max;
+			$w     = (int) round( $w * $scale );
+			$h     = (int) round( $h * $scale );
+			$img->resizeImage( $w, $h, Imagick::FILTER_LANCZOS, 1 );
 			$img->setImageFormat( 'png' );
 			$blob = $img->getImageBlob();
 			$img->destroy();
@@ -916,31 +936,40 @@ function djdt_halftone_decode_gd( $src_path ) {
 			}
 		}
 	}
-	$w   = imagesx( $src );
-	$h   = imagesy( $src );
-	$max = max( $w, $h );
-	if ( $max > DJDT_HALFTONE_MAX_DIM ) {
-		$scale   = DJDT_HALFTONE_MAX_DIM / $max;
-		$nw      = max( 1, (int) round( $w * $scale ) );
-		$nh      = max( 1, (int) round( $h * $scale ) );
-		$resized = imagecreatetruecolor( $nw, $nh );
-		imagecopyresampled( $resized, $src, 0, 0, 0, 0, $nw, $nh, $w, $h );
-		imagedestroy( $src );
-		$src = $resized;
-	}
-	return $src;
+	$w       = imagesx( $src );
+	$h       = imagesy( $src );
+	$max     = max( $w, $h );
+	$scale   = DJDT_HALFTONE_MAX_DIM / $max;
+	$nw      = max( 1, (int) round( $w * $scale ) );
+	$nh      = max( 1, (int) round( $h * $scale ) );
+	$resized = imagecreatetruecolor( $nw, $nh );
+	imagecopyresampled( $resized, $src, 0, 0, 0, 0, $nw, $nh, $w, $h );
+	imagedestroy( $src );
+	return $resized;
 }
 
-/** Grayscale plus a contrast boost, the tonal basis both ink layers read from. A separate image so the original color decode is never mutated in place. */
+/**
+ * Grayscale plus a contrast boost and a mid gamma lift, the tonal basis
+ * both ink layers read from. A separate image so the original color
+ * decode is never mutated in place.
+ *
+ * v1.6.1, found live: the bake read as dark texture, face and decks hard
+ * to make out. Contrast raised further (GD's own filter is inverted, a
+ * more negative level means more contrast), plus a gamma correction
+ * after it (`imagegammacorrect`, which lifts midtones while leaving true
+ * black and true white exactly where they are, unlike a flat brightness
+ * shift, which would also wash out the highlights) so the face, the
+ * headphones and the decks sit in a brighter part of the tonal range
+ * before the ink curves in djdt_halftone_layer() even see them, rather
+ * than reading as near black and getting buried under full violet
+ * coverage.
+ */
 function djdt_halftone_gray( $src, $w, $h ) {
 	$gray = imagecreatetruecolor( $w, $h );
 	imagecopy( $gray, $src, 0, 0, 0, 0, $w, $h );
 	imagefilter( $gray, IMG_FILTER_GRAYSCALE );
-	// GD's own contrast filter is inverted: a negative level means MORE
-	// contrast, a positive level means less. This is a moderate boost, a
-	// riso print reads cleaner with more separation between tones than
-	// the source photo's own contrast usually has.
-	imagefilter( $gray, IMG_FILTER_CONTRAST, -32 );
+	imagefilter( $gray, IMG_FILTER_CONTRAST, -50 );
+	imagegammacorrect( $gray, 1.0, 1.35 );
 	return $gray;
 }
 
@@ -995,15 +1024,19 @@ function djdt_halftone_layer( $out, $gray, $w, $h, $cell, $angle_deg, $ox, $oy, 
 			$l  = ( imagecolorat( $gray, $sx, $sy ) & 0xFF ) / 255; // 0 = black, 1 = white
 			if ( 'shadow' === $kind ) {
 				// Violet: full coverage at black, fading to nothing by
-				// mid gray, so it owns the shadows and stays out of the
-				// cyan layer's own midtone range below.
-				$coverage = max( 0, min( 1, 1 - $l / 0.55 ) );
-				$coverage = pow( $coverage, 0.85 );
+				// 38% gray (v1.6.1: narrowed from 55%, found live the
+				// photo was reading too dark; this is less territory for
+				// violet to claim, so more of the midtone range reads as
+				// cyan or breaks through to paper instead), so it owns
+				// just the true shadows and stays out of the cyan layer's
+				// own midtone range below.
+				$coverage = max( 0, min( 1, 1 - $l / 0.38 ) );
+				$coverage = pow( $coverage, 0.9 );
 			} else {
 				// Cyan: a triangle peaking at mid gray, zero at both
 				// black (violet's own territory above) and white (paper).
 				$coverage = ( $l <= 0.5 ) ? ( $l / 0.5 ) : ( ( 1 - $l ) / 0.5 );
-				$coverage = pow( max( 0, min( 1, $coverage ) ), 0.8 );
+				$coverage = pow( max( 0, min( 1, $coverage ) ), 0.7 );
 			}
 			if ( $coverage <= 0.035 ) {
 				continue;
@@ -1028,10 +1061,15 @@ function djdt_halftone_layer( $out, $gray, $w, $h, $cell, $angle_deg, $ox, $oy, 
  * spot, the way real riso ink does.
  *
  * Cell size is derived from the output's own long side, not a fixed
- * constant: about 6px at a full DJDT_HALFTONE_MAX_DIM output, floored at
- * 5px so a smaller, never upscaled source (the live hero photos run as
- * small as 800px) still reads as clearly dotted up close rather than
- * shrinking into a fine, muddy texture.
+ * constant: about 3 to 4px at DJDT_HALFTONE_MAX_DIM (v1.6.1: finer than
+ * the original 6px, found live the dots were reading big and soft; now
+ * that djdt_halftone_decode_gd() always resizes to exactly
+ * DJDT_HALFTONE_MAX_DIM, up or down, "the output's own long side" is
+ * effectively always the same value, so the dot screen itself is always
+ * generated at full resolution rather than being generated small and
+ * then stretched by the browser along with everything else), floored at
+ * 3px so the formula stays sane for a source this scales down from
+ * something extreme.
  */
 function djdt_halftone_render( $src, $w, $h ) {
 	$gray = djdt_halftone_gray( $src, $w, $h );
@@ -1039,11 +1077,11 @@ function djdt_halftone_render( $src, $w, $h ) {
 	imagealphablending( $out, true );
 	imagefill( $out, 0, 0, djdt_halftone_color( $out, DJDT_HALFTONE_PAPER ) );
 
-	$violet = djdt_halftone_color( $out, DJDT_HALFTONE_VIOLET, 12 );
-	$cyan   = djdt_halftone_color( $out, DJDT_HALFTONE_CYAN, 12 );
+	$violet = djdt_halftone_color( $out, DJDT_HALFTONE_VIOLET, 14 );
+	$cyan   = djdt_halftone_color( $out, DJDT_HALFTONE_CYAN, 14 );
 
 	$long = max( $w, $h );
-	$cell = max( 5, (int) round( $long / 333 ) );
+	$cell = max( 3, (int) round( $long / 550 ) );
 
 	djdt_halftone_layer( $out, $gray, $w, $h, $cell, 15, 0, 0, $cyan, 'mid' );
 	djdt_halftone_layer( $out, $gray, $w, $h, $cell, 75, 2, 1, $violet, 'shadow' );
