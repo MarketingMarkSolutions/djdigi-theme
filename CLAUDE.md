@@ -41,15 +41,15 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 "Live for everyone" is checked. Keep every new feature behind this check.
 
 ## Files
-- `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo duotone baking (Imagick or GD), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]`, `[djdigi_venues]`.
+- `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo halftone baking (Imagick assisted decode, GD for every pixel operation, v1.6.0, see "Smoothness" below), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]` (`djdt_hero_shortcode()`) and the "Latest live set" player section it outputs right after itself (`djdt_player_section()`, v1.6.0, no separate shortcode), `[djdigi_venues]`.
 - `assets/css/site.css`: site-wide, scoped to `body.djdigi-theme`. Avada header and menu selectors: `.fusion-header-wrapper`, `.fusion-secondary-header` (no social icons at all now, see "Dock scoping"), `.fusion-header`, `.fusion-sticky-header-wrapper`, `.fusion-header-sticky-height` (Avada's own spacer, hidden on hero pages, see "Header over the hero" below), `.fusion-main-menu` (the pill bar) `> ul.fusion-menu`, `.sub-menu` (including explicit dropdown/flyout positioning and the `djd-flip-right` class menu.js adds near the viewport edge), `.fusion-mobile-selector` (classic mobile menu), `.fusion-is-sticky` (sticky state). Also owns the footer dock's styling, the opening sequence's shared timing custom properties (on `body.djdigi-has-hero`, see below), and the hero-page override of `html`'s own background color (see "Header over the hero" below, the cream strip fix).
-- `assets/css/hero.css`: hero only, loaded only when the shortcode renders. The large right side photo panel and its CSS edge fade, the shutter transition and the room light between rotating photos, the scroll shrink transform, the grid-stacked name layers, the player, the Pride EQ wave, the intro's pause-until-ready gate (see "Intro: fast, overlapping, waits for the photo and fonts" below). No filter, mix-blend-mode or mask-image on the photo itself, see "Smoothness" below. No ticker here, see "Venues" below.
+- `assets/css/hero.css`: hero, the "Latest live set" player section, and both, loaded only when the shortcode renders. The large right side photo panel and its CSS edge fade, the TV static transition and the fixed glow between rotating photos (v1.6.0, replacing the shutter and the room light), the grid-stacked name layers, the player section (its own full width night background, no outlined box, see "Smoothness" below), the Pride EQ wave, the intro's pause-until-ready gate (see "Intro: fast, overlapping, waits for the photo and fonts" below). No scroll shrink any more (v1.6.0, removed entirely). No filter, mix-blend-mode or mask-image on the photo itself, see "Smoothness" below. No ticker here, see "Venues" below.
 - `assets/css/venues.css`, `assets/js/venues.js`: the `[djdigi_venues]` card, loaded only when that shortcode renders, same pattern as hero.css/hero.js. See "Venues" below.
 - `assets/css/admin.css`, `assets/js/admin.js`: the Hero Photos and Venues admin screens only, the hero photo picker and the venues picker (wp.media, drag to reorder; hero photos also set a focal point, venues also have a name, details, a link, a logo color, and an on/off switch).
-- `assets/js/hero.js`: opening sequence timing (session quick-intro, `?intro=1` override, the ready gate), header height measurement (the taller of the header wrapper and the mobile nav holder, so the hero always starts below whichever actually extends further down), the shutter's class handoff and the room light's color cycling between rotating photos, the scroll shrink driver, the Mixcloud Widget API player (iframe at player-widget.mixcloud.com, see below). The header's background image fix is no longer here, see "Header over the hero" below.
+- `assets/js/hero.js`: opening sequence timing (session quick-intro, `?intro=1` override, the ready gate), header height measurement (the taller of the header wrapper and the mobile nav holder, so the hero always starts below whichever actually extends further down), the TV static transition's class handoff between rotating photos (v1.6.0), the Mixcloud Widget API player (iframe at player-widget.mixcloud.com, see below; looked up from `document`, not from the hero element, since the player is its own section now, not a descendant). No scroll shrink driver any more (v1.6.0, removed entirely, the whole function is gone). The header's background image fix is no longer here, see "Header over the hero" below.
 - `assets/js/menu.js`: the sliding pill behind the current menu item (the only highlight in the menu now), carried across page loads via `sessionStorage`. Also keeps dropdown panels inside the viewport near the right edge.
 - `assets/js/dock.js`: the magnetic social dock, footer only (Mark's call: v1.2.1 tried a small one in the header too, v1.2.2 reverted that to Avada's plain icons, v1.2.3 hid those outright, social links live in the footer only now). Reads Avada's own rendered social link hrefs rather than owning them, hides the footer widget area when it has no widgets, and hides the secondary header entirely if that leaves it with nothing else in it.
-- `assets/img/hero-photo.jpg`: the original bundled fallback photo (kept as the source for rebaking). `hero-photo-duotone.jpg`: its pre-baked duotone copy, what actually gets served, built the same way `djdt_bake_duotone_imagick()`/`djdt_bake_duotone_gd()` bake an uploaded photo, just done once ahead of time rather than at upload. `wave.svg`: player waveform, inlined by PHP rather than loaded as an image, see below.
+- `assets/img/hero-photo.jpg`: the original bundled fallback photo (kept as the source for rebaking). `hero-photo-halftone.jpg`: its pre-baked halftone copy (v1.6.0, was `hero-photo-duotone.jpg` through v1.5.4), what actually gets served when no photos are picked in Settings, built the same way `djdt_bake_halftone()` bakes an uploaded photo, just done once ahead of time rather than at upload. `tv-static.jpg`: the TV static transition's noise sprite, 5 frames side by side (v1.6.0, procedurally generated, not a photo). `wave.svg`: player waveform, inlined by PHP rather than loaded as an image, see below.
 - `assets/fonts/`: Archivo (variable, wdth + wght) and Saira Extra Condensed (700, 800), self-hosted, OFL.
 
 ## Dock scoping
@@ -296,170 +296,157 @@ the genres themselves. The genres now carry the whole statement on their own: la
 (`.is-accent` is gone from both the PHP and the CSS); separated by a small muted dot rather than the
 old orange one. Wraps to two lines on narrow screens without issue, still centered.
 
-## Smoothness: baked duotone photos, the shutter, and the room light
+## Smoothness: baked halftone photos, the TV static transition, and a fixed glow
 The hero photo panel and the venue strip were both choppy (v1.4.0 report: "like the old ticker").
 The likely cause this time was never backdrop-filter (that lesson already shaped venues.css from the
 start, see "Venues" above); it was the hero photo itself carrying three repaint-forcing layers at
 once under the Ken Burns zoom: a `filter: grayscale(1) contrast(1.05)`, a `mix-blend-mode: color`
 duotone overlay, and a `mask-image` edge fade, all three recomputed every frame the photo moved or
-crossfaded. Fixed by moving the duotone tint server side:
-- `djdt_ensure_duotone()` (djdigi-theme.php) bakes a grayscale-then-violet-to-cyan copy of a hero
-  photo once, when it is saved into Hero Photos, not on every front end page load. Imagick first
-  (`djdt_bake_duotone_imagick()`, the standard duotone recipe: convert to grayscale, then
-  `clutImage()` against a 1px tall gradient from violet to cyan, which maps black to violet, white
-  to cyan, and every gray level to the matching point between them), GD as a fallback
-  (`djdt_bake_duotone_gd()`, the same lerp done by hand with a 256 entry lookup table, one pass over
-  the pixels). Both resize to `DJDT_DUOTONE_MAX_DIM` (2000px, up from 800px in an earlier build)
-  first, plenty for how large the photo panel ever renders at any screen width tested (1280, 1440,
-  1920, 2560) and far cheaper to bake and serve than the original upload.
-- **v1.4.0 shipped this coming out pure gray** (confirmed live: sampled a baked file, R = G = B
-  everywhere). The Imagick path converted to `COLORSPACE_GRAY` and then ran `clutImage()` while
-  still in that colorspace, which has no color channels left for the gradient to write into.
-  `$img->transformImageColorspace(Imagick::COLORSPACE_SRGB);` back before the clut (v1.4.1) is the
-  fix, still in place. GD was never affected (it builds the lookup table and writes RGB pixels by
-  hand, there is no intermediate colorspace to get stuck in).
-- **v1.4.1 then baked the left and bottom edge fades into the file's own alpha channel** (a WebP),
-  to fix a seam where the glow behind the photo (brighter than flat night in places) showed through
-  a flat CSS fade. That moved the seam rather than closing it, found live in v1.5.0: `object-fit:
-  cover` plus the Ken Burns scale crop or push the baked-in faded strip outside the visible panel at
-  most screen sizes, since where the fade physically sits in the file has no fixed relationship to
-  where the panel's own edge ends up on screen once the photo is cropped and zoomed. v1.5.0 reverts
-  to baking the tint only, no edge fade, back to a single plain JPEG (the WebP output, the alpha
-  mask functions, and the `<picture>`/`<source type="image/webp">` markup are all gone). The real
-  fix for the seam turned out to be about where the fade and the glow sit relative to each other,
-  not where the fade is computed, see below.
-- Baked files regenerate for any existing hero photo whose own `_djdt_bake_ver` postmeta does not
-  match the current `DJDT_DUOTONE_RECIPE` (an `admin_init` hook), so a recipe fix reaches photos
-  Mark already picked without him needing to resave Hero Photos. Bump `DJDT_DUOTONE_RECIPE` again
-  any time `djdt_bake_duotone_imagick`/`_gd` changes in a way that means an already baked file
-  would look wrong until regenerated. v1.5.1, found live: three hero photos were still the gray,
-  800px v1.4.0 bakes after two version bumps that should have fixed them. The earlier version of
-  this hook gated the whole pass behind one global option (`djdt_duotone_recipe_done`) marked done
-  once the loop finished, with no record of whether any individual photo's bake had actually
-  succeeded, so a photo that failed to rebake (a corrupt source file, an Imagick exception) looked
-  identical to a successful one from the hook's point of view and never got retried. Checking each
-  photo's own `_djdt_bake_ver` instead of the previous version-done option means a photo that
-  failed to rebake keeps getting retried on the next admin page load regardless of what the rest of
-  the pass already did, and a freshly added photo is always caught too. Do not reintroduce a single
-  global "already ran" flag for this; the per-photo meta check is the fix.
-- **v1.5.3, the same three photos were still stuck after v1.5.1 and v1.5.2, across several admin
-  page loads, with nothing visible anywhere.** Every part of the admin_init check (the capability
-  gate, the `_djdt_bake_ver` comparison) reads correctly on its own, and both bake functions only
-  ever fail by returning `false`, which was already caught and logged. The one failure mode that
-  fits silent, deterministic, repeated failure on the SAME photos every time is a PHP fatal (memory
-  or execution time exhausted) killing the request outright before any file or postmeta write
-  happens, something no `try`/`catch` anywhere in this file can intercept. `new Imagick( $src_path )`
-  (the old first line of `djdt_bake_duotone_imagick()`) decodes a source photo at its full original
-  resolution before any resize gets a chance to run, and GD's per-pixel PHP loop in
-  `djdt_bake_duotone_gd()` has no native resize step at all; both got measurably more expensive the
-  moment `DJDT_DUOTONE_MAX_DIM` went from 800 to 2000 in v1.5.0, with nothing else about the baking
-  path changing to match. Fixed by making both paths safer rather than trying to catch an
-  uncatchable error: Imagick now `pingImage()`s the file first and sets `'jpeg:size'` before the
-  real `readImage()` call so libjpeg decodes at a reduced scale directly (plus explicit
-  `setResourceLimit()` calls on memory and map, 256MB each), and GD now skips a source past a 40
-  megapixel budget outright rather than attempting a full decode that could OOM. `djdt_ensure_duotone()`
-  also raises `memory_limit` and `set_time_limit()` defensively (best effort, silently ignored on a
-  host that will not allow it). The admin_init hook now bakes at most one mismatched photo per page
-  load instead of all of them in a single pass, so a limit hit on one photo can never block the
-  others from getting their own turn on a later load. A `_djdt_bake_error` postmeta
-  (`djdt_set_bake_error()`) now records a reason and timestamp on any caught failure, cleared the
-  moment a later bake succeeds, and an `admin_notices` hook lists any hero photo still stuck so a
-  repeated failure has somewhere to actually show up instead of failing the same way forever with
-  nothing to see. None of this could be confirmed against real server error logs (no shell or
-  browser access to the live host from this tool set), so treat the memory/time theory as the best
-  explanation that fits the symptoms, not a confirmed root cause; if a hero photo is still stuck
-  after this ships, the admin notice is the next place to look, and it will at least say why.
-- **v1.5.4, the v1.5.3 fix was right that it wasn't a crash: Mark confirmed live that the rebake
-  actually ran and rewrote all three files at a specific timestamp, and the output was still flat
-  gray.** Downloaded the three real source files (`banner-slider-1.jpg`, `banner-slider-3.jpg`,
-  both 800x800; `digimark-the-cafe-sf.jpg`, 1110x1030, confirming the 800px width itself was never
-  a bug, just the source's own size, and that this recipe correctly never upscales) and ran
-  `djdt_bake_duotone_imagick()`/`_gd()` against them directly with a local PHP 8.3 plus Imagick
-  7.1.1/ImageMagick 7.1.1, both paths: both produced a correct violet to cyan duotone, not
-  reproducible locally. The prime suspect for why the live host differs: the gradient this used to
-  build with `newPseudoImage( 256, 1, 'gradient:...' )` depends on ImageMagick's `'gradient:'`
-  pseudo coder, which a hardened shared host's `policy.xml` commonly disables for security (the
-  same class of policy that blocks `'pattern:'`, `'label:'`, and similar procedural coders); some
-  ImageMagick builds hand back a flat neutral image instead of throwing when a coder is blocked,
-  clutting every gray level to the same flat result with nothing to catch. `djdt_imagick_duotone_gradient()`
-  rebuilds the same 256x1 lookup by hand through a plain pixel iterator instead, which depends on no
-  coder at all, and `setImageType( Imagick::IMGTYPE_TRUECOLOR )` runs right before the write as cheap
-  insurance against a stale grayscale type surviving the earlier colorspace round trip. **Neither
-  guess could be confirmed against the live host directly** (still no shell access to it), so the
-  real backstop is `djdt_bake_is_gray()`: samples a grid of points in the baked JPEG right after any
-  bake that reported success, and if none of them show real color (every real duotone pixel has
-  unequal R/G/B, even at the gradient's own black and white extremes, so finding even one colorful
-  sample is enough to pass), the bake is treated as a failure exactly like an exception would be: the
-  bad file is deleted, `'_djdt_bake_error'` records `"baked gray, no violet or cyan at all"`, and
-  `djdt_ensure_duotone()` returns `''`, which makes the hero shortcode's existing fallback serve the
-  unprocessed original instead of a broken file. Keep this check; it is what catches a bug like this
-  one regardless of which library or host-specific quirk causes it next time. `DJDT_DUOTONE_RECIPE`
-  was bumped to 4 specifically because the three stuck photos already carried `'_djdt_bake_ver' = 3`
-  on the live site (the v1.5.3 rebake really did stamp it, the output was just gray); without the
-  bump the per-photo version check would have seen them as already correctly baked and never
-  retried them with the new gradient. Verified by running `djdt_ensure_duotone()` itself, unmodified,
-  straight out of this file (WordPress functions stubbed, both with and without the Imagick
-  extension loaded) against all three real source files; both the Imagick and the GD path produced
-  a correctly colored file for all three.
-- The baked file's path is cached in postmeta (`_djdt_duotone_jpg`); `djdt_duotone_url()`
-  regenerates it on demand if that meta or the file is ever missing, so a photo saved before v1.4.0
-  self heals the first time it is needed, no resave required. If neither Imagick nor GD is
-  available (unusual on a normal host), the photo falls back to the plain, unprocessed original
-  rather than a broken image.
-- The bundled fallback photo got the same treatment ahead of time: `hero-photo-duotone.jpg` is a
+crossfaded. Fixed by moving the tint server side, baked into the file itself once, not applied live:
+- `djdt_ensure_halftone()` (djdigi-theme.php) bakes a copy of a hero photo once, when it is saved
+  into Hero Photos, not on every front end page load. Through v1.5.4 this was a flat duotone tint
+  (grayscale, then a violet to cyan gradient lookup); **v1.6.0 replaced it with a riso halftone
+  look** (Mark's reference: his own riso flyer), Mark's call: grayscale with a contrast boost, then
+  two rotated dot screens, violet for the shadows (75 degree screen angle) and cyan for the mids (15
+  degrees), on a near white paper ground (`#eef6fa`), the violet layer offset 2px right and 1px down
+  from the cyan layer so the two screens read slightly off register, like a real riso print. Dot
+  cell size is derived from the output's own long side (about 6px at a full 2000px output, floored
+  at 5px) rather than fixed, so a smaller, never upscaled source still reads as clearly dotted up
+  close rather than shrinking into a fine, muddy texture.
+- **The decode/render split (v1.6.0) is what actually fixed the "live host only" gray bug below for
+  good.** `djdt_halftone_decode_gd()` uses Imagick, when available, only to ping, read, orient and
+  resize a source photo (the same memory safe `'jpeg:size'` scaled decode as the v1.5.3 fix),
+  nothing procedural; the result is hard right back into a GD resource (`imagecreatefromstring()` on
+  a PNG blob). From that point on, both the Imagick assisted path and the Imagick unavailable
+  fallback run through the exact same GD code, `djdt_halftone_render()`/`djdt_halftone_layer()`,
+  plain pixel operations only (`imagefilledellipse`, `imagecolorat`, `imagecolorallocatealpha`), no
+  ImageMagick coder of any kind (`'gradient:'`, `'pattern:'`, `'xc:'` or similar). Two decode paths,
+  one rendering path: there is no way for "the same look" to drift apart between Imagick and GD,
+  because past the decode step they are not two recipes, they are one.
+- **The duotone era's gray bug, in short** (full blow by blow is in git history if it is ever needed
+  again): v1.4.0 shipped pure gray (an Imagick colorspace bug, fixed v1.4.1). v1.5.1 to v1.5.3 found
+  live that photos could stay stuck on an old bake across several admin page loads with nothing
+  visible anywhere, fixed by moving from one global "already ran" option to per-photo
+  `'_djdt_bake_ver'` tracking, a memory/time safe decode, one bake per admin page load, and a
+  `'_djdt_bake_error'` postmeta plus `admin_notices` hook so a stuck photo has somewhere to show up.
+  v1.5.4 found live that the rebake actually ran and still wrote a flat gray file: the prime suspect
+  was ImageMagick's `'gradient:'` pseudo coder being silently neutered by a hardened host's
+  `policy.xml` instead of throwing. None of that diagnosis could ever be confirmed against the live
+  host directly (no shell or browser access to it from any of these sessions' tool sets), which is
+  why v1.6.0 does not just patch around a specific coder, it removes Imagick's role in the actual
+  pixel output entirely, see above.
+- **`djdt_bake_is_gray()` is the permanent backstop, carried forward unchanged in spirit from
+  v1.5.4, recalibrated for this recipe.** Samples a 10x10 grid of points in the baked JPEG right
+  after any bake that reported success; a halftone bake has large near white paper regions between
+  dots (paper itself already has R/G/B differing by up to 12), so the threshold is 30, not the old
+  duotone recipe's 8, and at least 3 genuinely colorful points are required, not just 1, so a bake
+  that is only partly covered in dots still passes while an all paper, genuinely failed bake does
+  not. A bake that fails this check is treated exactly like a caught exception: the bad file is
+  deleted, `'_djdt_bake_error'` records why, and the hero shortcode's existing fallback serves the
+  unprocessed original instead of a broken file. Keep this check regardless of how solid the decode
+  split above seems; it is what would catch a bug like this one again, from any cause.
+- **Every baked file gets a unique name now (v1.6.0, `djdt_halftone_filename()`): the recipe version
+  plus a short hash of the source file's own mtime and size** (`djdt-halftone-{id}-v{recipe}-
+  {hash}.jpg`), not a name keyed on the attachment id alone. Found live after v1.5.4: baking had
+  started working correctly on the live host (files rebaked in color, confirmed by timestamp), but
+  visitors still saw gray, because the new files kept the OLD file names, so the browser's own cache
+  and Cloudflare both kept serving the old bytes under that same URL. A new bake is always a new URL
+  now, nothing stale can be served under it; the previous file is deleted (`@unlink()`) once the new
+  one is saved and verified by the gray check above, so uploads does not accumulate orphaned bakes.
+- Baked files regenerate for any existing hero photo whose own `'_djdt_bake_ver'` postmeta does not
+  match the current `DJDT_HALFTONE_RECIPE` (an `admin_init` hook, one photo per admin page load, see
+  the duotone era summary above for why both of those design choices exist), so a recipe fix reaches
+  photos Mark already picked without him needing to resave Hero Photos. Bump `DJDT_HALFTONE_RECIPE`
+  any time `djdt_halftone_render()`/`djdt_halftone_layer()` change in a way that means an already
+  baked file would look wrong until regenerated; because the recipe number is baked into the
+  filename itself now, bumping it also forces a fresh URL, not just a fresh file, so there is nothing
+  left for a cache to serve stale even on the very first page load after the bump.
+- The baked file's path is cached in postmeta (`'_djdt_halftone_file'`); `djdt_halftone_url()`
+  regenerates it on demand if that meta or the file is ever missing, so a photo saved before this
+  recipe existed self heals the first time it is needed, no resave required. If baking is not
+  possible at all, the photo falls back to the plain, unprocessed original rather than a broken
+  image.
+- The bundled fallback photo got the same treatment ahead of time: `hero-photo-halftone.jpg` is a
   pre-baked copy of `hero-photo.jpg`, shipped as a file rather than generated at runtime, and is
   what actually gets served when no photos are picked in Settings.
 - hero.css has no `filter`, `mix-blend-mode` or `mask-image` on `.djd-hero__photo` or
   `.djd-hero__photos` at all.
 
-**The seam's real fix (v1.5.0) is layer order, not where the fade is computed.** Bottom to top now:
-the night background, the photo panel (plain image, Ken Burns, transform only), a static CSS
-gradient overlay on the panel fading its left and bottom edges to night (`.djd-hero__photos::after`,
-wide, eased, several stops, back to a plain CSS overlay rather than baked into the file, see above),
-then the glows on top of all of that (below the text and UI). A CSS overlay on the panel always
-covers the same edge of the panel regardless of what the photo content underneath is doing, unlike
-something baked into the file; and with the glows moved above the photo instead of behind it, they
-wash continuously across wherever the panel's actual edge falls, so no seam can show at any width
-regardless of photo aspect ratio or Ken Burns scale. Moving the glows up also directly serves the
-"room light" effect below: they now tint the photo itself, not just the night background beside it.
-Glows stay plain radial gradients with alpha the whole time, no filter, no blend mode, no mask.
+**The seam's real fix (v1.5.0) is layer order, not where the fade is computed, and this is still
+true.** Bottom to top: the night background, the photo panel (plain image, Ken Burns, transform
+only), a static CSS gradient overlay on the panel fading its left and bottom edges to night
+(`.djd-hero__photos::after`, wide, eased, several stops), then the glow on top of all of that (below
+the text and UI). A CSS overlay on the panel always covers the same edge of the panel regardless of
+what the photo content underneath is doing, unlike something baked into the file; and with the glow
+above the photo instead of behind it, it washes continuously across wherever the panel's actual edge
+falls, so no seam can show at any width regardless of photo aspect ratio or Ken Burns scale. Glows
+stay plain radial gradients with alpha the whole time, no filter, no blend mode, no mask.
 
-**The crossfade between rotating photos is a shutter now, not a wipe (v1.5.0, replacing the
-waveform wipe entirely).** Mark's call: "one move, done well." The wipe (`hero-wipe-mask.svg`,
-`hero-wipe-glow.svg`, the `@supports (mask-image: ...)` block, `djd-wipe-reveal`/`djd-wipe-flare`,
-`.djd-hero__wipe-glow`) is gone, CSS, SVGs and JS. In its place:
-- Each photo now has two elements: a `.djd-hero__photo-frame` wrapper (visibility, the rotation
-  transition) around a plain `.djd-hero__photo` img (Ken Burns only, always running, independent of
-  whatever the frame is doing). Splitting them this way means the frame's own transition and the
-  img's own Ken Burns zoom never fight over one element's `transform` property, since two nested
-  elements compose their transforms visually rather than two separate CSS animations trying to
-  animate the same property on the same element, which does not simply add together.
-- The incoming frame opens left to right behind a hard edge: `clip-path: inset(0 100% 0 0)` to
-  `inset(0 0 0 0)` over about 1.1s (`@keyframes djd-shutter-open`, `cubic-bezier(0.76, 0, 0.24, 1)`),
-  while it also settles in from a slight overscale, `scale(1.12)` to `scale(1)`, over about 1.5s
-  (`@keyframes djd-shutter-settle`, `cubic-bezier(0.33, 1, 0.68, 1)`), both on the frame, both
-  transform/clip-path only. The outgoing frame stays visible underneath, unchanged, until the
-  shutter has fully opened (hero.js, `OPEN_MS`, timed off the 1.1s open duration, not the longer
-  1.5s settle), then it is hidden; the incoming frame keeps its `is-entering` class for the full
-  settle duration (`SETTLE_MS`) so its own transform animation finishes cleanly rather than snapping
-  to its resting value if the class were removed mid transition.
-- Only the very first photo on page load plays the older fade-and-scale entrance (`djd-photo-in`,
-  `.is-first`, set once in the markup and never touched again); every later photo arrives via the
-  shutter instead (`.is-entering`, added by rotation). Splitting these onto a dedicated `.is-first`
-  class (rather than reusing `.is-active` for both) avoids the entrance animation silently replaying
-  every time a rotation finishes, which would happen if the plain `.is-active` rule still carried an
-  animation that a later class removal could fall back to.
-- **The room light**: the glows have three color sets (`[data-set="a"]` violet and cyan, the
-  original look; `[data-set="b"]` deep violet with a magenta lean; `[data-set="c"]` cyan with a deep
-  blue). Two full glow layers (`.djd-hero__glow-layer`, each carrying the same three glow positions)
-  crossfade opacity (only) over about 1.4s, one lit at a time (`.is-lit`, a plain CSS `transition`,
-  not a keyframe animation, since this is just a one-shot swap triggered by JS, not something that
-  needs its own timeline); `roomLight` (hero.js) cycles the color sets and pre-queues the set after
-  next onto whichever layer is currently dark, ready for the rotation after this one. Triggered from
-  the same `advance()` that starts the shutter, so the light shift and the photo transition read as
-  one move, not two. No flash, no edge glow, no extra effects beyond the shutter and the light.
-- Photos hold about 6 seconds each (`SLOT`, hero.js; was 6.5s). Still pauses rotation entirely when
-  the tab is hidden (`visibilitychange`, unchanged).
+**The crossfade between rotating photos is TV static now, not a shutter (v1.6.0, replacing the
+shutter entirely, Mark's call).** The shutter (`djd-shutter-open`/`djd-shutter-settle` keyframes,
+the frame's own `clip-path`/`scale` animation, `is-entering`) is gone. In its place:
+- `.djd-hero__static` (hero.css), a layer above the photo frames inside `.djd-hero__photos`: a
+  `.djd-hero__static-scan` child (faint horizontal scanlines, a static `repeating-linear-gradient`,
+  not animated on its own) and a `.djd-hero__static-img` child (the noise sprite,
+  `assets/img/tv-static.jpg`, 5 frames laid out side by side, procedurally generated, not a photo).
+  About 0.5s total: the whole layer's opacity animates 0 to 0.35 to 0 over 500ms
+  (`@keyframes djd-static-fade`), while the sprite itself flickers through its 5 frames via
+  `transform: translateX()` stepped with `steps(5)` on a 250ms loop, transform only, not a
+  `background-position` animation (which would repaint instead of just recomposite).
+- hero.js (`photoRotation`) adds `.is-static` to start the fade, waits `PEAK_MS` (220ms, matching
+  the fade's own 44% opacity peak), swaps `.is-active` from the outgoing frame to the incoming one
+  right then (hidden behind the static, so the swap itself is instant, no crossfade of the photos
+  themselves needed), adds `.is-jitter` to the incoming frame for a brief 1 to 2px horizontal
+  jitter (`@keyframes djd-static-jitter`, `steps(4)`, about 110ms), then removes `.is-static` at
+  `TOTAL_MS` (500ms). Ken Burns restarts on the incoming frame the same way it always did, keeps
+  running uninterrupted through the whole transition.
+- Only the very first photo on page load still plays the older fade-and-scale entrance
+  (`djd-photo-in`, `.is-first`), unchanged; every later photo arrives via the static transition.
+
+**The glow is one fixed violet and cyan set now, no color cycling (v1.6.0, removing the "room
+light" entirely, Mark's call).** The two crossfading glow layers (`.djd-hero__glow-layer`, the
+`data-set="a"/"b"/"c"` color sets, `roomLight` in hero.js) are gone; `.djd-hero__glows` now holds
+the three glow shapes directly, each with its own fixed `background` (violet `#5a2e91`, cyan
+`#24a9e0`). The glow is also allowed to bleed past the hero's own bottom edge now: `.djd-hero__glows`
+no longer clips to `inset: 0`/`overflow: hidden` of its own, and `.djd-hero` itself dropped
+`overflow: hidden` entirely (`.djd-hero__photos`, the photo panel specifically, keeps its own clip,
+it still needs to). See "The hero flows into the page" below for why.
+
+**The hero flows into the page now, no hard bottom edge (v1.6.0, Mark's call).** Two changes:
+- The scroll shrink effect (the hero scaling down into a rounded card as you scroll past it,
+  `--djd-shrink-scale`/`--djd-shrink-radius` on `.djd-hero`, `--djd-scroll-name`/`--djd-scroll-name-
+  op` on `.djd-hero__stage`, the whole `scrollShrink()` function in hero.js) is removed entirely,
+  CSS and JS both. The hero no longer transforms at all on scroll; normal document flow continues
+  straight into the player section below it.
+- `.djd-hero__bottom-fade` (hero.css), a new full width overlay over roughly the hero's own bottom
+  25 to 30%, fading the photo panel and the glow into flat night. This is what actually guarantees
+  no visible line across the width regardless of what the photo or the now-unclipped glow are doing
+  right at the bottom; it extends a little past the hero's own box, harmless since the player
+  section right after it shares the exact same night background (see below).
+
+**The Mixcloud player moved out of the hero into its own section (v1.6.0, Mark's call): the hero
+now keeps only the name, slogan, the two buttons and the photo.** `djdt_hero_shortcode()` outputs a
+`<section class="djd-player-section">` (`djdt_player_section()`) right after the hero's own closing
+`</section>`, no separate shortcode, since this section only ever belongs right after the hero.
+`player="no"` on `[djdigi_hero]` turns it off entirely (`shortcode_atts()`). Its markup and behavior
+(the artwork, the play button, the scrubber, -30/+30, time, the Mixcloud and Tracklist links, the
+same Mixcloud Widget API wiring in hero.js) are otherwise unchanged from the old in-hero player,
+just relocated; hero.js now looks the player up from `document`, not from the hero element, since it
+is a sibling section now, not a descendant, and it no longer has an entrance animation gated on the
+hero's own intro-ready sequence (`--djd-t-player` is gone from site.css's timing block) since it is
+below the fold on a normal viewport anyway.
+- **"No outlined box, space and a gentle tone step only"** (Mark's exact wording) is about
+  `.djd-player` itself, not the whole section: `.djd-player-section` and its `__inner` wrapper carry
+  the plain, unmodified night background, the same as the hero and the venues section, so all three
+  read as one continuous night scene with no seam between them, exactly as asked. The tone step (a
+  slightly lighter navy, `#140f30`, no border) sits only on `.djd-player`'s own card width, replacing
+  the old bordered/`rgba` background box. Getting the tone step onto the section instead of the card
+  was the first draft here and it was wrong: it recreated exactly the kind of seam against venues
+  this item was supposed to avoid, caught by looking at a real screenshot, not by re-reading the
+  brief carefully enough the first time.
+
+Photos hold about 6 seconds each (`SLOT`, hero.js, unchanged across every version so far). Still
+pauses rotation entirely when the tab is hidden (`visibilitychange`, unchanged).
 
 ## Admin: three screens
 A top level "DigiMark" item in the WordPress sidebar (v1.4.0, replacing the single page that used to
@@ -541,11 +528,11 @@ is correct whether or not the animation happens to be running at that instant.
 - Paper `#f1ece2`, violet `#5a2e91`, ink `#2a1450`, night `#0b0820`, logo cyan `#24a9e0`, International Orange `#f04e23` (sparingly).
 - "DigiMark" in the hero uses logo cyan and is mixed case, not all caps, matching the logo. "DJ" is off-white on the dark hero.
 - Display font: Saira Extra Condensed, 700/800. Text font: Archivo. Buttons and the player status tag are sentence case now, not wide-tracked uppercase, except the venues heading and the name, which stay uppercase display type.
-- Hero layout: the photo is large, the right 55 to 60% of the hero, full height, bleeding to the right edge, with the name overlapping into it on the left. A fade layer washes the left and bottom edges into night so the photo never shows a hard rectangle. Phone: the photo goes full bleed behind everything with a stronger dark wash for text contrast. No hero labels: the name and slogan carry the hero alone (removed entirely in v1.2.1, markup and CSS, Mark's call).
-- Hero intro (about 1.6 to 1.8s, see "Intro: fast, overlapping, waits for the photo and fonts" above): glows bloom first, then the photo fades in with a slight scale in, then "DJ" and "DigiMark" sweep up letter by letter from a full height mask, then slogan, buttons and player land together, all heavily overlapping rather than running in sequence. The header carries no entrance animation of its own (v1.4.0), the logo and menu pill are simply in place from the first frame. Quick version on a repeat view in the session; `?intro=1` forces the full one. Always plays in full motion, see "Motion: always on, by design".
-- Hero photo: rotates through whatever is picked in Settings (each with its own focal point), with a slow Ken Burns zoom and a shutter transition plus a room light color shift between photos (see "Smoothness" above), or the bundled photo if none are picked. The duotone look (grayscale, then a violet to cyan gradient) is baked into the photo file itself server side now, not a live CSS filter or blend mode, so any photo Mark adds reads as part of the same look without manual editing and without costing a repaint every frame. The edge fade into night is a CSS overlay on the panel, not baked into the file.
+- Hero layout: the photo is large, the right 55 to 60% of the hero, full height, bleeding to the right edge, with the name overlapping into it on the left. A fade layer washes the left and bottom edges into night so the photo never shows a hard rectangle. Phone: the photo goes full bleed behind everything with a stronger dark wash for text contrast. No hero labels: the name and slogan carry the hero alone (removed entirely in v1.2.1, markup and CSS, Mark's call). The hero keeps only the name, slogan, the two buttons and the photo now (v1.6.0): the player moved to its own section right after, see "Smoothness" above.
+- Hero intro (about 1.6 to 1.8s, see "Intro: fast, overlapping, waits for the photo and fonts" above): glows bloom first, then the photo fades in with a slight scale in, then "DJ" and "DigiMark" sweep up letter by letter from a full height mask, then slogan and buttons land together, all heavily overlapping rather than running in sequence. The header carries no entrance animation of its own (v1.4.0), the logo and menu pill are simply in place from the first frame. Quick version on a repeat view in the session; `?intro=1` forces the full one. Always plays in full motion, see "Motion: always on, by design". The player's own entrance is no longer part of this gated sequence (v1.6.0, it moved out of the hero, see "Smoothness" above).
+- Hero photo: rotates through whatever is picked in Settings (each with its own focal point), with a slow Ken Burns zoom and a TV static transition between photos (v1.6.0, replacing the shutter and the room light color shift, see "Smoothness" above), or the bundled photo if none are picked. The riso halftone look (grayscale with a contrast boost, then violet and cyan dot screens, v1.6.0, replacing a flat duotone tint) is baked into the photo file itself server side, not a live CSS filter or blend mode, so any photo Mark adds reads as part of the same look without manual editing and without costing a repaint every frame. The edge fade into night is a CSS overlay on the panel, not baked into the file.
 - Name layers: echo (the drifting violet ghost) and main (the cyan letters) are stacked with CSS Grid, both in the same grid cell, not positioned by hand. Grid items never margin collapse with their container or each other, which is what actually caused v1.2.0's doubled name bug (the padding and negative margin used to make room for descenders collapsed through on one layer and not the other). Keep them grid stacked rather than going back to relative/absolute arithmetic.
-- Scroll: past the hero, it shrinks toward scale 0.85 with growing corner radius (toward 28px). One scroll driven progress value (0 to 1) feeds it; see hero.js. Off for touch devices only. The photo wall that used to slide in around it (v1.2.0 and v1.2.1) was removed entirely in v1.2.2, Mark's call (nothing showed below the hero live, and he had not actually asked for it); if tiles come back later they need rebuilding from scratch, not un-reverting this.
+- Scroll: no scroll driven effect on the hero any more (v1.6.0, the scale-into-a-card scroll shrink effect was removed entirely, Mark's call: the hero now flows straight into the player section and venues below it instead, see "Smoothness" above). The photo wall that used to slide in around the old scroll shrink (v1.2.0 and v1.2.1) was already removed entirely in v1.2.2, Mark's call; if tiles come back later they need rebuilding from scratch, not un-reverting either of these.
 - Pride EQ: a shared sine wave drives all 6 bars (`djd-eq-wave`), each with its own `animation-delay` so the motion rolls left to right through the colors, plus a small separate drift animation for a fabric feel, rather than each bar bouncing independently.
 
 ## Hero copy (approved)
@@ -617,7 +604,19 @@ meaningful regardless of the display: per-frame cost, how long the browser actua
 regardless of how often it was allowed to paint. v1.5.0 result (shutter transition, room light
 crossfade, baked duotone with the CSS edge fade, beam, marquee, all running): 0 frames exceeded even
 a loose 25ms (well past a 60fps budget's 16.7ms) dropped-frame threshold out of 1646 frames over 10
-seconds, p95 6.2ms, max 12.6ms, comfortably inside the 60fps budget. Re-run this (the harness and
+seconds, p95 6.2ms, max 12.6ms, comfortably inside the 60fps budget. v1.6.0 result (riso halftone
+photos, TV static transition, fixed glow with no clipping, no scroll shrink, the player section, the
+venues beam and marquee, all running): 1 frame out of 1631 exceeded 25ms (a single ~109ms spike) over
+10 seconds, avg 6.13ms, p95 6.20ms; a follow-up pass with network requests to Mixcloud blocked still
+showed one isolated spike at a different point in the window, so it is not the player's own widget
+preload, more likely a one-off layout or GC pause unrelated to the continuously running animations
+rather than sustained jank from anything new in this release. First run of this measurement after
+v1.6.0 came back far worse (avg 27ms, 164 dropped frames) with `chromium.launch()` given explicit
+`--use-gl=desktop --enable-gpu` args; removing those entirely and launching with just `headless:
+false` is what produced the clean numbers above, confirmed by a plain blank-page baseline
+(163fps raw, 6.1ms avg) matching the same launch config. Do not pass custom GL/GPU flags to
+`chromium.launch()` for this measurement again, they measured a software-rendering-adjacent
+pathology that has nothing to do with the plugin's own code. Re-run this (the harness and
 `measure.js` are not checked into the plugin, rebuild them the same way: hero's and venues' real
 markup and CSS/JS, a few seconds of settle time, then collect rAF deltas) before claiming a future
 change is smooth; do not just assert a frame rate without it.
@@ -644,27 +643,33 @@ JS do not fully initialize against a static file, so the mobile selector and all
 can render in the wrong state regardless of anything in this plugin.
 
 ## Open items
-- Queued for live review after v1.5.0, not confirmed yet:
-  1. No hard seam at the photo panel's left or bottom edge at any width (checked locally at 1280,
-     1440, 1920, 2560; still worth a real look at whatever widths the live site actually gets
-     visited at). The glow should wash visibly across the photo now, not just the night beside it.
-  2. The rotation transition reads as a shutter opening left to right, settling in from a slight
-     overscale, not a crossfade or the old waveform wipe (which is gone entirely). The room light
-     should shift color alongside it, cycling through violet/cyan, deep violet/magenta, and
-     cyan/deep blue across successive rotations, not just repeating the same one every time.
-  3. Ken Burns keeps zooming smoothly through and after a rotation, no stutter, no visible restart
-     or jump when the shutter's own settle animation finishes.
-  4. The genres row under the venues card: no "What I play" label anymore, the genres themselves
-     read as large display type, one color, no individual item in a different color, generous
-     spacing, a small dot between items. Should still look intentional wrapped to two lines on a
-     phone.
-  5. Photos still hold about 6 seconds each and still pause rotating when the browser tab is not
-     in focus.
-- Resolved in v1.2.1 through v1.4.2, confirmed live: third-level dropdown overlap and colors, mobile
+- Queued for live review after v1.6.0, not confirmed live yet (confirmed in a local Playwright
+  harness, real markup and CSS/JS, both 1440 and 390 wide, plus the headed trace in "Measuring
+  smoothness" above):
+  1. Hero photos show as a riso halftone (visible violet and cyan dots, off register, reads as a
+     photo at a glance), not gray, not a flat duotone tint. Dots stay clearly visible at an 800px
+     source width too, not just the larger one.
+  2. The rotation transition reads as TV static (a brief noise flicker with scanlines, a short
+     jitter on the incoming photo), not a shutter or a crossfade. Ken Burns keeps running
+     uninterrupted through it.
+  3. The glow no longer shifts color between rotations (the "room light" is gone, one fixed violet
+     and cyan set throughout).
+  4. No hard line anywhere across the hero's own bottom edge at any width; the glow should read as
+     bleeding into the page rather than ending in a clipped circle.
+  5. No scroll driven shrink or rounding on the hero at all any more.
+  6. The Mixcloud player is its own section right after the hero, not inside it: no outlined box
+     around it, just a gentle tone step on the card itself, with the hero, the player section and
+     venues all reading as one continuous night scene with no visible seam between any of them.
+     `[djdigi_hero player="no"]` should render the hero with no player section at all.
+  7. Photos still hold about 6 seconds each and still pause rotating when the browser tab is not
+     in focus (unchanged).
+- Resolved in v1.2.1 through v1.5.4, confirmed live: third-level dropdown overlap and colors, mobile
   header overlapping hero content, reduced motion freezing everything, the intro's own speed, two
   different diagnoses of what was making the old ticker choppy before it was removed outright, the
   v1.4.1 duotone color bug, the v1.4.1/v1.4.2 cream gap and float hook priority warning, the header
-  alignment, the venues heading's collapsing spaces, and the venue logo color default
+  alignment, the venues heading's collapsing spaces, the venue logo color default, the Hero
+  Photos/Venues admin screens not loading their picker script, and the full duotone-era baking saga
+  (v1.5.1 through v1.5.4, see "Smoothness" above for the short version)
   (see "Venues" and "Smoothness" above for what each of those turned out to be).
 - After updating, purge Asset CleanUp, Bluehost's cache, and Cloudflare (see "Caching, every time
   something changes") before judging anything on the live page. Most "it didn't change" reports in

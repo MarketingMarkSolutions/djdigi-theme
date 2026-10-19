@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, and [djdigi_venues] for djdigimark.com.
- * Version: 1.5.4
+ * Version: 1.6.0
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.5.4' );
+define( 'DJDT_VERSION', '1.6.0' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -267,8 +267,8 @@ function djdt_image_has_alpha( $id ) {
 
 /**
  * Recomputes logo_color for every existing venue once per
- * DJDT_LOGO_COLOR_RECIPE bump (v1.4.1), the same reasoning as the
- * duotone regeneration above: a venue saved before this version always
+ * DJDT_LOGO_COLOR_RECIPE bump (v1.4.1), the same reasoning as the hero
+ * photo bake regeneration below: a venue saved before this version always
  * got White by default regardless of the file, which is what made a JPG
  * logo like Necto's render as a gray box. This overwrites whatever is
  * currently saved for every venue with a logo, once; a value Mark sets
@@ -339,13 +339,13 @@ function djdt_sanitize( $in ) {
 				);
 			}
 		}
-		// Bake each photo's duotone copy now, while it is already on hand,
+		// Bake each photo's halftone copy now, while it is already on hand,
 		// rather than on every front end page load. A photo removed from
 		// rotation keeps its baked copy (it is cheap, tied to the
 		// attachment, and removing it here would just mean regenerating it
 		// if the same photo comes back).
 		foreach ( $out['hero_photos'] as $row ) {
-			djdt_ensure_duotone( $row['id'] );
+			djdt_ensure_halftone( $row['id'] );
 		}
 	}
 
@@ -462,7 +462,7 @@ function djdt_render_settings_theme() {
 		</tr>
 		<tr>
 			<td colspan="2">
-				<p>Hero shortcode: <code>[djdigi_hero]</code>. Put it alone in a 100% width container with no padding, at the top of the page. Add <code>?intro=1</code> to any hero page URL to force the full opening sequence while testing.</p>
+				<p>Hero shortcode: <code>[djdigi_hero]</code>. Put it alone in a 100% width container with no padding, at the top of the page. It also outputs the "Latest live set" player section right after the hero; add <code>player="no"</code> (<code>[djdigi_hero player="no"]</code>) to leave that out. Add <code>?intro=1</code> to any hero page URL to force the full opening sequence while testing.</p>
 				<p>Venues shortcode: <code>[djdigi_venues]</code>. Put it right below the hero shortcode on Home v2.</p>
 				<p><strong>After saving:</strong> if a caching plugin or your host's cache is active, purge the cached copy of any page carrying <code>[djdigi_hero]</code> or <code>[djdigi_venues]</code>, or changes here can keep showing the old version. See the plugin's CLAUDE.md for exact steps.</p>
 			</td>
@@ -600,84 +600,88 @@ add_action( 'wp_head', function () {
 }, 9999 );
 
 /* -------------------------------------------------------------------------
- * Hero photo duotone baking (v1.4.0, color fixed in v1.4.1, edge fades
- * moved back out to CSS in v1.5.0, per-photo bake version tracking in
- * v1.5.1 so a stuck rebake can be told apart from a correct one)
- * Generated once, when a photo is saved into Hero Photos (djdt_sanitize's
- * 'photos' branch), not on every front end page load: grayscale, then a
- * violet to cyan duotone, baked straight into a plain JPEG. The front end
- * then serves a plain photo with no CSS filter, no mix-blend-mode and no
- * mask-image on the photo itself, all three of which were forcing a
- * repaint every frame together with the Ken Burns zoom (see CLAUDE.md,
- * "Smoothness" / why the hero photo and the venue strip were choppy).
- * Falls back to the unprocessed original if neither Imagick nor GD is
- * available, which would be unusual on a normal WordPress host.
+ * Hero photo baking: riso halftone (v1.6.0, replacing the flat duotone
+ * tint). Generated once, when a photo is saved into Hero Photos
+ * (djdt_sanitize's 'photos' branch), not on every front end page load:
+ * grayscale with a contrast boost, then two rotated halftone dot screens,
+ * violet for the shadows and cyan for the mids, slightly off register,
+ * on a near white paper ground, baked straight into a plain JPEG. The
+ * front end then serves a plain photo with no CSS filter, no
+ * mix-blend-mode and no mask-image on the photo itself, all three of
+ * which were forcing a repaint every frame together with the Ken Burns
+ * zoom (see CLAUDE.md, "Smoothness" / why the hero photo and the venue
+ * strip were choppy). Falls back to the unprocessed original if baking is
+ * not possible or comes out wrong, see djdt_bake_is_gray() below.
  *
- * v1.4.1 baked the left and bottom edge fades into the file's own alpha
- * channel (a WebP) to fix a seam where the glow behind the photo showed
- * through a flat CSS fade. That moved the seam rather than fixing it,
- * found live in v1.5.0: object-fit: cover plus the Ken Burns scale crops
- * or pushes the baked-in faded strip outside the visible panel at most
- * screen sizes, since where the fade physically sits in the file has no
- * fixed relationship to where the panel's own edge ends up on screen.
- * The fade is back to being a CSS overlay on the panel itself (hero.css),
- * which always covers the same edge of the panel regardless of what the
- * photo content underneath is doing, and the glows now sit above the
- * photo instead of behind it (see "Smoothness" in CLAUDE.md), so nothing
- * baked into the photo file needs to account for the glow at all anymore.
+ * Every baked file gets a unique name (the recipe version plus a short
+ * hash of the source file, djdt_halftone_filename() below), not a name
+ * keyed on the attachment id alone: a rebake that reuses the old photo's
+ * exact filename is what let browser and Cloudflare caches keep serving
+ * the stale file after v1.5.4's fix actually worked server side (found
+ * live: files rebaked in color, visitors still saw gray). A new bake is
+ * always a new URL now, so there is nothing stale left to serve; the
+ * previous file is deleted once the new one is written and verified.
+ *
+ * Earlier history: v1.4.1 baked edge fades into the file itself (fixed a
+ * seam, moved it instead, reverted in v1.5.0, see CLAUDE.md
+ * "Smoothness"); v1.5.1 to v1.5.4 fixed the rebake mechanism itself
+ * (per-photo version tracking, crash safety, and a gray output actually
+ * being caught and rejected). All of that groundwork, the per-photo
+ * '_djdt_bake_ver' tracking, the memory and time safety, and the pixel
+ * level gray check, carries forward unchanged into this recipe.
  * ---------------------------------------------------------------------- */
 
-define( 'DJDT_DUOTONE_VIOLET', '#5a2e91' );
-define( 'DJDT_DUOTONE_CYAN', '#24a9e0' );
-define( 'DJDT_DUOTONE_MAX_DIM', 2000 );
-// Bump this whenever djdt_bake_duotone_* changes in a way that means an
+define( 'DJDT_HALFTONE_VIOLET', '#5a2e91' );
+define( 'DJDT_HALFTONE_CYAN', '#24a9e0' );
+define( 'DJDT_HALFTONE_PAPER', '#eef6fa' );
+define( 'DJDT_HALFTONE_MAX_DIM', 2000 );
+// Bump this whenever djdt_bake_halftone() changes in a way that means an
 // already baked file needs regenerating to look right, so a recipe fix
 // reaches photos Mark already picked without him needing to resave Hero
-// Photos (see the admin_init hook below).
-//
-// v1.5.4: bumped to 4. The three photos stuck gray on the live site
-// already carry '_djdt_bake_ver' = 3 (confirmed live: the v1.5.3 rebake
-// did run and did stamp it, the output was just gray), so leaving this at
-// 3 would have the admin_init check see them as already correctly baked
-// and never retry them with the new gradient. Bumping it is what actually
-// gets the fix in front of those specific photos.
-define( 'DJDT_DUOTONE_RECIPE', 4 );
+// Photos (see the admin_init hook below). Baked into the filename itself
+// now (djdt_halftone_filename()), so a bump also forces a fresh URL, not
+// just a fresh file.
+define( 'DJDT_HALFTONE_RECIPE', 1 );
 
 /**
- * Returns the baked duotone URL for a hero photo attachment, generating
- * it first if it does not exist yet (a photo saved before v1.4.0, or
- * whose baked file was somehow lost, self heals on the next page load
- * that needs it, no resave required). '' if baking was not possible.
+ * Returns the baked halftone URL for a hero photo attachment, generating
+ * it first if it does not exist yet (a photo saved before this recipe
+ * existed, or whose baked file was somehow lost, self heals on the next
+ * page load that needs it, no resave required). '' if baking was not
+ * possible.
  */
-function djdt_duotone_url( $id ) {
+function djdt_halftone_url( $id ) {
 	$upload_dir = wp_upload_dir();
-	$jpg_meta   = get_post_meta( $id, '_djdt_duotone_jpg', true );
-	if ( $jpg_meta && file_exists( trailingslashit( $upload_dir['basedir'] ) . $jpg_meta ) ) {
-		return trailingslashit( $upload_dir['baseurl'] ) . $jpg_meta;
+	$rel        = get_post_meta( $id, '_djdt_halftone_file', true );
+	if ( $rel && file_exists( trailingslashit( $upload_dir['basedir'] ) . $rel ) ) {
+		return trailingslashit( $upload_dir['baseurl'] ) . $rel;
 	}
-	return djdt_ensure_duotone( $id );
+	return djdt_ensure_halftone( $id );
 }
 
 /**
- * Generates (or regenerates) the baked duotone copy for one attachment.
- * Returns its URL, or '' if baking was not possible.
- *
- * v1.5.3, suspected live: the three photos v1.5.1 and v1.5.2 were supposed
- * to catch up never got rebaked across several admin page loads, with no
- * error visible anywhere. Every check in the admin_init loop that calls
- * this (the capability check, the '_djdt_bake_ver' comparison) reads
- * correctly in isolation, and djdt_bake_duotone_imagick()/_gd() both only
- * ever fail by returning false, caught here and recorded. The one failure
- * mode that fits silent, repeated, identical failure is a PHP fatal
- * (memory or execution time exhausted) killing the request outright before
- * any file or postmeta write happens, which no try/catch anywhere in this
- * file can intercept: Imagick's plain constructor decodes a source photo
- * at its full original resolution before any resize gets a chance to run,
- * and GD's per-pixel PHP loop over up to DJDT_DUOTONE_MAX_DIM squared
- * pixels has no native resize step at all. Both got safer below rather
- * than just caught better, since there is nothing to catch.
+ * Builds this bake's unique file name: the recipe version plus a short
+ * hash of the source file's own mtime and size, so a recipe bump AND a
+ * photo re-uploaded over the same attachment id both land on a new file
+ * name, never the one a cache (browser or Cloudflare) already has.
  */
-function djdt_ensure_duotone( $id ) {
+function djdt_halftone_filename( $id, $src_path ) {
+	$sig  = $id . '|' . DJDT_HALFTONE_RECIPE . '|' . (string) @filemtime( $src_path ) . '|' . (string) @filesize( $src_path );
+	$hash = substr( md5( $sig ), 0, 6 );
+	return 'djdt-halftone-' . $id . '-v' . DJDT_HALFTONE_RECIPE . '-' . $hash . '.jpg';
+}
+
+/**
+ * Generates (or regenerates) the baked halftone copy for one attachment.
+ * Returns its URL, or '' if baking was not possible. Carries forward the
+ * v1.5.3/v1.5.4 safety work unchanged: raised memory and time limits
+ * before baking (a PHP fatal from either one is not catchable, so
+ * prevention matters more than a try/catch here), and a post bake pixel
+ * check (djdt_bake_is_gray()) that rejects a file with no real ink color
+ * in it, falling back to the unprocessed original exactly as a caught
+ * exception would.
+ */
+function djdt_ensure_halftone( $id ) {
 	$id = (int) $id;
 	if ( $id <= 0 || ! wp_attachment_is_image( $id ) ) {
 		return '';
@@ -689,8 +693,10 @@ function djdt_ensure_duotone( $id ) {
 	}
 	$upload_dir = wp_upload_dir();
 	$rel_dir    = trailingslashit( dirname( str_replace( trailingslashit( $upload_dir['basedir'] ), '', $src_path ) ) );
-	$rel_jpg    = $rel_dir . 'djdt-duotone-' . $id . '.jpg';
-	$abs_jpg    = trailingslashit( $upload_dir['basedir'] ) . $rel_jpg;
+	$filename   = djdt_halftone_filename( $id, $src_path );
+	$rel_file   = $rel_dir . $filename;
+	$abs_file   = trailingslashit( $upload_dir['basedir'] ) . $rel_file;
+	$old_rel    = get_post_meta( $id, '_djdt_halftone_file', true );
 
 	// Best effort, silently ignored on a host that will not allow raising
 	// either one, which is no worse than leaving them at the default.
@@ -701,55 +707,49 @@ function djdt_ensure_duotone( $id ) {
 		@set_time_limit( 120 );
 	}
 
-	$ok = false;
-	if ( class_exists( 'Imagick' ) ) {
-		$ok = djdt_bake_duotone_imagick( $src_path, $abs_jpg );
-	}
-	if ( ! $ok && function_exists( 'imagecreatetruecolor' ) ) {
-		$ok = djdt_bake_duotone_gd( $src_path, $abs_jpg );
-	}
+	$ok = djdt_bake_halftone( $src_path, $abs_file );
 
 	$gray_reason = '';
-	if ( $ok && djdt_bake_is_gray( $abs_jpg ) ) {
-		// v1.5.4, confirmed live: the bake can report success and still
-		// write a file with no violet or cyan in it at all, R = G = B
-		// everywhere, same symptom as the already-fixed v1.4.1 bug but
-		// not reproducible locally against the real source photos with a
-		// stock Imagick/GD, so something about the live host's install is
-		// the actual trigger (ImageMagick's policy.xml commonly disables
-		// the 'gradient:' pseudo coder on hardened shared hosts, which
-		// djdt_bake_duotone_imagick() depended on until this version, see
-		// djdt_imagick_duotone_gradient() below). Whatever the cause, a
-		// bake that comes out flat gray is sampled and caught here rather
-		// than trusted, the bad file is removed, and this falls through
-		// to the ! $ok branch below exactly as if baking had failed
-		// outright, which is what makes the hero shortcode's existing
-		// fallback serve the unprocessed original instead.
-		@unlink( $abs_jpg );
+	if ( $ok && djdt_bake_is_gray( $abs_file ) ) {
+		// Same safety net as v1.5.4's duotone recipe: a bake that reports
+		// success but writes a file with no real violet or cyan ink in it
+		// (missing dots, a decode that silently failed partway) is caught
+		// here and rejected rather than trusted, falling through to the
+		// ! $ok branch below exactly as if baking had failed outright,
+		// which is what makes the hero shortcode's existing fallback serve
+		// the unprocessed original instead of a broken file.
+		@unlink( $abs_file );
 		$ok          = false;
-		$gray_reason = 'baked gray, no violet or cyan at all';
+		$gray_reason = 'baked with no violet or cyan ink at all';
 	}
 
 	if ( ! $ok ) {
-		delete_post_meta( $id, '_djdt_duotone_jpg' );
-		// Leftovers from the v1.4.1 WebP recipe, no longer written or read.
-		delete_post_meta( $id, '_djdt_duotone_webp' );
+		delete_post_meta( $id, '_djdt_halftone_file' );
 		delete_post_meta( $id, '_djdt_bake_ver' );
-		djdt_set_bake_error( $id, $gray_reason ? $gray_reason : 'Imagick and GD both failed or are unavailable' );
+		djdt_set_bake_error( $id, $gray_reason ? $gray_reason : 'halftone bake failed' );
 		return '';
 	}
+
+	// Delete the previous baked file now that the new one is saved and
+	// verified: every bake gets its own unique name (see
+	// djdt_halftone_filename()), so nothing else still points at the old
+	// one once this meta is overwritten below, and leaving it on disk
+	// would just be dead weight in uploads.
+	if ( $old_rel && $old_rel !== $rel_file ) {
+		@unlink( trailingslashit( $upload_dir['basedir'] ) . $old_rel );
+	}
+
 	delete_post_meta( $id, '_djdt_bake_error' );
-	update_post_meta( $id, '_djdt_duotone_jpg', $rel_jpg );
+	update_post_meta( $id, '_djdt_halftone_file', $rel_file );
 	// Stamped with the recipe that produced this file, so the admin_init
 	// pass below can tell a correctly baked photo from one still waiting
 	// on a rebake, per photo, see the note there.
-	update_post_meta( $id, '_djdt_bake_ver', DJDT_DUOTONE_RECIPE );
-	delete_post_meta( $id, '_djdt_duotone_webp' );
-	return trailingslashit( $upload_dir['baseurl'] ) . $rel_jpg;
+	update_post_meta( $id, '_djdt_bake_ver', DJDT_HALFTONE_RECIPE );
+	return trailingslashit( $upload_dir['baseurl'] ) . $rel_file;
 }
 
 /**
- * Records why a hero photo's bake failed, timestamped, so djdt_duotone_url()
+ * Records why a hero photo's bake failed, timestamped, so djdt_halftone_url()
  * never has to guess and the admin_notices hook below can tell Mark about
  * a stuck photo directly instead of it failing invisibly forever (v1.5.3).
  * Cleared the moment a later attempt actually succeeds.
@@ -760,13 +760,25 @@ function djdt_set_bake_error( $id, $reason ) {
 
 /**
  * Samples a grid of pixels in a baked JPEG and reports whether it is
- * actually flat gray, R = G = B everywhere sampled, rather than a real
- * violet to cyan duotone (v1.5.4). Used right after a bake that reported
- * success, since "the library returned true" and "the file is actually
- * tinted" turned out live not to be the same thing, see the note on
- * djdt_ensure_duotone() above. Uses GD purely to read pixels back, on
- * purpose, regardless of which library produced the file: this is a
- * sanity check on the output, not another encode path to trust.
+ * missing real violet or cyan ink, rather than a genuine halftone (v1.6.0,
+ * carried forward from the v1.5.4 duotone version of this same check).
+ * Used right after a bake that reported success, since "the library
+ * returned true" and "the file is actually tinted" turned out live not to
+ * be the same thing, see the note on djdt_ensure_halftone() above. Uses GD
+ * purely to read pixels back, on purpose, regardless of which library
+ * produced the file: this is a sanity check on the output, not another
+ * encode path to trust.
+ *
+ * v1.6.0: the threshold and sample count both changed from the flat
+ * duotone version. A halftone bake has large near white paper regions
+ * between dots (DJDT_HALFTONE_PAPER, #eef6fa, R/G/B already differ by up
+ * to 12 on paper alone), where the old duotone threshold (greater than 8)
+ * would misread plain paper as "colorful" and let a genuinely failed,
+ * all paper bake pass. 30 sits well above paper's own spread and well
+ * below real violet or cyan ink's (close to 100 and 190). A denser 10x10
+ * grid with at least 3 genuinely colorful points required, not just 1,
+ * fits a bake where only part of the image is covered in dots, while
+ * still being a low bar for any real halftone output to clear.
  */
 function djdt_bake_is_gray( $path ) {
 	$img = @imagecreatefromjpeg( $path );
@@ -776,187 +788,102 @@ function djdt_bake_is_gray( $path ) {
 	$w        = imagesx( $img );
 	$h        = imagesy( $img );
 	$colorful = 0;
-	// A grid of sample points, not every pixel: a real violet to cyan
-	// duotone has visibly unequal R, G, B at virtually every pixel (even
-	// the gradient's own black and white extremes map to violet and
-	// cyan, both of which have unequal channels), so finding even one
-	// genuinely colorful sample point is enough to call the bake good.
-	for ( $gy = 1; $gy <= 6; $gy++ ) {
-		for ( $gx = 1; $gx <= 6; $gx++ ) {
-			$x   = (int) ( $w * $gx / 7 );
-			$y   = (int) ( $h * $gy / 7 );
+	for ( $gy = 1; $gy <= 10; $gy++ ) {
+		for ( $gx = 1; $gx <= 10; $gx++ ) {
+			$x   = (int) ( $w * $gx / 11 );
+			$y   = (int) ( $h * $gy / 11 );
 			$rgb = imagecolorat( $img, $x, $y );
 			$r   = ( $rgb >> 16 ) & 0xFF;
 			$g   = ( $rgb >> 8 ) & 0xFF;
 			$b   = $rgb & 0xFF;
-			if ( max( $r, $g, $b ) - min( $r, $g, $b ) > 8 ) {
+			if ( max( $r, $g, $b ) - min( $r, $g, $b ) > 30 ) {
 				$colorful++;
 			}
 		}
 	}
 	imagedestroy( $img );
-	return 0 === $colorful;
+	return $colorful < 3;
 }
 
 /**
- * Imagick: grayscale, back to sRGB (the v1.4.1 color bug: clutImage ran
- * while the image was still in the GRAY colorspace, which has no color
- * channels left for the gradient to write into, so every baked photo
- * came out pure gray, R = G = B, no violet or cyan at all), then the
- * duotone clut. No edge fade baked in, see the note above the recipe
- * version constant: that is a CSS overlay on the panel now (hero.css).
+ * Decodes a source photo into a plain GD truecolor resource, oriented and
+ * resized to DJDT_HALFTONE_MAX_DIM (never upscaled). Imagick assisted when
+ * available, purely for a safe, memory bounded decode: pings the file for
+ * its real dimensions first and, for a source larger than needed, sets
+ * 'jpeg:size' before the real read so libjpeg decodes at a reduced scale
+ * directly instead of decoding the original at full resolution only to
+ * immediately throw most of it away in the resize below (the same
+ * reasoning as the old duotone recipe's v1.5.3 fix). Once decoded and
+ * resized, Imagick's own job ends: the image is handed to GD
+ * (imagecreatefromstring on a PNG blob) and every pixel operation from
+ * there on, for both the Imagick assisted path and the Imagick
+ * unavailable fallback below, runs through the exact same GD code in
+ * djdt_halftone_render(), so there are two decode paths but only one
+ * rendering path, not two recipes that could quietly drift apart or
+ * disagree on what "the same look" means.
  *
- * v1.5.3: pings the file for its real dimensions first and, for a source
- * larger than needed, sets 'jpeg:size' before the real read so libjpeg
- * decodes at a reduced scale directly instead of decoding the original at
- * full resolution only to immediately throw most of it away in the resize
- * below. A plain `new Imagick( $src_path )` (the old first line here) does
- * that full resolution decode unconditionally, which is the likeliest
- * reason a bake could silently never finish on a shared host once the
- * resize target went up to DJDT_DUOTONE_MAX_DIM: the resulting memory
- * spike is a PHP fatal, not a catchable Imagick exception, see the note on
- * djdt_ensure_duotone() above. The resource limits are the same safety net
- * ImageMagick already offers for exactly this, set explicitly rather than
- * left at whatever a shared host's php.ini happens to default to.
- *
- * v1.5.4, confirmed live: three hero photos baked as flat gray, R = G = B,
- * no exception thrown, with every check above passing. Not reproducible
- * locally against the real source photos with a stock Imagick 7.1.1 and
- * ImageMagick 7.1.1, so something about the live host's own ImageMagick
- * install is the trigger, not this recipe's math. The prime suspect: the
- * gradient this used to build with `newPseudoImage( 256, 1, 'gradient:...'
- * )` depends on ImageMagick's 'gradient:' pseudo coder, which a hardened
- * shared host's policy.xml commonly disables for security (the same class
- * of policy that blocks 'pattern:', 'label:', and similar procedural
- * coders); some ImageMagick builds hand back a flat neutral image instead
- * of throwing when a coder is blocked, which would clut every gray level
- * to the same flat result with nothing to catch. Rebuilt below
- * (djdt_imagick_duotone_gradient()) using only a pixel iterator, which
- * depends on no coder at all. setImageType() before the write is cheap
- * insurance on top of that: a grayscale-derived image can otherwise carry
- * a stale "this is grayscale" type through to the JPEG encoder even after
- * transformImageColorspace() back to sRGB, which would write a real
- * single-component grayscale JPEG regardless of what the pixel data
- * actually holds. Neither fix could be confirmed against the live host
- * directly (no shell access to it from this tool set); djdt_bake_is_gray()
- * below is the backstop if either guess is wrong.
+ * v1.6.0: no ImageMagick pseudo coder of any kind is used anywhere in this
+ * recipe ('gradient:', 'pattern:', 'xc:' and similar), on purpose. v1.5.4
+ * found live that a hardened host's policy.xml can silently neuter a
+ * pseudo coder (ImageMagick's 'gradient:') instead of throwing, which is
+ * what let a bake report success while writing a flat, wrong result; the
+ * fix then was to stop depending on that one coder. This recipe goes
+ * further: Imagick here only pings, reads, orients and resizes, the same
+ * handful of core operations already proven to work on the live host, and
+ * does not touch a clut, a pseudo image, or any other procedural coder at
+ * all.
  */
-
-/**
- * Builds the 256x1 violet to cyan lookup image djdt_bake_duotone_imagick()
- * clut's against, pixel by pixel through a plain Imagick pixel iterator
- * (v1.5.4). Deliberately not `newPseudoImage( 256, 1, 'gradient:...' )`,
- * the original recipe: that depends on ImageMagick's 'gradient:' pseudo
- * coder, which policy.xml can disable, see the note above. A pixel
- * iterator is core Imagick API, not a coder, so there is nothing here for
- * a hardened policy to block.
- */
-function djdt_imagick_duotone_gradient() {
-	list( $vr, $vg, $vb ) = djdt_hex_rgb( DJDT_DUOTONE_VIOLET );
-	list( $cr, $cg, $cb ) = djdt_hex_rgb( DJDT_DUOTONE_CYAN );
-	$gradient = new Imagick();
-	$gradient->newImage( 256, 1, new ImagickPixel( DJDT_DUOTONE_VIOLET ) );
-	$iterator = $gradient->getPixelIterator();
-	foreach ( $iterator as $row ) {
-		foreach ( $row as $x => $pixel ) {
-			$t = $x / 255;
-			$pixel->setColor( sprintf(
-				'rgb(%d,%d,%d)',
-				(int) round( $vr + ( $cr - $vr ) * $t ),
-				(int) round( $vg + ( $cg - $vg ) * $t ),
-				(int) round( $vb + ( $cb - $vb ) * $t )
-			) );
+function djdt_halftone_decode_gd( $src_path ) {
+	if ( class_exists( 'Imagick' ) ) {
+		try {
+			$img = new Imagick();
+			$img->setResourceLimit( Imagick::RESOURCETYPE_MEMORY, 256 * 1024 * 1024 );
+			$img->setResourceLimit( Imagick::RESOURCETYPE_MAP, 256 * 1024 * 1024 );
+			$img->pingImage( $src_path );
+			$pw   = $img->getImageWidth();
+			$ph   = $img->getImageHeight();
+			$pmax = max( $pw, $ph );
+			if ( $pmax > DJDT_HALFTONE_MAX_DIM ) {
+				$pscale = ( DJDT_HALFTONE_MAX_DIM * 2 ) / $pmax;
+				$img->setOption( 'jpeg:size', (int) round( $pw * $pscale ) . 'x' . (int) round( $ph * $pscale ) );
+			}
+			$img->readImage( $src_path );
+			if ( method_exists( $img, 'autoOrientImage' ) ) {
+				$img->autoOrientImage();
+			}
+			$w   = $img->getImageWidth();
+			$h   = $img->getImageHeight();
+			$max = max( $w, $h );
+			if ( $max > DJDT_HALFTONE_MAX_DIM ) {
+				$scale = DJDT_HALFTONE_MAX_DIM / $max;
+				$w     = (int) round( $w * $scale );
+				$h     = (int) round( $h * $scale );
+				$img->resizeImage( $w, $h, Imagick::FILTER_LANCZOS, 1 );
+			}
+			$img->setImageFormat( 'png' );
+			$blob = $img->getImageBlob();
+			$img->destroy();
+			$gd = @imagecreatefromstring( $blob );
+			if ( $gd ) {
+				return $gd;
+			}
+		} catch ( \Throwable $e ) {
+			// Falls through to the plain GD decode below.
 		}
-		$iterator->syncIterator();
 	}
-	return $gradient;
-}
-
-function djdt_bake_duotone_imagick( $src_path, $dest_jpg ) {
-	try {
-		$img = new Imagick();
-		$img->setResourceLimit( Imagick::RESOURCETYPE_MEMORY, 256 * 1024 * 1024 );
-		$img->setResourceLimit( Imagick::RESOURCETYPE_MAP, 256 * 1024 * 1024 );
-		$img->pingImage( $src_path );
-		$pw   = $img->getImageWidth();
-		$ph   = $img->getImageHeight();
-		$pmax = max( $pw, $ph );
-		if ( $pmax > DJDT_DUOTONE_MAX_DIM ) {
-			// Twice the final target, not an exact match: libjpeg's own
-			// scaled decode only supports specific fractions (1/1, 7/8 ...
-			// 1/8), so this asks for comfortably more than needed and lets
-			// the real resize below land on the exact final size.
-			$pscale = ( DJDT_DUOTONE_MAX_DIM * 2 ) / $pmax;
-			$img->setOption( 'jpeg:size', (int) round( $pw * $pscale ) . 'x' . (int) round( $ph * $pscale ) );
-		}
-		$img->readImage( $src_path );
-		if ( method_exists( $img, 'autoOrientImage' ) ) {
-			$img->autoOrientImage();
-		}
-		$w   = $img->getImageWidth();
-		$h   = $img->getImageHeight();
-		$max = max( $w, $h );
-		if ( $max > DJDT_DUOTONE_MAX_DIM ) {
-			$scale = DJDT_DUOTONE_MAX_DIM / $max;
-			$w     = (int) round( $w * $scale );
-			$h     = (int) round( $h * $scale );
-			$img->resizeImage( $w, $h, Imagick::FILTER_LANCZOS, 1 );
-		}
-		$img->transformImageColorspace( Imagick::COLORSPACE_GRAY );
-		$img->contrastImage( true );
-		// Back to sRGB before the clut: a grayscale-colorspace image has
-		// only one real channel, so clutImage has nowhere to write violet
-		// or cyan into and the result stays gray regardless of the
-		// gradient. This line is the v1.4.1 fix.
-		$img->transformImageColorspace( Imagick::COLORSPACE_SRGB );
-		// The standard Imagick duotone recipe: a 1px tall gradient from
-		// violet to cyan used as a lookup table against the image's own
-		// intensity (still grayscale in effect, R = G = B, just with
-		// color channels available again), so black maps to violet, white
-		// to cyan, and every gray level in between to the matching point
-		// on the gradient. Built by hand (see the v1.5.4 note above), not
-		// with the 'gradient:' pseudo coder.
-		$gradient = djdt_imagick_duotone_gradient();
-		$img->clutImage( $gradient );
-		$gradient->destroy();
-		// v1.5.4: forces the JPEG encoder to actually write 3 components.
-		// Belt and suspenders alongside the hand built gradient above, see
-		// the note on this function.
-		$img->setImageType( Imagick::IMGTYPE_TRUECOLOR );
-		$img->setImageFormat( 'jpeg' );
-		$img->setImageCompressionQuality( 86 );
-		wp_mkdir_p( dirname( $dest_jpg ) );
-		$img->writeImage( $dest_jpg );
-		$img->destroy();
-		return true;
-	} catch ( \Throwable $e ) {
-		// \Throwable, not just \Exception: catches an \Error too (a bad
-		// Imagick call can throw either depending on the install), though
-		// neither one is what a true PHP fatal (memory or time exhausted)
-		// raises, which is why the real fix is above, not here.
+	if ( ! function_exists( 'imagecreatetruecolor' ) ) {
 		return false;
 	}
-}
-
-/**
- * GD: the same recipe as Imagick, done by hand with a lookup table (GD has
- * no clut of its own). No edge fade, same reasoning as the Imagick version
- * above.
- *
- * v1.5.3: GD has no equivalent of Imagick's 'jpeg:size' scaled decode, a
- * plain imagecreatefromjpeg()/_png()/_webp() always decodes the source at
- * its full original resolution before anything here gets a chance to
- * resize it down, same risk as Imagick's old unscaled read, see the note
- * on djdt_bake_duotone_imagick() above. An original past a sane pixel
- * budget is skipped outright, a clean and loggable "no GD fallback either"
- * outcome, rather than risking the same kind of uncatchable PHP fatal this
- * whole file's other change is working around.
- */
-function djdt_bake_duotone_gd( $src_path, $dest_jpg ) {
 	$info = @getimagesize( $src_path );
 	if ( ! $info ) {
 		return false;
 	}
+	// A full GD decode loads the whole original into memory before any
+	// resize happens, with no scaled decode option of its own (unlike
+	// Imagick's 'jpeg:size' above); an original past a sane pixel budget
+	// is skipped outright, a clean and loggable "no GD fallback either"
+	// outcome, rather than risking a PHP memory fatal that no catch block
+	// here could intercept.
 	if ( $info[0] * $info[1] > 40000000 ) {
 		return false;
 	}
@@ -976,7 +903,6 @@ function djdt_bake_duotone_gd( $src_path, $dest_jpg ) {
 	if ( ! $src ) {
 		return false;
 	}
-
 	// GD has no equivalent of Imagick's autoOrientImage; correct a plain
 	// JPEG's EXIF rotation by hand the same way, or a photo shot on a
 	// phone can come out baked sideways.
@@ -990,59 +916,161 @@ function djdt_bake_duotone_gd( $src_path, $dest_jpg ) {
 			}
 		}
 	}
-
 	$w   = imagesx( $src );
 	$h   = imagesy( $src );
 	$max = max( $w, $h );
-	if ( $max > DJDT_DUOTONE_MAX_DIM ) {
-		$scale   = DJDT_DUOTONE_MAX_DIM / $max;
+	if ( $max > DJDT_HALFTONE_MAX_DIM ) {
+		$scale   = DJDT_HALFTONE_MAX_DIM / $max;
 		$nw      = max( 1, (int) round( $w * $scale ) );
 		$nh      = max( 1, (int) round( $h * $scale ) );
 		$resized = imagecreatetruecolor( $nw, $nh );
 		imagecopyresampled( $resized, $src, 0, 0, 0, 0, $nw, $nh, $w, $h );
 		imagedestroy( $src );
 		$src = $resized;
-		$w   = $nw;
-		$h   = $nh;
 	}
-
-	imagefilter( $src, IMG_FILTER_GRAYSCALE );
-
-	list( $vr, $vg, $vb ) = djdt_hex_rgb( DJDT_DUOTONE_VIOLET );
-	list( $cr, $cg, $cb ) = djdt_hex_rgb( DJDT_DUOTONE_CYAN );
-
-	// A 256 entry lookup table (lerp violet to cyan by gray level), built
-	// once rather than recomputed per pixel: this loop is the whole cost
-	// of the bake, so it is worth keeping the per-pixel part cheap.
-	$lut = array();
-	for ( $i = 0; $i < 256; $i++ ) {
-		$t        = $i / 255;
-		$lut[ $i ] = array(
-			(int) round( $vr + ( $cr - $vr ) * $t ),
-			(int) round( $vg + ( $cg - $vg ) * $t ),
-			(int) round( $vb + ( $cb - $vb ) * $t ),
-		);
-	}
-
-	for ( $y = 0; $y < $h; $y++ ) {
-		for ( $x = 0; $x < $w; $x++ ) {
-			// After imagefilter(IMG_FILTER_GRAYSCALE) the R, G and B
-			// channels are equal, so any one of them is the gray level.
-			$gray = imagecolorat( $src, $x, $y ) & 0xFF;
-			$c    = $lut[ $gray ];
-			// A packed true color int works directly with imagesetpixel on
-			// a true color image; skips an imagecolorallocate call per
-			// pixel, which matters here given the pixel count.
-			imagesetpixel( $src, $x, $y, ( $c[0] << 16 ) | ( $c[1] << 8 ) | $c[2] );
-		}
-	}
-
-	wp_mkdir_p( dirname( $dest_jpg ) );
-	$ok = imagejpeg( $src, $dest_jpg, 86 );
-	imagedestroy( $src );
-	return $ok;
+	return $src;
 }
 
+/** Grayscale plus a contrast boost, the tonal basis both ink layers read from. A separate image so the original color decode is never mutated in place. */
+function djdt_halftone_gray( $src, $w, $h ) {
+	$gray = imagecreatetruecolor( $w, $h );
+	imagecopy( $gray, $src, 0, 0, 0, 0, $w, $h );
+	imagefilter( $gray, IMG_FILTER_GRAYSCALE );
+	// GD's own contrast filter is inverted: a negative level means MORE
+	// contrast, a positive level means less. This is a moderate boost, a
+	// riso print reads cleaner with more separation between tones than
+	// the source photo's own contrast usually has.
+	imagefilter( $gray, IMG_FILTER_CONTRAST, -32 );
+	return $gray;
+}
+
+function djdt_halftone_color( $im, $hex, $alpha = 0 ) {
+	list( $r, $g, $b ) = djdt_hex_rgb( $hex );
+	return $alpha > 0 ? imagecolorallocatealpha( $im, $r, $g, $b, $alpha ) : imagecolorallocate( $im, $r, $g, $b );
+}
+
+/**
+ * Paints one rotated halftone dot screen for one ink layer, straight onto
+ * the output canvas: a grid of dot centers, rotated by $angle_deg and
+ * offset by ($ox, $oy), each dot's diameter driven by how much ink that
+ * layer wants at the source photo's own gray level under that center.
+ * Plain pixel operations throughout (imagefilledellipse, imagecolorat), no
+ * procedural coder of any kind, see the note on djdt_halftone_decode_gd()
+ * above for why that matters on this host.
+ *
+ * @param resource $out       The output canvas, already filled with paper.
+ * @param resource $gray      The contrast boosted grayscale source.
+ * @param int      $cell      Dot cell size in pixels.
+ * @param float    $angle_deg Screen angle for this layer's grid.
+ * @param float    $ox        Grid offset, x, pixels.
+ * @param float    $oy        Grid offset, y, pixels.
+ * @param int      $color     An allocated (semi transparent) GD color.
+ * @param string   $kind      'shadow' (violet) or 'mid' (cyan), which
+ *                             tonal curve this layer's ink follows.
+ */
+function djdt_halftone_layer( $out, $gray, $w, $h, $cell, $angle_deg, $ox, $oy, $color, $kind ) {
+	$angle = deg2rad( $angle_deg );
+	$cos   = cos( $angle );
+	$sin   = sin( $angle );
+	// Rotated grid basis vectors, scaled by the cell size: stepping by $i
+	// along u and $j along v sweeps a grid of dot centers rotated by the
+	// screen angle, same idea as a real halftone screen's own angled dot
+	// rows.
+	$ux   = $cos * $cell;
+	$uy   = $sin * $cell;
+	$vx   = -$sin * $cell;
+	$vy   = $cos * $cell;
+	$diag = (int) ceil( sqrt( $w * $w + $h * $h ) / $cell ) + 2;
+	for ( $i = -$diag; $i <= $diag; $i++ ) {
+		$base_cx = $w / 2 + $i * $ux + $ox;
+		$base_cy = $h / 2 + $i * $uy + $oy;
+		for ( $j = -$diag; $j <= $diag; $j++ ) {
+			$cx = $base_cx + $j * $vx;
+			$cy = $base_cy + $j * $vy;
+			if ( $cx < -$cell || $cx > $w + $cell || $cy < -$cell || $cy > $h + $cell ) {
+				continue;
+			}
+			$sx = (int) round( min( max( $cx, 0 ), $w - 1 ) );
+			$sy = (int) round( min( max( $cy, 0 ), $h - 1 ) );
+			$l  = ( imagecolorat( $gray, $sx, $sy ) & 0xFF ) / 255; // 0 = black, 1 = white
+			if ( 'shadow' === $kind ) {
+				// Violet: full coverage at black, fading to nothing by
+				// mid gray, so it owns the shadows and stays out of the
+				// cyan layer's own midtone range below.
+				$coverage = max( 0, min( 1, 1 - $l / 0.55 ) );
+				$coverage = pow( $coverage, 0.85 );
+			} else {
+				// Cyan: a triangle peaking at mid gray, zero at both
+				// black (violet's own territory above) and white (paper).
+				$coverage = ( $l <= 0.5 ) ? ( $l / 0.5 ) : ( ( 1 - $l ) / 0.5 );
+				$coverage = pow( max( 0, min( 1, $coverage ) ), 0.8 );
+			}
+			if ( $coverage <= 0.035 ) {
+				continue;
+			}
+			$d = $coverage * $cell * 1.15;
+			if ( $d < 1.2 ) {
+				continue;
+			}
+			imagefilledellipse( $out, (int) round( $cx ), (int) round( $cy ), (int) round( $d ), (int) round( $d ), $color );
+		}
+	}
+}
+
+/**
+ * The riso halftone look itself: grayscale with a contrast boost, then two
+ * ink layers, violet for the shadows at a 75 degree screen angle and cyan
+ * for the mids at 15 degrees, on a near white paper ground. The violet
+ * layer sits 2px right and 1px down from the cyan layer (off register, a
+ * real riso print never lands its two passes in exact registration).
+ * Semi transparent fills (imagecolorallocatealpha) so overlapping dots
+ * read as a third, darker blended tone where both inks land on the same
+ * spot, the way real riso ink does.
+ *
+ * Cell size is derived from the output's own long side, not a fixed
+ * constant: about 6px at a full DJDT_HALFTONE_MAX_DIM output, floored at
+ * 5px so a smaller, never upscaled source (the live hero photos run as
+ * small as 800px) still reads as clearly dotted up close rather than
+ * shrinking into a fine, muddy texture.
+ */
+function djdt_halftone_render( $src, $w, $h ) {
+	$gray = djdt_halftone_gray( $src, $w, $h );
+	$out  = imagecreatetruecolor( $w, $h );
+	imagealphablending( $out, true );
+	imagefill( $out, 0, 0, djdt_halftone_color( $out, DJDT_HALFTONE_PAPER ) );
+
+	$violet = djdt_halftone_color( $out, DJDT_HALFTONE_VIOLET, 12 );
+	$cyan   = djdt_halftone_color( $out, DJDT_HALFTONE_CYAN, 12 );
+
+	$long = max( $w, $h );
+	$cell = max( 5, (int) round( $long / 333 ) );
+
+	djdt_halftone_layer( $out, $gray, $w, $h, $cell, 15, 0, 0, $cyan, 'mid' );
+	djdt_halftone_layer( $out, $gray, $w, $h, $cell, 75, 2, 1, $violet, 'shadow' );
+
+	imagedestroy( $gray );
+	return $out;
+}
+
+/** Decodes, renders and writes the halftone bake for one source file. Returns true/false, same contract as the old per-library bake functions. */
+function djdt_bake_halftone( $src_path, $dest_jpg ) {
+	$src = djdt_halftone_decode_gd( $src_path );
+	if ( ! $src ) {
+		return false;
+	}
+	$w = imagesx( $src );
+	$h = imagesy( $src );
+	if ( $w <= 0 || $h <= 0 ) {
+		imagedestroy( $src );
+		return false;
+	}
+	$out = djdt_halftone_render( $src, $w, $h );
+	imagedestroy( $src );
+	wp_mkdir_p( dirname( $dest_jpg ) );
+	$ok = imagejpeg( $out, $dest_jpg, 90 );
+	imagedestroy( $out );
+	return $ok;
+}
 function djdt_gd_rotate_by_exif( $img, $orientation ) {
 	switch ( $orientation ) {
 		case 3:
@@ -1063,38 +1091,20 @@ function djdt_hex_rgb( $hex ) {
 
 /**
  * Rebakes any saved hero photo whose own '_djdt_bake_ver' postmeta does not
- * match the current DJDT_DUOTONE_RECIPE, so a recipe fix (like the v1.4.1
- * color bug or the v1.5.0 max dimension bump) reaches photos Mark already
- * picked without him needing to resave Hero Photos. Runs for an admin on
- * any admin page load, not just the Hero Photos screen (otherwise it would
- * never run until he happened to visit that one screen), and not on the
- * front end, since baking is too slow to do on a visitor's page load.
- *
- * v1.5.1, found live: three hero photos were still the gray, 800px v1.4.0
- * bakes after two version bumps that should have fixed them. The previous
- * version of this hook gated the whole pass behind one global option
- * ('djdt_duotone_recipe_done') set to the recipe number once the loop
- * finished, with no per-photo record of whether that photo's own bake
- * actually succeeded. Baking is not guaranteed to succeed (a corrupt
- * source file, an Imagick exception, a host hiccup), djdt_ensure_duotone()
- * just returns '' and moves on when it fails, so a failed photo and a
- * successful one both still looked, from this hook's point of view, like
- * "the pass ran", and the global option never came back around to retry
- * it. Checking each photo's own '_djdt_bake_ver' instead means a photo
- * that failed to rebake keeps getting retried on the next admin page load
- * no matter what the global pass already did, and a freshly added photo
- * is always caught too. The per-photo check itself is a cheap postmeta
- * read; only an actual mismatch pays for the real bake.
- *
- * v1.5.3: bakes at most one mismatched photo per admin page load, not
- * every mismatched one in a single pass. Baking all of them together is
- * exactly the kind of per-request cost that can run into a shared host's
- * memory or time limit (see djdt_ensure_duotone()), and a limit hit kills
- * the whole request before even the first photo's result gets written, so
- * every photo after it in that same pass never gets its own turn either.
- * One per load bounds each request's worst case and still catches
- * everything up within a few admin page loads, same as how Mark already
- * checks this live.
+ * match the current DJDT_HALFTONE_RECIPE, so a recipe fix reaches photos
+ * Mark already picked without him needing to resave Hero Photos. Runs for
+ * an admin on any admin page load, not just the Hero Photos screen
+ * (otherwise it would never run until he happened to visit that one
+ * screen), and not on the front end, since baking is too slow to do on a
+ * visitor's page load. One photo per load, not every mismatched one in a
+ * single pass: baking all of them together is exactly the kind of
+ * per-request cost that can run into a shared host's memory or time
+ * limit (see djdt_ensure_halftone()), and a limit hit kills the whole
+ * request before even the first photo's result gets written. This whole
+ * mechanism, the per-photo version tracking, the one-per-load pacing, and
+ * the postmeta based error reporting below, carries forward unchanged
+ * from the v1.5.1 through v1.5.4 duotone recipe; only the bake function
+ * it calls changed for v1.6.0's halftone recipe.
  */
 add_action( 'admin_init', function () {
 	if ( ! current_user_can( 'manage_options' ) ) {
@@ -1106,8 +1116,8 @@ add_action( 'admin_init', function () {
 	}
 	foreach ( $rows as $row ) {
 		$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
-		if ( $id > 0 && (int) get_post_meta( $id, '_djdt_bake_ver', true ) !== DJDT_DUOTONE_RECIPE ) {
-			djdt_ensure_duotone( $id );
+		if ( $id > 0 && (int) get_post_meta( $id, '_djdt_bake_ver', true ) !== DJDT_HALFTONE_RECIPE ) {
+			djdt_ensure_halftone( $id );
 			break;
 		}
 	}
@@ -1116,7 +1126,7 @@ add_action( 'admin_init', function () {
 /**
  * Surfaces a hero photo whose bake is still stuck as a visible admin
  * notice, so a repeated failure has somewhere to show up instead of
- * failing the same way forever with nothing to see (v1.5.3). Reads the
+ * failing the same way forever with nothing to see. Reads the
  * '_djdt_bake_error' postmeta djdt_set_bake_error() writes; cleared the
  * moment a later attempt actually succeeds.
  */
@@ -1142,7 +1152,7 @@ add_action( 'admin_notices', function () {
 	if ( empty( $stuck ) ) {
 		return;
 	}
-	echo '<div class="notice notice-error"><p><strong>DigiMark Theme:</strong> could not bake the duotone hero photo copy for ' . esc_html( implode( ', ', $stuck ) ) . '. This retries automatically on the next admin page load.</p></div>';
+	echo '<div class="notice notice-error"><p><strong>DigiMark Theme:</strong> could not bake the halftone hero photo copy for ' . esc_html( implode( ', ', $stuck ) ) . '. This retries automatically on the next admin page load.</p></div>';
 } );
 
 /**
@@ -1298,18 +1308,18 @@ function djdt_hero_photos() {
 			if ( $id <= 0 || ! wp_attachment_is_image( $id ) ) {
 				continue;
 			}
-			$duotone = djdt_duotone_url( $id );
-			$src     = $duotone ? $duotone : wp_get_attachment_image_url( $id, 'full' );
+			$halftone = djdt_halftone_url( $id );
+			$src      = $halftone ? $halftone : wp_get_attachment_image_url( $id, 'full' );
 			if ( ! $src ) {
 				continue;
 			}
 			$out[] = array(
 				'src' => $src,
-				// A baked duotone copy has no WordPress generated responsive
+				// A baked halftone copy has no WordPress generated responsive
 				// sizes of its own, only the one file; it is already capped
-				// at DJDT_DUOTONE_MAX_DIM, plenty for how large the photo
+				// at DJDT_HALFTONE_MAX_DIM, plenty for how large the photo
 				// panel ever renders, so no srcset is needed for it.
-				'srcset' => $duotone ? '' : (string) wp_get_attachment_image_srcset( $id, 'full' ),
+				'srcset' => $halftone ? '' : (string) wp_get_attachment_image_srcset( $id, 'full' ),
 				'x'      => isset( $row['x'] ) ? (float) $row['x'] : 50,
 				'y'      => isset( $row['y'] ) ? (float) $row['y'] : 50,
 			);
@@ -1317,7 +1327,7 @@ function djdt_hero_photos() {
 	}
 	if ( empty( $out ) ) {
 		$out[] = array(
-			'src'    => DJDT_URL . 'assets/img/hero-photo-duotone.jpg',
+			'src'    => DJDT_URL . 'assets/img/hero-photo-halftone.jpg',
 			'srcset' => '',
 			'x'      => 50,
 			'y'      => 50,
@@ -1332,15 +1342,23 @@ function djdt_hero_photos() {
 
 add_shortcode( 'djdigi_hero', 'djdt_hero_shortcode' );
 
-function djdt_hero_shortcode() {
+/**
+ * $atts: player="no" turns off the "Latest live set" section this
+ * shortcode outputs right after the hero itself (v1.6.0, the player
+ * moved out of the hero; see djdt_player_section() below). No separate
+ * shortcode for it, by design, since the hero is the only place it is
+ * ever meant to appear.
+ */
+function djdt_hero_shortcode( $atts = array() ) {
 	if ( ! djdt_is_active() ) {
 		return '';
 	}
+	$atts = shortcode_atts( array( 'player' => 'yes' ), (array) $atts, 'djdigi_hero' );
+
 	wp_enqueue_style( 'djdt-hero' );
 	wp_enqueue_script( 'djdt-hero' );
 
 	$photos = djdt_hero_photos();
-	$mix    = djdt_get_mix();
 	$sets   = djdt_get( 'sets_url' );
 	$videos = djdt_get( 'videos_url' );
 
@@ -1362,22 +1380,22 @@ function djdt_hero_shortcode() {
 					>
 				</div>
 			<?php endforeach; ?>
+			<!-- TV static transition (v1.6.0, replacing the shutter): a pre
+			rendered noise sprite, opacity and transform only, faded in over
+			the current photo right as hero.js swaps the active frame
+			underneath it, then faded back out. See CLAUDE.md "Smoothness". -->
+			<div class="djd-hero__static" aria-hidden="true">
+				<div class="djd-hero__static-scan"></div>
+				<div class="djd-hero__static-img"></div>
+			</div>
 		</div>
 
-		<!-- The "room light": two full glow sets, one lit at a time, crossfading
-		opacity between color sets as the photo changes (hero.js, "room light").
-		Sits above the photo panel, see CLAUDE.md "Smoothness". -->
+		<!-- One fixed glow set, violet and cyan, above the photo panel (v1.6.0:
+		the room light's color cycling is gone, see CLAUDE.md "Smoothness"). -->
 		<div class="djd-hero__glows" aria-hidden="true">
-			<div class="djd-hero__glow-layer is-lit" data-set="a">
-				<div class="djd-hero__glow djd-hero__glow--a djd-in-glow"></div>
-				<div class="djd-hero__glow djd-hero__glow--b djd-in-glow"></div>
-				<div class="djd-hero__glow djd-hero__glow--c djd-in-glow"></div>
-			</div>
-			<div class="djd-hero__glow-layer" data-set="b">
-				<div class="djd-hero__glow djd-hero__glow--a djd-in-glow"></div>
-				<div class="djd-hero__glow djd-hero__glow--b djd-in-glow"></div>
-				<div class="djd-hero__glow djd-hero__glow--c djd-in-glow"></div>
-			</div>
+			<div class="djd-hero__glow djd-hero__glow--a djd-in-glow"></div>
+			<div class="djd-hero__glow djd-hero__glow--b djd-in-glow"></div>
+			<div class="djd-hero__glow djd-hero__glow--c djd-in-glow"></div>
 		</div>
 
 		<?php if ( $next_up ) : ?>
@@ -1403,40 +1421,70 @@ function djdt_hero_shortcode() {
 						<a class="djd-btn djd-btn--line" href="<?php echo esc_url( $videos ); ?>">Remix videos</a>
 					</div>
 				</div>
+			</div>
+		</div>
 
-				<?php if ( ! empty( $mix['key'] ) ) : ?>
-					<div class="djd-player<?php echo $mix['picture'] ? ' has-artwork' : ''; ?>" data-feed="<?php echo esc_attr( $mix['key'] ); ?>" data-length="<?php echo (int) $mix['length']; ?>">
-						<div class="djd-player__art">
-							<?php if ( $mix['picture'] ) : ?>
-								<img class="djd-player__artimg" src="<?php echo esc_url( $mix['picture'] ); ?>" alt="">
-							<?php endif; ?>
-							<button type="button" class="djd-player__btn" aria-label="<?php echo esc_attr( 'Play ' . $mix['name'] ); ?>" data-label="<?php echo esc_attr( $mix['name'] ); ?>">
-								<svg class="djd-player__play" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 L20 12 L7 20 Z" fill="currentColor"/></svg>
-								<svg class="djd-player__pause" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="5" height="16" fill="currentColor"/><rect x="14" y="4" width="5" height="16" fill="currentColor"/></svg>
-							</button>
-						</div>
-						<div class="djd-player__body">
-							<div class="djd-player__top">
-								<span class="djd-player__status">Latest live set</span>
-								<div class="djd-player__skip">
-									<button type="button" class="djd-player__skipbtn" data-skip="-30" aria-label="Back 30 seconds">-30</button>
-									<button type="button" class="djd-player__skipbtn" data-skip="30" aria-label="Forward 30 seconds">+30</button>
-								</div>
-							</div>
-							<div class="djd-player__title"><?php echo esc_html( $mix['name'] ); ?></div>
-							<div class="djd-player__scrub" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="<?php echo (int) $mix['length']; ?>" aria-valuenow="0">
-								<?php djdt_inline_wave( 'djd-player__wave' ); ?>
-								<div class="djd-player__progress"><?php djdt_inline_wave( '' ); ?></div>
-								<div class="djd-player__tooltip" aria-hidden="true"></div>
-							</div>
-							<div class="djd-player__meta"><span class="djd-player__pos">0:00</span> / <span class="djd-player__dur"><?php echo esc_html( djdt_format_length( $mix['length'] ) ); ?></span></div>
-							<div class="djd-player__links">
-								<a href="<?php echo esc_url( 'https://www.mixcloud.com/' . rawurlencode( djdt_get( 'mixcloud_user' ) ) . '/' ); ?>" target="_blank" rel="noopener">Follow &amp; all mixes on Mixcloud ↗</a>
-								<a href="<?php echo esc_url( $mix['url'] ); ?>" target="_blank" rel="noopener">Tracklist ↗</a>
-							</div>
+		<!-- Fades the hero's own lower edge into the page, full width, so the
+		photo panel and the glows (now allowed to bleed past the hero's own
+		box, see hero.css) never end in a hard line regardless of what is
+		directly underneath. See CLAUDE.md "Smoothness". -->
+		<div class="djd-hero__bottom-fade" aria-hidden="true"></div>
+	</section>
+	<?php
+	if ( 'no' !== $atts['player'] ) {
+		echo djdt_player_section(); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside
+	}
+	return ob_get_clean();
+}
+
+/**
+ * The "Latest live set" section (v1.6.0, moved out of the hero itself:
+ * Mark's call, the hero keeps only the name, slogan, the two buttons and
+ * the photo). Same Mixcloud data and the same Widget API behavior as
+ * before (hero.js), just its own section now, right after the hero, on
+ * the same night background with no seam between them (see CLAUDE.md
+ * "Smoothness"). No outlined box, a plain background on a gentle tone
+ * step instead of a bordered card.
+ */
+function djdt_player_section() {
+	$mix = djdt_get_mix();
+	if ( empty( $mix['key'] ) ) {
+		return '';
+	}
+	ob_start();
+	?>
+	<section class="djd-player-section" aria-label="Latest live set">
+		<div class="djd-player-section__inner">
+			<div class="djd-player<?php echo $mix['picture'] ? ' has-artwork' : ''; ?>" data-feed="<?php echo esc_attr( $mix['key'] ); ?>" data-length="<?php echo (int) $mix['length']; ?>">
+				<div class="djd-player__art">
+					<?php if ( $mix['picture'] ) : ?>
+						<img class="djd-player__artimg" src="<?php echo esc_url( $mix['picture'] ); ?>" alt="">
+					<?php endif; ?>
+					<button type="button" class="djd-player__btn" aria-label="<?php echo esc_attr( 'Play ' . $mix['name'] ); ?>" data-label="<?php echo esc_attr( $mix['name'] ); ?>">
+						<svg class="djd-player__play" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 L20 12 L7 20 Z" fill="currentColor"/></svg>
+						<svg class="djd-player__pause" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="5" height="16" fill="currentColor"/><rect x="14" y="4" width="5" height="16" fill="currentColor"/></svg>
+					</button>
+				</div>
+				<div class="djd-player__body">
+					<div class="djd-player__top">
+						<span class="djd-player__status">Latest live set</span>
+						<div class="djd-player__skip">
+							<button type="button" class="djd-player__skipbtn" data-skip="-30" aria-label="Back 30 seconds">-30</button>
+							<button type="button" class="djd-player__skipbtn" data-skip="30" aria-label="Forward 30 seconds">+30</button>
 						</div>
 					</div>
-				<?php endif; ?>
+					<div class="djd-player__title"><?php echo esc_html( $mix['name'] ); ?></div>
+					<div class="djd-player__scrub" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="<?php echo (int) $mix['length']; ?>" aria-valuenow="0">
+						<?php djdt_inline_wave( 'djd-player__wave' ); ?>
+						<div class="djd-player__progress"><?php djdt_inline_wave( '' ); ?></div>
+						<div class="djd-player__tooltip" aria-hidden="true"></div>
+					</div>
+					<div class="djd-player__meta"><span class="djd-player__pos">0:00</span> / <span class="djd-player__dur"><?php echo esc_html( djdt_format_length( $mix['length'] ) ); ?></span></div>
+					<div class="djd-player__links">
+						<a href="<?php echo esc_url( 'https://www.mixcloud.com/' . rawurlencode( djdt_get( 'mixcloud_user' ) ) . '/' ); ?>" target="_blank" rel="noopener">Follow &amp; all mixes on Mixcloud ↗</a>
+						<a href="<?php echo esc_url( $mix['url'] ); ?>" target="_blank" rel="noopener">Tracklist ↗</a>
+					</div>
+				</div>
 			</div>
 		</div>
 	</section>

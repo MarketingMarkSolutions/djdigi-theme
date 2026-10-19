@@ -371,13 +371,16 @@ body.djdigi-theme .fusion-footer-widget-area.djdt-is-empty { display: none !impo
    Schedule (about 1.6 to 1.8s total once ready; steps overlap rather than
    running one after another). The header carries no animation of its own
    (v1.4.0: removed, see below), the logo and menu are simply always there
-   from the first frame:
+   from the first frame. No --djd-t-player here any more (v1.6.0): the
+   player moved to its own section below the hero and is no longer part
+   of this gated entrance at all, see hero.css and djdigi-theme.php
+   djdt_player_section().
    0s            glow begins
    0.15s         photo begins (fade plus a slight scale in), overlapping the glow
    0.35s         DJ sweeps up, overlapping the photo
    0.45s         DigiMark sweeps up letter by letter, overlapping DJ
-   0.9s to 1.15s slogan, buttons, player and EQ land together, overlapping
-                 the end of the name */
+   0.9s to 1.15s slogan, buttons and EQ land together, overlapping the
+                 end of the name */
 body.djdigi-has-hero {
 	--djd-t-glow: 0s;
 	--djd-t-photo: 0.15s;
@@ -385,7 +388,6 @@ body.djdigi-has-hero {
 	--djd-t-name: 0.45s;
 	--djd-t-slogan: 1.0s;
 	--djd-t-buttons: 1.1s;
-	--djd-t-player: 1.1s;
 	--djd-t-eq: 1.15s;
 }
 body.djdigi-has-hero.djd-quick-intro {
@@ -395,7 +397,6 @@ body.djdigi-has-hero.djd-quick-intro {
 	--djd-t-name: 0.2s;
 	--djd-t-slogan: 0.35s;
 	--djd-t-buttons: 0.4s;
-	--djd-t-player: 0.42s;
 	--djd-t-eq: 0.5s;
 }
 

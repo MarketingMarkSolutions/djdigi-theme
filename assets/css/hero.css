@@ -1,5 +1,9 @@
-/* [djdigi_hero]: large right side photo, layered opening, scroll shrink,
-   name, slogan, Mixcloud player. */
+/* [djdigi_hero]: large right side photo, layered opening, name, slogan.
+   The player moved to its own section below (v1.6.0, djd-player-section
+   further down, djdigi-theme.php djdt_player_section()); the scroll
+   shrink effect (scale, rounded corners on scroll) is gone entirely,
+   Mark's call: the hero now flows straight into the page instead of
+   shrinking into a card. */
 
 .djd-hero {
 	position: relative;
@@ -10,11 +14,11 @@
 	isolation: isolate;
 	padding-top: calc(var(--djd-head-h) + 16px);
 	font-family: var(--djd-sans);
-	transform: scale(var(--djd-shrink-scale, 1));
-	transform-origin: top center;
-	border-radius: var(--djd-shrink-radius, 0px);
-	overflow: hidden;
-	transition: border-radius 0.1s linear;
+	/* No overflow: hidden here (v1.6.0): the glows (.djd-hero__glows) are
+	   allowed to bleed past the hero's own bottom edge into the page
+	   below, see the note there and ".djd-hero__bottom-fade" further
+	   down. .djd-hero__photos keeps its own overflow: hidden, the photo
+	   panel itself still needs to clip. */
 }
 body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); }
 
@@ -41,37 +45,25 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 }
 
 /* ---------------------------------------------------------------------
-   The "room light": two full glow layers, one lit at a time
-   (.is-lit, opacity only), crossfading over about 1.4s as the photo
-   changes (hero.js, roomLight). Each layer carries the same three glow
-   positions (a/b/c); only the color set (data-set) differs between
-   layers. Stacked above the photo panel now (v1.5.0: glows used to sit
-   behind the photo, which only ever washed the night background beside
-   it; moving them on top means they wash the photo too, both the "room
-   light" effect item 2 asked for and, together with the edge fade below,
-   what finally closes the seam at the photo panel's left edge for good,
-   see "Smoothness" in CLAUDE.md). Plain radial gradients with alpha, no
-   filter, no blend mode, no mask, same as always.
+   The glow: one fixed violet and cyan set, no color cycling (v1.6.0,
+   Mark's call: the "room light" color shifting between photos is gone,
+   see CLAUDE.md "Smoothness"). Stacked above the photo panel (v1.5.0:
+   glows used to sit behind the photo, which only ever washed the night
+   background beside it; moving them on top washes the photo too, and,
+   together with the edge fade below, is what closes the seam at the
+   photo panel's left edge). Allowed to bleed past the hero's own bottom
+   edge now (v1.6.0: no inset: 0/overflow: hidden box of its own here
+   any more, and .djd-hero itself dropped overflow: hidden too), so the
+   glow fades out into the page instead of ending in a hard clip; the
+   hero's own bottom edge is covered separately by
+   .djd-hero__bottom-fade further down. Plain radial gradients with
+   alpha, no filter, no blend mode, no mask, same as always.
    ------------------------------------------------------------------ */
-.djd-hero__glows { position: absolute; inset: 0; overflow: hidden; z-index: 3; pointer-events: none; }
-.djd-hero__glow-layer { position: absolute; inset: 0; opacity: 0; transition: opacity 1.4s ease; }
-.djd-hero__glow-layer.is-lit { opacity: 1; }
+.djd-hero__glows { position: absolute; left: 0; right: 0; top: 0; bottom: -260px; z-index: 3; pointer-events: none; }
 .djd-hero__glow { position: absolute; border-radius: 50%; }
-.djd-hero__glow--a { left: -12%; top: -25%; width: 1000px; height: 1000px; }
-.djd-hero__glow--b { right: 2%; top: -10%; width: 820px; height: 820px; animation-delay: calc(var(--djd-t-glow, 0s) + 0.12s), 1.9s !important; animation-direction: normal, alternate-reverse !important; }
-.djd-hero__glow--c { left: 28%; bottom: -35%; width: 900px; height: 900px; animation-delay: calc(var(--djd-t-glow, 0s) + 0.24s), 2.1s !important; }
-/* Set A: violet and cyan, the original look. */
-[data-set="a"] .djd-hero__glow--a { background: radial-gradient(circle, rgba(112, 58, 220, 0.62) 0%, rgba(112, 58, 220, 0) 65%); }
-[data-set="a"] .djd-hero__glow--b { background: radial-gradient(circle, rgba(36, 169, 224, 0.5) 0%, rgba(36, 169, 224, 0) 65%); }
-[data-set="a"] .djd-hero__glow--c { background: radial-gradient(circle, rgba(52, 30, 160, 0.7) 0%, rgba(52, 30, 160, 0) 65%); }
-/* Set B: deep violet with a magenta lean. */
-[data-set="b"] .djd-hero__glow--a { background: radial-gradient(circle, rgba(139, 46, 189, 0.62) 0%, rgba(139, 46, 189, 0) 65%); }
-[data-set="b"] .djd-hero__glow--b { background: radial-gradient(circle, rgba(179, 45, 120, 0.5) 0%, rgba(179, 45, 120, 0) 65%); }
-[data-set="b"] .djd-hero__glow--c { background: radial-gradient(circle, rgba(74, 20, 96, 0.7) 0%, rgba(74, 20, 96, 0) 65%); }
-/* Set C: cyan with a deep blue. */
-[data-set="c"] .djd-hero__glow--a { background: radial-gradient(circle, rgba(36, 120, 220, 0.62) 0%, rgba(36, 120, 220, 0) 65%); }
-[data-set="c"] .djd-hero__glow--b { background: radial-gradient(circle, rgba(36, 169, 224, 0.5) 0%, rgba(36, 169, 224, 0) 65%); }
-[data-set="c"] .djd-hero__glow--c { background: radial-gradient(circle, rgba(26, 58, 143, 0.7) 0%, rgba(26, 58, 143, 0) 65%); }
+.djd-hero__glow--a { left: -12%; top: -25%; width: 1000px; height: 1000px; background: radial-gradient(circle, rgba(90, 46, 145, 0.62) 0%, rgba(90, 46, 145, 0) 65%); }
+.djd-hero__glow--b { right: 2%; top: -10%; width: 820px; height: 820px; background: radial-gradient(circle, rgba(36, 169, 224, 0.5) 0%, rgba(36, 169, 224, 0) 65%); animation-delay: calc(var(--djd-t-glow, 0s) + 0.12s), 1.9s !important; animation-direction: normal, alternate-reverse !important; }
+.djd-hero__glow--c { left: 28%; bottom: -35%; width: 900px; height: 900px; background: radial-gradient(circle, rgba(52, 30, 160, 0.7) 0%, rgba(52, 30, 160, 0) 65%); animation-delay: calc(var(--djd-t-glow, 0s) + 0.24s), 2.1s !important; }
 
 /* ---------------------------------------------------------------------
    Large photo panel: the right 55 to 60%, full hero height, bleeding to
@@ -88,9 +80,9 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 @media (min-width: 1100px) {
 	.djd-hero__photos { left: 44%; }
 }
-/* The photo file itself is already a baked grayscale-then-duotone JPEG
-   (v1.4.0, server side: Imagick or GD, see djdigi-theme.php; the color
-   bug where it came out pure gray was fixed in v1.4.1). No CSS filter and
+/* The photo file itself is already a baked riso halftone JPEG (v1.6.0,
+   server side: Imagick assisted decode, GD for every pixel operation, see
+   djdigi-theme.php; a flat duotone tint through v1.5.4). No CSS filter and
    no mix-blend-mode layer on top of it, and no mask-image on this element
    either: all three were the actual cause of the hero photo panel
    repainting every frame during the Ken Burns zoom (see CLAUDE.md,
@@ -156,27 +148,94 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 }
 
 /* ---------------------------------------------------------------------
-   Rotation transition: a shutter, plus the room light shifting (v1.5.0,
-   replacing the waveform wipe entirely, Mark's call: "one move, done
-   well"). The incoming frame opens left to right behind a hard clip-path
-   edge while settling in from a slight overscale, both transform/
-   clip-path only; the room light crossfades alongside it (opacity only,
-   above). No glow on the edge, no flash, nothing else. The outgoing
-   frame stays visible underneath, unchanged, until the shutter has fully
-   opened (hero.js times this off the open duration, not the longer
-   settle), then it is hidden.
+   Rotation transition: TV static (v1.6.0, replacing the shutter, Mark's
+   call). About 0.5s total: this layer fades in over the current photo,
+   hero.js swaps the active frame right at the peak (opacity 0.35, no
+   transition to watch), then it fades back out. Transform and opacity
+   only: the flicker is the sprite image's own layer moved sideways in
+   discrete steps() jumps, not a background-position animation (which
+   would repaint), and the fade is opacity alone.
    ------------------------------------------------------------------ */
-.djd-hero__photo-frame.is-active.is-entering {
-	animation: djd-shutter-open 1.1s cubic-bezier(0.76, 0, 0.24, 1) both, djd-shutter-settle 1.5s cubic-bezier(0.33, 1, 0.68, 1) both;
-	will-change: clip-path, transform;
+.djd-hero__static {
+	position: absolute;
+	inset: 0;
+	z-index: 5;
+	overflow: hidden;
+	opacity: 0;
+	pointer-events: none;
 }
-@keyframes djd-shutter-open {
-	from { clip-path: inset(0 100% 0 0); }
-	to { clip-path: inset(0 0 0 0); }
+.djd-hero__static.is-static {
+	opacity: 0.35;
+	animation: djd-static-fade 500ms linear;
 }
-@keyframes djd-shutter-settle {
-	from { transform: scale(1.12); }
-	to { transform: scale(1); }
+@keyframes djd-static-fade {
+	0% { opacity: 0; }
+	44% { opacity: 0.35; }
+	100% { opacity: 0; }
+}
+/* The sprite: 5 noise frames side by side (tv-static.jpg, 256px tiles),
+   laid out at 500% the layer's own width so each frame fills the layer
+   exactly once; stepping transform: translateX() through 5 positions via
+   steps(5) is the flicker, only while .is-static is on the parent. */
+.djd-hero__static-img {
+	position: absolute;
+	inset: 0;
+	width: 500%;
+	height: 100%;
+	background-image: url(../img/tv-static.jpg);
+	background-size: 100% 100%;
+	background-repeat: no-repeat;
+}
+.djd-hero__static.is-static .djd-hero__static-img {
+	animation: djd-static-flicker 250ms steps(5) infinite;
+}
+@keyframes djd-static-flicker {
+	from { transform: translateX(0); }
+	to { transform: translateX(-100%); }
+}
+/* Faint horizontal scanlines, only visible while the static is on
+   (inherits the parent's opacity), a static repeating gradient, not
+   animated on its own. */
+.djd-hero__static-scan {
+	position: absolute;
+	inset: 0;
+	background: repeating-linear-gradient(to bottom, rgba(11, 8, 32, 0.35) 0, rgba(11, 8, 32, 0.35) 1px, transparent 1px, transparent 3px);
+	mix-blend-mode: normal;
+}
+/* A 1 to 2px horizontal jitter on the incoming photo right at the static's
+   peak, transform only, a few short steps rather than a smooth tween, so
+   it reads as a glitch rather than a slide. */
+.djd-hero__photo-frame.is-jitter {
+	animation: djd-static-jitter 110ms steps(4);
+}
+@keyframes djd-static-jitter {
+	0% { transform: translateX(0); }
+	25% { transform: translateX(-2px); }
+	50% { transform: translateX(1px); }
+	75% { transform: translateX(-1px); }
+	100% { transform: translateX(0); }
+}
+
+/* Fades the hero's own lower edge into the page (v1.6.0). A wide, full
+   width overlay, roughly the bottom 25 to 30% of the hero, washing the
+   photo panel and the glows into flat night: with the scroll shrink
+   effect gone and the glows now allowed to bleed past the hero's own
+   box (see .djd-hero__glows above), this is what guarantees no visible
+   line across the width regardless of what the photo or the glow
+   positions happen to be doing at the very bottom. Extends a little past
+   the hero's own bottom edge, harmless since the player section and
+   venues right after share the exact same night background, see
+   CLAUDE.md "Smoothness". Above the photo panel and the glows, below the
+   hero's own text content. */
+.djd-hero__bottom-fade {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: -40px;
+	height: 32%;
+	z-index: 5;
+	background: linear-gradient(to bottom, rgba(11, 8, 32, 0) 0%, rgba(11, 8, 32, 0.55) 45%, var(--djd-night) 100%);
+	pointer-events: none;
 }
 
 /* Next Up strip (filled by [djdigi_next_up] from djdigi-library) */
@@ -214,8 +273,6 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	z-index: 10;
 	margin-top: clamp(30px, 7vw, 90px);
 	max-width: 62%;
-	transform: translateY(var(--djd-scroll-name, 0px));
-	opacity: var(--djd-scroll-name-op, 1);
 }
 .djd-hero__name {
 	display: flex;
@@ -355,25 +412,44 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 .djd-btn--line:hover { background: var(--djd-paper); color: var(--djd-night) !important; }
 
 /* ---------------------------------------------------------------------
-   Player. Solid dark background (no backdrop-filter, see CLAUDE.md,
-   v1.2.3: it forces a repaint of whatever is behind it on every frame,
-   which is what was making the ticker look like a low frame rate video)
-   so the waveform still reads over a busy photo; bars colored via
-   currentColor now the SVG is inlined.
+   The "Latest live set" section (v1.6.0, moved out of the hero itself,
+   see djdigi-theme.php djdt_player_section()). The section itself (and
+   its __inner wrapper) carries the exact same night background as the
+   hero and the venues section right after it, no tone step at this
+   level: those three full width sections need to read as one
+   continuous night scene with no seam between them (see CLAUDE.md
+   "Smoothness"). The "gentle tone step" instead sits only on .djd-player
+   itself, the card's own content width, not the full section: that is
+   what replaces the old bordered box, without reintroducing a seam
+   between sections. No backdrop-filter anywhere here (see CLAUDE.md,
+   v1.2.3: it forces a repaint of whatever is behind it on every frame),
+   bars on the waveform colored via currentColor now the SVG is inlined.
    ------------------------------------------------------------------ */
+.djd-player-section {
+	position: relative;
+	width: 100vw;
+	margin-left: calc(50% - 50vw);
+	background: var(--djd-night);
+	color: var(--djd-paper);
+	font-family: var(--djd-sans);
+}
+.djd-player-section *,
+.djd-player-section *::before,
+.djd-player-section *::after { box-sizing: border-box; }
+.djd-player-section__inner {
+	max-width: 1600px;
+	margin: 0 auto;
+	padding: 48px 40px;
+}
 .djd-player {
-	flex: 1 1 480px;
-	max-width: 580px;
-	min-width: 0;
+	max-width: 760px;
+	margin: 0 auto;
 	display: flex;
 	gap: 18px;
 	align-items: center;
-	border: 1px solid rgba(241, 236, 226, 0.22);
-	background: rgba(11, 8, 32, 0.9);
-	padding: 18px 22px;
-	opacity: 0;
-	transform: translate3d(28px, 0, 0);
-	animation: djd-slide-in-right 0.5s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-player, 1.1s) both;
+	padding: 22px 28px;
+	border-radius: 20px;
+	background: #140f30;
 }
 .djd-player__art { position: relative; flex: 0 0 68px; width: 68px; height: 68px; }
 .djd-player.has-artwork .djd-player__art { width: 72px; height: 72px; border-radius: 16px; overflow: hidden; }
@@ -504,7 +580,6 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	to { transform: translate3d(0, 0, 0); opacity: 1; }
 }
 @keyframes djd-rise-in { from { opacity: 0; transform: translate3d(0, 16px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
-@keyframes djd-slide-in-right { from { opacity: 0; transform: translate3d(28px, 0, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
 @keyframes djd-drift { 0% { transform: translate3d(7px, 4px, 0); } 50% { transform: translate3d(12px, 1px, 0); } 100% { transform: translate3d(7px, 4px, 0); } }
 /* Shared sine wave: every bar uses this exact curve, only the animation
    delay differs per bar, which is what makes it read as one wave rolling
@@ -553,8 +628,7 @@ body:not(.djd-intro-ready) .djd-hero__echo,
 body:not(.djd-intro-ready) .djd-hero__slogan,
 body:not(.djd-intro-ready) .djd-eq,
 body:not(.djd-intro-ready) .djd-eq span,
-body:not(.djd-intro-ready) .djd-btn,
-body:not(.djd-intro-ready) .djd-player {
+body:not(.djd-intro-ready) .djd-btn {
 	animation-play-state: paused, paused !important;
 }
 .djd-hero__glow,
@@ -565,8 +639,7 @@ body:not(.djd-intro-ready) .djd-player {
 .djd-hero__slogan,
 .djd-eq,
 .djd-eq span,
-.djd-btn,
-.djd-player {
+.djd-btn {
 	will-change: transform, opacity;
 }
 
@@ -581,7 +654,8 @@ body:not(.djd-intro-ready) .djd-player {
 	.djd-hero__inner { padding: 16px 16px 0; }
 	.djd-hero__digimark { font-size: clamp(52px, 19vw, 88px); }
 	.djd-hero__row { padding: 28px 0 40px; }
-	.djd-player { padding: 14px 16px; gap: 14px; }
+	.djd-player-section__inner { padding: 32px 16px; }
+	.djd-player { flex-wrap: wrap; padding: 14px 16px; gap: 14px; }
 	.djd-player__btn,
 	.djd-player__art { flex-basis: 56px; width: 56px; height: 56px; }
 	.djd-player__title { font-size: 20px; }
