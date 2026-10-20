@@ -1,0 +1,317 @@
+/* [djdigi_events]: upcoming sets read from Modern Events Calendar, rendered
+   as our own cards, never MEC's own front end. v1.8.0: ported from
+   djdigi-library v0.2.0 (djl- prefix) into djdigi-theme (djd-events
+   prefix), see includes/djdt-events.php for why. Reads this theme's own
+   --djd-* custom properties directly (site.css), no var() fallback
+   needed now that this lives inside djdigi-theme itself rather than a
+   separate plugin reaching across to another one's variables.
+
+   Full bleed night section by default, same background as the hero,
+   player and venues sections on hero pages (djdigi-theme). On a hero
+   page specifically that background goes transparent instead (site.css,
+   "the glow show through" rule, v1.8.0), so the hero's own glow bleeds
+   through underneath rather than being cut off by a second, separately
+   painted night background; this section's own background here is what
+   a standalone page (the Events page, [djdigi_events] with no hero)
+   still needs.
+
+   Uses width: 100%, not 100vw, to break out of Avada's own centered
+   container: 100vw includes the scrollbar's own width and sits the
+   section a few px off; djdigi-theme hit this exact bug in its own hero
+   (v1.7.0) and width: 100% is the fix that needs no scrollbar math, same
+   reasoning applies here. Needs the page to use Avada's "100% Width"
+   template with a zero padding container, same requirement as
+   djdigi-theme's other full bleed sections. */
+
+.djd-events {
+	position: relative;
+	z-index: 1;
+	width: 100%;
+	box-sizing: border-box;
+	background: var(--djd-night);
+	color: var(--djd-paper);
+	font-family: var(--djd-sans);
+	padding: 56px var(--djd-gutter) 64px;
+}
+/* Found by actually measuring the rendered section, not just reading the
+   CSS: the selector below resets box-sizing on every DESCENDANT of
+   .djd-events, but not .djd-events itself, so width: 100% plus its own
+   padding above was rendering wider than its parent by 2x the padding
+   (content-box, the default, adds padding on top of the width instead of
+   inside it) instead of exactly 100%, confirmed by comparing the
+   section's own getBoundingClientRect().width against the viewport's. */
+.djd-events *,
+.djd-events *::before,
+.djd-events *::after { box-sizing: border-box; }
+
+.djd-events__heading {
+	margin: 0 0 28px;
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: clamp(28px, 3vw, 36px);
+	text-transform: uppercase;
+	letter-spacing: 0.005em;
+	color: var(--djd-paper);
+}
+
+/* ---------------------------------------------------------------------
+   Empty state: "New dates coming soon" plus an Instagram link, same
+   night background, no card grid to lay out.
+   ------------------------------------------------------------------ */
+.djd-events__empty {
+	text-align: center;
+	padding: 24px 0;
+}
+.djd-events__empty p {
+	margin: 0 0 10px;
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: clamp(22px, 2.4vw, 30px);
+	text-transform: uppercase;
+	color: var(--djd-paper);
+}
+.djd-events__empty a {
+	color: var(--djd-cyan);
+	font-weight: 600;
+	text-decoration: none;
+}
+.djd-events__empty a:hover { text-decoration: underline; }
+
+/* ---------------------------------------------------------------------
+   Track: the homepage row (--row) is always a single horizontal flex
+   line, scrollable rather than wrapping, at any width it does not fit at
+   (not only on phone): this is what "one row of cards" means literally,
+   at 1440 and 2560 just as much as 390. The Events page (--grid) is a
+   normal CSS grid that wraps into as many rows as it needs.
+   align-items: flex-start on both: an opened card growing taller must not
+   stretch its row siblings down to match it (default stretch would).
+   ------------------------------------------------------------------ */
+.djd-events--row .djd-events__track {
+	display: flex;
+	align-items: flex-start;
+	gap: 20px;
+	overflow-x: auto;
+	scroll-snap-type: x proximity;
+	padding-bottom: 4px;
+	/* Firefox + WebKit scrollbar, thin and unobtrusive, not hidden
+	   entirely: this is a real scroll affordance, not a swipe-only one. */
+	scrollbar-width: thin;
+}
+.djd-events--row .djd-events__track > .djd-events__card {
+	flex: 0 0 240px;
+	scroll-snap-align: start;
+}
+
+.djd-events--grid .djd-events__track {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	align-items: start;
+	gap: 24px;
+}
+
+.djd-events__seeall {
+	display: inline-block;
+	margin-top: 24px;
+	color: var(--djd-cyan);
+	font-weight: 600;
+	text-decoration: none;
+}
+.djd-events__seeall:hover { text-decoration: underline; }
+
+/* ---------------------------------------------------------------------
+   The card, collapsed: photo (original colors, 4:5, square corners),
+   venue name largest, date/time, one ellipsis-clamped line of detail,
+   the eject button. No outlined box, no shadow; a 4px photo-only lift on
+   hover (desktop), not the whole card, so the border-radius-free photo
+   edge is the only thing that visibly moves.
+   ------------------------------------------------------------------ */
+.djd-events__card {
+	position: relative;
+	/* Found by actually measuring rendered card widths, not just reading
+	   the CSS: without this, a flex (--row) or grid (--grid) item's own
+	   "automatic minimum size" is based on its content, bubbling up from
+	   the nowrap, ellipsis-clamped excerpt deep inside (.djd-events__card-excerpt
+	   below) even though that element's own overflow: hidden stops IT
+	   from individually overflowing. That let a card with a long excerpt
+	   grow to 3x a card with a short one instead of holding the flex
+	   track's own 240px basis / the grid track's own minmax(240px, 1fr),
+	   confirmed by comparing computed flex-basis (always correctly
+	   240px) against actual rendered width (not 240px) across cards with
+	   different excerpt lengths. min-width: 0 is what resets that
+	   automatic minimum back to 0 so the explicit size actually wins. */
+	min-width: 0;
+}
+.djd-events__card-collapsed {
+	display: flex;
+	flex-direction: column;
+}
+.djd-events__card-photo {
+	position: relative;
+	aspect-ratio: 4 / 5;
+	overflow: hidden;
+}
+.djd-events__card-photo img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	transition: transform 0.25s ease;
+}
+@media (hover: hover) {
+	.djd-events__card:hover .djd-events__card-photo img { transform: translateY(-4px); }
+}
+.djd-events__card-body {
+	padding: 14px 4px 10px;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.djd-events__card-venue {
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: 22px;
+	line-height: 1.05;
+	text-transform: uppercase;
+	color: var(--djd-paper);
+}
+.djd-events__card-date {
+	margin-top: 4px;
+	font-size: 13px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	color: var(--djd-cyan);
+}
+.djd-events__card-excerpt {
+	margin: 8px 0 0;
+	font-size: 13px;
+	line-height: 1.4;
+	color: rgba(241, 236, 226, 0.75);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.djd-events__card-eject {
+	position: absolute;
+	right: 10px;
+	bottom: 10px;
+	z-index: 3;
+	width: 40px;
+	height: 40px;
+	border: 0;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--djd-paper);
+	color: var(--djd-night);
+	cursor: pointer;
+	transition: background-color 0.2s ease, transform 0.2s ease;
+}
+.djd-events__card-eject:hover { background: var(--djd-cyan); }
+.djd-events__card-eject:focus-visible { outline: 3px solid var(--djd-cyan); outline-offset: 3px; }
+.djd-events__card-eject[aria-expanded="true"] { transform: rotate(180deg); }
+
+/* ---------------------------------------------------------------------
+   The CD tray. grid-template-rows: 0fr to 1fr is the whole height
+   animation, no JS measuring scrollHeight and no fixed max-height guess:
+   the inner wrapper's own overflow: hidden is what makes a 0fr row track
+   actually clip its content instead of just ignoring it. A translateY on
+   the inner wrapper rides along on the same timing, so the content
+   visibly slides down as the drawer opens rather than just fading into
+   view. position: relative/overflow: visible stays on the outer
+   .djd-events__card-tray itself (not the inner wrapper) specifically so
+   the disc below can peek out past the tray's own top edge without being
+   clipped by the same overflow: hidden that clips the description
+   underneath it.
+   ------------------------------------------------------------------ */
+.djd-events__card-tray {
+	position: relative;
+	display: grid;
+	grid-template-rows: 0fr;
+	transition: grid-template-rows 450ms cubic-bezier(0.22, 1, 0.36, 1);
+	margin-top: 28px;
+}
+.djd-events__card-tray.is-open {
+	grid-template-rows: 1fr;
+}
+.djd-events__card-tray-inner {
+	overflow: hidden;
+	min-height: 0;
+	transform: translateY(-10px);
+	opacity: 0;
+	transition: transform 450ms cubic-bezier(0.22, 1, 0.36, 1), opacity 350ms ease;
+}
+.djd-events__card-tray.is-open .djd-events__card-tray-inner {
+	transform: translateY(0);
+	opacity: 1;
+}
+
+/* The disc: the event photo as its own label, a faint silver ring, a
+   small center hole. Half a turn on open, holds there, does not spin
+   back on its own (only closing and reopening turns it again). */
+.djd-events__card-disc {
+	position: absolute;
+	top: 0;
+	left: 50%;
+	z-index: 2;
+	width: 56px;
+	height: 56px;
+	border-radius: 50%;
+	transform: translate(-50%, -50%) rotate(0deg);
+	transition: transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
+	background-image: var(--djd-events-disc-img), radial-gradient(circle, rgba(241, 236, 226, 0.9) 0%, rgba(241, 236, 226, 0.9) 8%, transparent 9%);
+	background-size: cover, cover;
+	background-position: center, center;
+	box-shadow: 0 0 0 2px rgba(241, 236, 226, 0.35), 0 4px 14px rgba(0, 0, 0, 0.45);
+	pointer-events: none;
+}
+.djd-events__card-tray.is-open .djd-events__card-disc {
+	transform: translate(-50%, -50%) rotate(180deg);
+}
+
+.djd-events__card-full {
+	padding: 24px 4px 4px;
+	font-size: 14px;
+	line-height: 1.6;
+	color: rgba(241, 236, 226, 0.9);
+}
+.djd-events__card-full p:first-child { margin-top: 0; }
+.djd-events__card-address,
+.djd-events__card-more {
+	margin: 10px 4px 4px;
+	font-size: 13px;
+}
+.djd-events__card-address a,
+.djd-events__card-more a {
+	color: var(--djd-cyan);
+	font-weight: 600;
+	text-decoration: none;
+}
+.djd-events__card-address a:hover,
+.djd-events__card-more a:hover { text-decoration: underline; }
+
+/* ---------------------------------------------------------------------
+   Phone: the homepage row becomes a one-plus-a-peek horizontal swipe
+   (the base .djd-events--row rule above already makes it scroll rather
+   than wrap at every width; this just resizes the cards and switches to
+   mandatory snap, which feels better on a touch swipe than proximity
+   does). The Events page grid stacks to 1 or 2 columns.
+   ------------------------------------------------------------------ */
+@media (max-width: 800px) {
+	.djd-events { padding: 40px 16px 48px; }
+	.djd-events--row .djd-events__track {
+		scroll-snap-type: x mandatory;
+	}
+	.djd-events--row .djd-events__track > .djd-events__card {
+		flex-basis: 78vw;
+	}
+	.djd-events--grid .djd-events__track {
+		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	}
+}
+@media (max-width: 480px) {
+	.djd-events--grid .djd-events__track {
+		grid-template-columns: 1fr;
+	}
+}

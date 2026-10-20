@@ -20,6 +20,12 @@
    hero.css for why. */
 .djd-venues {
 	position: relative;
+	/* v1.8.0: explicit stacking, not left to rely on plain DOM paint
+	   order, now that this section's own background can go transparent
+	   on a hero page (site.css) and the hero's own glow can show through
+	   underneath it. See the identical note on .djd-player-section__inner,
+	   hero.css. */
+	z-index: 1;
 	width: 100%;
 	background: var(--djd-night);
 	padding: 56px 40px 64px;

@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: DJ DigiMark Theme
- * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, and [djdigi_venues] for djdigimark.com.
- * Version: 1.7.2
+ * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_venues], and [djdigi_events] for djdigimark.com.
+ * Version: 1.8.0
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.7.2' );
+define( 'DJDT_VERSION', '1.8.0' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -32,6 +32,15 @@ if ( false === strpos( DJDT_GITHUB_REPO, 'GITHUB-USERNAME' ) && file_exists( DJD
 	// Install the zip the release workflow attaches, so the folder stays named djdigi-theme.
 	$djdt_updates->getVcsApi()->enableReleaseAssets( '/djdigi-theme\.zip($|[?&#])/i' );
 }
+
+/* -------------------------------------------------------------------------
+ * Events module: [djdigi_events], reading Modern Events Calendar Lite's own
+ * data directly. v1.8.0: moved here from djdigi-library (which has no
+ * update checker, so it can only ever ship as a manual zip upload), its
+ * own self contained file, see includes/djdt-events.php.
+ * ---------------------------------------------------------------------- */
+
+require_once DJDT_DIR . 'includes/djdt-events.php';
 
 /* -------------------------------------------------------------------------
  * Settings

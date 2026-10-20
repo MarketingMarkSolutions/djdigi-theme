@@ -486,6 +486,15 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
    value .djd-hero__inner and the header row use, so the player's own left
    edge lines up with the hero content above it. */
 .djd-player-section__inner {
+	/* v1.8.0: explicit stacking, not left to rely on plain DOM paint order,
+	   now that .djd-player-section's own background can go transparent on
+	   a hero page (site.css) and the hero's own glow can show through
+	   underneath it (.djd-hero__glows, above, overflow: visible, reaches
+	   about 260px past the hero's own bottom edge). Keeps the player card
+	   fully readable regardless of how the glow and this section's stacking
+	   context happen to resolve. */
+	position: relative;
+	z-index: 1;
 	padding: 48px var(--djd-gutter);
 }
 /* The card itself also spans gutter to gutter now, not a narrow 760px

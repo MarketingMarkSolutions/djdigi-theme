@@ -2,9 +2,14 @@
 
 WordPress plugin for djdigimark.com (Avada 7.16.1, classic header v3). It holds the site's look:
 fonts, colors, Avada menu restyle, buttons, the `[djdigi_hero]` homepage hero with a Mixcloud
-player, and the `[djdigi_venues]` card (clubs and events Mark has played, plus a static genre list)
-right below it. It is separate from `djdigi-library` (videos, music, VIP downloads, and the
-upcoming events module).
+player, the `[djdigi_venues]` card (clubs and events Mark has played, plus a static genre list)
+right below it, and (v1.8.0) `[djdigi_events]`, upcoming sets read straight from Modern Events
+Calendar Lite. It is separate from `djdigi-library` (videos, music, VIP downloads), which the
+events module used to live in through v0.2.0 there: moved here in v1.8.0 because djdigi-library has
+no update checker (it can only ever ship as a manual zip upload) while djdigi-theme already updates
+itself through a GitHub release, see "Events: moved here from djdigi-library" below. djdigi-library
+itself was not touched by that move: its own v0.2.0 working copy (events module included) was left
+alone, untouched and unreleased, purely a historical staging ground now.
 
 Full redesign decisions: `../site-redesign-plan.md`. Read it before design changes.
 
@@ -41,9 +46,11 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 "Live for everyone" is checked. Keep every new feature behind this check.
 
 ## Files
-- `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo halftone baking (Imagick assisted decode, GD for every pixel operation, v1.6.0, see "Smoothness" below), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]` (`djdt_hero_shortcode()`) and the "Latest live set" player section it outputs right after itself (`djdt_player_section()`, v1.6.0, no separate shortcode), `[djdigi_venues]`.
-- `assets/css/site.css`: site-wide, scoped to `body.djdigi-theme`. Avada header and menu selectors: `.fusion-header-wrapper`, `.fusion-secondary-header` (no social icons at all now, see "Dock scoping"), `.fusion-header`, `.fusion-sticky-header-wrapper`, `.fusion-header-sticky-height` (Avada's own spacer, hidden on hero pages, see "Header over the hero" below), `.fusion-main-menu` (the pill bar) `> ul.fusion-menu`, `.sub-menu` (including explicit dropdown/flyout positioning and the `djd-flip-right` class menu.js adds near the viewport edge), `.fusion-mobile-selector` (classic mobile menu), `.fusion-is-sticky` (sticky state). Also owns the footer dock's styling, the opening sequence's shared timing custom properties (on `body.djdigi-has-hero`, see below), and the hero-page override of `html`'s own background color (see "Header over the hero" below, the cream strip fix).
-- `assets/css/hero.css`: hero, the "Latest live set" player section, and both, loaded only when the shortcode renders. The large right side photo panel and its CSS edge fade, the TV static transition and the fixed glow between rotating photos (v1.6.0, replacing the shutter and the room light), the grid-stacked name layers, the player section (its own full width night background, no outlined box, see "Smoothness" below), the Pride EQ wave, the intro's pause-until-ready gate (see "Intro: fast, overlapping, waits for the photo and fonts" below). No scroll shrink any more (v1.6.0, removed entirely). No filter, mix-blend-mode or mask-image on the photo itself, see "Smoothness" below. No ticker here, see "Venues" below.
+- `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo halftone baking (Imagick assisted decode, GD for every pixel operation, see "Smoothness" below), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]` (`djdt_hero_shortcode()`) and the "Latest live set" player section it outputs right after itself (`djdt_player_section()`, v1.6.0, no separate shortcode), `[djdigi_venues]`. `require_once`s `includes/djdt-events.php` near the top, see below.
+- `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
+- `assets/css/site.css`: site-wide, scoped to `body.djdigi-theme`. Avada header and menu selectors: `.fusion-header-wrapper`, `.fusion-secondary-header` (no social icons at all now, see "Dock scoping"), `.fusion-header`, `.fusion-sticky-header-wrapper`, `.fusion-header-sticky-height` (Avada's own spacer, hidden on hero pages, see "Header over the hero" below), `.fusion-main-menu` (the pill bar) `> ul.fusion-menu`, `.sub-menu` (including explicit dropdown/flyout positioning and the `djd-flip-right` class menu.js adds near the viewport edge), `.fusion-mobile-selector` (classic mobile menu), `.fusion-is-sticky` (sticky state). Also owns the footer dock's styling, the opening sequence's shared timing custom properties (on `body.djdigi-has-hero`, see below), the hero-page override of `html`'s own background color (see "Header over the hero" below, the cream strip fix), and (v1.8.0) the hero page background/transparency rules that let the hero's own glow show through the sections below it, see "Soft bottom edge" below.
+- `assets/css/hero.css`: hero, the "Latest live set" player section, and both, loaded only when the shortcode renders. The large right side photo panel and its CSS edge fade, the TV static transition and the fixed glow between rotating photos (v1.6.0, replacing the shutter and the room light), the grid-stacked name layers, the player section (its own full width night background by default, no outlined box, see "Smoothness" below), the Pride EQ wave, the intro's pause-until-ready gate (see "Intro: fast, overlapping, waits for the photo and fonts" below). No scroll shrink any more (v1.6.0, removed entirely). No filter, mix-blend-mode or mask-image on the photo itself, see "Smoothness" below. No ticker here, see "Venues" below.
+- `assets/css/events.css`, `assets/js/events.js` (v1.8.0): `[djdigi_events]`'s cards and the CD tray, loaded only when that shortcode renders, same pattern as hero.css/hero.js. See "Events: moved here from djdigi-library" below.
 - `assets/css/venues.css`, `assets/js/venues.js`: the `[djdigi_venues]` card, loaded only when that shortcode renders, same pattern as hero.css/hero.js. See "Venues" below.
 - `assets/css/admin.css`, `assets/js/admin.js`: the Hero Photos and Venues admin screens only, the hero photo picker and the venues picker (wp.media, drag to reorder; hero photos also set a focal point, venues also have a name, details, a link, a logo color, and an on/off switch).
 - `assets/js/hero.js`: opening sequence timing (session quick-intro, `?intro=1` override, the ready gate), header height measurement (the taller of the header wrapper and the mobile nav holder, so the hero always starts below whichever actually extends further down), the TV static transition's class handoff between rotating photos (v1.6.0), the Mixcloud Widget API player (iframe at player-widget.mixcloud.com, see below; looked up from `document`, not from the hero element, since the player is its own section now, not a descendant). No scroll shrink driver any more (v1.6.0, removed entirely, the whole function is gone). The header's background image fix is no longer here, see "Header over the hero" below.
@@ -774,6 +781,108 @@ menu's own right edge exactly matches the gutter's computed value, all within ro
 check (mobile) does not apply to the logo-center-equals-menu-center target specifically, same as
 v1.7.1: this fix is scoped to desktop widths only, per Mark's own instruction to leave Avada's
 mobile header layout untouched apart from the logo's own size.
+
+## v1.8.0: Events moved here from djdigi-library, and the hero's glow now shows through below it
+Two unrelated changes, confirmed by Mark live.
+
+**`[djdigi_events]` moved into djdigi-theme, built where it actually ships from now.**
+djdigi-library has no update checker at all (the live Plugins page shows no update link for it,
+confirmed live), so any code there can only ever ship as a manual FileZilla zip upload, never an
+automatic update; djdigi-theme already updates itself through a GitHub release (see "Releasing an
+update" above). The events module (reading Modern Events Calendar Lite's own post type, post meta
+and location taxonomy directly, no MEC front end involved) was first built and tested in
+djdigi-library v0.2.0, never deployed there (see that plugin's own CLAUDE.md); v1.8.0 ports it into
+djdigi-theme instead, its own self contained file (`includes/djdt-events.php`,
+`require_once` near the top of `djdigi-theme.php`), own CSS/JS (`assets/css/events.css`,
+`assets/js/events.js`, registered and enqueued the same way hero.css/hero.js and
+venues.css/venues.js already are). Same features, same behavior, same tests already run there:
+`[djdigi_events limit="5"]` and `[djdigi_events]`, the cards, the CD tray, the before 6 AM rule
+(a start before 6 AM reads as the previous night), "Midnight" formatting, same-AM/PM collapsing,
+`mec_in_days` occurrences (used over the base `mec_date` for a repeating event, which can go stale
+once later occurrences are added), upcoming-only filtering, the empty state, Event JSON-LD, the 301
+redirect of MEC's own single event pages, and the MEC front end asset dequeue (matched by handle
+name/path pattern, still not confirmed against MEC's actual registered handles, same caveat as when
+this was first built). **djdigi-library itself was not touched**: its own v0.2.0 working copy,
+events module included, was left exactly as it was, not uploaded, not released, a historical
+staging ground now rather than live code.
+
+What actually changed in the port, not just the file's own location:
+- CSS renamed from djdigi-library's own `djl-` prefix to this theme's own `djd-events` (the section
+  itself `.djd-events`, the card `.djd-events__card`, its own pieces `.djd-events__card-photo` /
+  `-body` / `-venue` / `-date` / `-excerpt` / `-eject` / `-tray` / `-tray-inner` / `-disc` / `-full` /
+  `-address` / `-more`, one dash joining the card element name to its own sub-part rather than a
+  second BEM block, matching how `.djd-venues__card` is named, not a separate top level block of its
+  own). `--djl-gutter` (the library version's own `var(--djd-gutter, clamp(...))` fallback, for
+  when djdigi-theme might not be active) is gone: this file reads `--djd-gutter`, `--djd-night` and
+  every other `--djd-*` custom property straight from site.css now, no fallback needed, since this
+  is djdigi-theme's own variable rather than one plugin reaching across to another one's.
+- **Gated with `djdt_is_active()`, the same check every other theme feature already uses, not its
+  own separate "Live for everyone" setting.** The djdigi-library version had its own
+  `djdigi_events_live` option and its own Settings > DJ Events screen, safe by default the same way
+  (logged in admins only, until checked), but a second independent toggle all the same. Dropped
+  entirely: `djdt_events_shortcode()` now gates on `djdt_is_active()` directly, exactly like
+  `djdt_hero_shortcode()` and `djdt_venues_shortcode()` do, so one "Live for everyone" checkbox
+  (Theme Settings) now covers the hero, the venues card and events together, not three independent
+  switches that could drift out of sync with each other.
+- **The events page URL now reads `djdt_get('sets_url')`**, the same admin configured "Upcoming
+  sets" setting the hero's own button already points at (Theme Settings, previously unused by
+  anything else in this file), instead of a hardcoded `'upcoming-events'` slug constant: one place
+  to change it, not two.
+- The MEC dequeue and the single-event redirect stay unconditional, not gated behind
+  `djdt_is_active()`: MEC's own front end is not used on this site at all regardless of whether
+  djdigi-theme itself is public yet, same behavior the djdigi-library version already had.
+- Asset registration lives in its own `add_action('wp_enqueue_scripts', ..., 20)` inside
+  `includes/djdt-events.php` itself (self contained, not added to djdigi-theme.php's own existing
+  enqueue block), `djdt-site` as a dependency; `djdt_events_shortcode()` enqueues both only once it
+  actually has something to render, the same pattern `djdt_venues_shortcode()` already uses rather
+  than djdigi-library's own content-scanning pre-check (`shortcode_present_on_request()`), since that
+  simpler pattern is already proven live here.
+- **Verified with a Playwright page** reconstructing the real Avada structure (same harness as
+  v1.7.2's own header fix, extended with the player section, an events row and the venues card in
+  Home v2's own real order) at 390/912/1440/1920: hero full bleed still holds, no regression. **Not
+  run against a real MEC install or the real PHP code** (no PHP interpreter available in this
+  environment, no live/logged-in site access from this session, same standing limitation as the
+  halftone recipe work in v1.7.2): the ported date parsing, MEC handle matching and redirect logic
+  are carried over unchanged from what was already tested live in djdigi-library's own session, not
+  re-verified here.
+
+**Section order on Home v2 needs no code of its own, just shortcode placement**: hero (and the
+player section it outputs right after itself automatically) first, then whatever comes next in the
+page content. Mark adds `[djdigi_events limit="5"]` after `[djdigi_hero]`, then `[djdigi_venues]`
+stays last, giving hero, player, events, venues in that order. Checked for any CSS that assumed a
+fixed order (an adjacent sibling selector like `.djd-player-section + .djd-venues`, which would have
+broken the moment events sat between them): none exists anywhere in this plugin's CSS, every section
+is styled entirely on its own class, order-independent by construction.
+
+**Soft bottom edge: the hero's own glow now actually shows through the sections below it, no hard
+line.** Measured live on v1.7.2: `.djd-hero__glows` (hero.css, `overflow: visible` by design, see
+"Smoothness" above) genuinely does extend about 260px past the hero's own bottom edge (hero bottom
+599px, glow bottom 859px, at the width measured), but `.djd-player-section` painted its own solid
+night background right on top of that overflow, cutting the glow off in a straight horizontal line
+instead of letting it fade into nothing the way its own radial gradient already does everywhere
+else. The fix is not in the glow itself, which is unchanged:
+- `#main` carries the night background directly now on hero pages (site.css, the same rule that
+  already zeroes its side padding, v1.7.1), not just a transparent box.
+- `.djd-player-section`, `.djd-events` and `.djd-venues` all go `background: transparent` on hero
+  pages (site.css, one rule covering all three), so the glow (and `#main`'s own flat night beneath
+  it, once the glow's own alpha has faded to nothing) show through underneath with nothing painted
+  over it. Each of these three sections still carries its own solid night background by default in
+  its own stylesheet (hero.css, events.css, venues.css), for when it is used away from the hero
+  entirely, for example `[djdigi_events]` on the standalone Events page with no hero above it; the
+  hero page override only applies on `body.djdigi-has-hero`.
+- `.djd-player-section__inner`, `.djd-events` and `.djd-venues` each got an explicit
+  `position: relative; z-index: 1;` (hero.css, events.css, venues.css), so their own content stays
+  provably above the glow now that there is nothing solid behind it to begin with, rather than
+  relying on `.djd-hero`'s own `isolation: isolate` and plain DOM paint order to keep that true on
+  its own, which does already hold today but is not something future CSS here should have to
+  re-derive from scratch to avoid breaking.
+- **Verified two ways**: computed `background-color` on `#main` (night) and on all three sections
+  (`rgba(0, 0, 0, 0)`) via the same Playwright harness, at all four widths; and a real screenshot of
+  the hero-to-player seam (glow markup added to the harness, `djd-intro-ready` forced on since
+  nothing drives the real intro timing in a static page) showing the glow fading smoothly into flat
+  night across the boundary, no visible edge at all. **Not checked against the real live glow sizes
+   or exact fade distance**, same standing limitation as the rest of this release: no logged-in
+  access to measure the real rendered page from this session.
 
 ## Admin: three screens
 A top level "DigiMark" item in the WordPress sidebar (v1.4.0, replacing the single page that used to

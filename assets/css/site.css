@@ -662,11 +662,41 @@ body.djdigi-has-hero .fusion-is-sticky .fusion-main-menu {
    page ever gains other, non-full-bleed content below the venues card,
    that content will need its own explicit side padding, since this
    removes the one global inset for the whole page, not just these
-   sections. */
+   sections.
+
+   background-color (v1.8.0): #main now carries the night background
+   directly on hero pages, not just transparent padding. See the "glow
+   shows through" rule further down (the hero's own glow, which already
+   bleeds past the hero's own bottom edge by design, hero.css
+   .djd-hero__glows) for why this box needs to actually be night colored
+   itself now, not just the paper color body.djdigi-theme #main carries
+   everywhere else. */
 body.djdigi-has-hero #main {
 	padding-top: 0 !important;
 	padding-left: 0 !important;
 	padding-right: 0 !important;
+	background-color: var(--djd-night);
+}
+/* v1.8.0, found live: the hero's own glow (.djd-hero__glows, hero.css)
+   genuinely does extend about 260px past the hero's own bottom edge
+   (overflow: visible is deliberate, see hero.css), but .djd-player-section
+   painted its own solid night background right on top of it, which cut
+   the glow off in a straight horizontal line instead of letting it fade
+   out. The fix is not in the glow at all: #main now carries the same
+   night color underneath everything (above), and every full width
+   section that follows the hero on a hero page goes transparent here
+   instead of painting its own second, separately colored night box, so
+   the glow (and #main's own flat night beneath it, once the glow's own
+   alpha has faded to nothing) show through with no seam. Each of these
+   sections still paints its own solid night background by default
+   (hero.css, events.css, venues.css) for when it is used on its own,
+   away from the hero, for example [djdigi_events] on a plain Events
+   page with no hero above it; this only overrides that on a page that
+   actually has the hero's own glow to show through underneath. */
+body.djdigi-has-hero .djd-player-section,
+body.djdigi-has-hero .djd-events,
+body.djdigi-has-hero .djd-venues {
+	background: transparent;
 }
 body.djdigi-has-hero .post-content > .fusion-fullwidth:first-child { padding-top: 0 !important; }
 /* The cream gaps wpautop's own <p>/<br> wrapping leaves around
