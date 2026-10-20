@@ -13,11 +13,16 @@
 	   padded container) sat the hero about 7px too far left and overhung
 	   the same amount on the right, at every width. width: 100% has no
 	   scrollbar in it at all: it simply matches its own parent's content
-	   box, which is already the full, correct page width once the page
-	   itself uses Avada's 100% Width template with a zero padding
-	   container (see readme.txt, "Test page"), the documented, required
-	   setup for any page carrying [djdigi_hero]. No JS measurement needed
-	   either way. */
+	   box. v1.7.0 assumed that box was already the full, correct page
+	   width purely from the page using Avada's 100% Width template with
+	   a zero padding container (readme.txt, "Test page"); v1.7.1 found
+	   live that assumption was wrong, #main itself still carries its own
+	   0 30px padding regardless of that per-page container setting,
+	   which is what actually left a 30px strip of page background on
+	   each side. Fixed at the source instead (site.css zeroes #main's
+	   own side padding on hero pages), not here: once that padding is
+	   genuinely zero, this plain width: 100% is correct with no JS
+	   measurement needed either way, same as before. */
 	width: 100%;
 	background: var(--djd-night);
 	color: var(--djd-paper);
@@ -467,7 +472,7 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 .djd-player-section {
 	position: relative;
 	/* width: 100%, not 100vw: see the identical note on .djd-hero above,
-	   same scrollbar-width bug, same fix. */
+	   same scrollbar-width bug and the same v1.7.1 #main-padding fix. */
 	width: 100%;
 	background: var(--djd-night);
 	color: var(--djd-paper);

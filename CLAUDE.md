@@ -652,6 +652,68 @@ through an ultra-wide monitor rather than looking right only inside one specific
   logo left edge versus the name's), since this harness has no real Avada header markup to render,
   same limitation as the v1.6.1 and v1.6.2 logo work above.
 
+## v1.7.1: #main's own side padding, and the logo/menu row actually made flex
+Mark measured live again at 912px wide, logged in, on v1.7.0, and found the v1.7.0 work above had
+not actually landed as intended:
+- **#main carries its own `padding: 0 30px`**, Avada's own "100% Width" template padding, which
+  `.djd-hero`, `.djd-player-section` and `.djd-venues` all sit inside in normal document flow (they
+  are not the header, which floats `position: absolute` outside this box entirely). v1.7.0's
+  `width: 100%` fix assumed that box was already the full page width purely because the *page's
+  own* builder container (readme.txt, "Test page") has zero padding; it does, but `#main` itself,
+  one level further out, does not, and was never zeroed. Net effect: a 30px strip of page
+  background on each side, on all three sections, the hero no longer full bleed at all, and the
+  header no longer lining up with the content below it since the header reads its own `--djd-gutter`
+  from the window edge while the content read it from 30px in.
+- **The v1.6.2/v1.7.0 vertical logo fix never actually worked either.** New numbers: the logo (72px)
+  and the menu pill (40px) start at the exact same TOP edge, not the same center, 16px apart, the
+  specific signature of `align-items: center` never applying to these two as flex siblings at all (a
+  genuine center puts the taller element's top higher, not level with the shorter one's). v1.7.0's
+  own fix (a `margin-top` nudge sized to the measured difference) worked around that without fixing
+  it, which is fragile: it only holds for exactly 72px and 40px, and breaks again the moment either
+  size changes.
+
+Two fixes, both in site.css:
+- **`#main`'s own side padding is zeroed outright on hero pages**: `body.djdigi-has-hero #main {
+  padding-left: 0 !important; padding-right: 0 !important; }`, added right next to the existing
+  `padding-top: 0 !important` rule (same reasoning, same precedent: v1.4.1 already zeroes this box's
+  top padding unconditionally on these pages). Considered the alternative Mark offered, reading
+  `#main`'s own padding back per breakpoint into a custom property instead of zeroing it: rejected,
+  since that needs Avada's own responsive padding values at breakpoints never actually measured
+  live, where zeroing needs nothing guessed at all. Safe specifically because this project's own
+  test plan keeps a hero page to just `[djdigi_hero]` then `[djdigi_venues]`, nothing else in `#main`
+  on these pages that would want the inset back. **If a hero page ever gets other, non-full-bleed
+  content below the venues card, that content needs its own explicit side padding**, since this
+  removes the one global inset for the whole page, not just these three sections.
+- **The header row is now actually made `display: flex` (`@media (min-width: 801px)`)**, rather than
+  assuming Avada's own row already is one: `align-items: center`, `justify-content: space-between`,
+  `float: none !important` on `.fusion-logo` and `.fusion-main-menu`. This is the first version of
+  this fix that does not depend on that assumption holding, and does not need to know either
+  element's exact height to work. v1.7.0's `margin-top` nudge on `.fusion-logo` is removed entirely,
+  it would only reintroduce an offset on top of a now-genuine center. Scoped to above the mobile menu
+  breakpoint on purpose (Mark's own wording, "leave Avada's mobile header layout alone apart from the
+  logo size"): the unconditional `padding-top: 32px` and `align-items: center` v1.6.1/v1.4.1 put on
+  this row move inside the same media query, so mobile reverts to Avada's own untouched row layout
+  below 801px, only the logo's own size (separately, `@media (max-width: 800px)`, unchanged) differs
+  from stock. `.fusion-logo` also gets `margin-bottom: 0 !important` now, canceling whatever default
+  spacing Avada's own markup puts there, unrelated to the row's own alignment.
+- Both fixes are logically independent, but the first is also what makes the second's own
+  `--djd-gutter` reasoning correct: once `#main` carries no padding, `.djd-hero__inner`'s padding and
+  `.fusion-header`'s padding both measure from the same window edge, so the logo and name's matching
+  `margin-left: var(--djd-name-edge)` (unchanged since v1.6.2) lines up correctly without needing its
+  own change here.
+- **Verified with a Playwright page reconstructing the measured structure** (`#main` padding 0 30px,
+  the header as a sibling absolute wrapper, the real site.css/hero.css/venues.css), not just by
+  reading the CSS, at 390/912/1440/1920 wide: hero left edge is exactly 0, hero width exactly matches
+  the window width, logo left exactly matches the name's left, and `document.documentElement.scrollWidth`
+  equals `clientWidth`, at every one of the four widths. The logo-center-equals-menu-center check
+  also passes at 912/1440/1920. **It does not pass at 390 in this harness**, expected and not a
+  regression: the harness has no real Avada mobile markup (a hamburger toggle instead of this
+  logo/pill pair), and the fix is deliberately scoped to desktop widths only, per Mark's own
+  instruction above; what the real mobile header actually looks like there can only be confirmed
+  live. **Not verified against the real Avada markup otherwise**, same standing caveat as every
+  logo/header bullet above: this harness is built from Mark's own measured numbers and the standard
+  `.fusion-row`/`.fusion-logo`/`.fusion-main-menu` pattern, not from rendering the real theme.
+
 ## Admin: three screens
 A top level "DigiMark" item in the WordPress sidebar (v1.4.0, replacing the single page that used to
 live under Settings), with three screens: Theme Settings, Hero Photos, Venues
