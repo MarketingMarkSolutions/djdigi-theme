@@ -1022,6 +1022,39 @@ raised z-index all confirmed correct once settled; a screenshot of an open drawe
 test harness only ever had placeholder discs with no real photo behind them, so the disc's own
 spinning label was not checked against a real image.
 
+## v1.8.3 fix: mec_dates' own tstart/tend are timestamps, not clock time strings
+Found live, logged in: v1.8.2 showed the empty state on Home v2 even though MEC had five real
+upcoming events. Cause: `djdt_events_datetime_from_mec_row()` concatenated `tstart`/`tend` onto
+`dstart`/`dend` as if they were a time of day string, but MEC's own `mec_dates` table stores those
+two columns as Unix timestamps (confirmed live), so the combined string (a date plus a ten digit
+integer) threw inside `DateTimeImmutable` every time, the catch returned null, and every single
+occurrence from that table was silently dropped, no fallback, just the empty state.
+
+Fixed in `includes/djdt-events.php`: a numeric `tstart`/`tend` is now read as a timestamp
+(`djdt_events_wall_time_from_timestamp()`), resolved against that same row's own `dstart`/`dend`
+(MEC's own 'Y-m-d', never in question). The timestamp alone is ambiguous, since MEC appears to store
+a wall clock time encoded as if it were already UTC rather than a genuine, correctly converted UTC
+instant (no DB access from this session to confirm which, so both are tried): a plain `gmdate()`
+reading and a properly converted `wp_date()` one, trusting whichever one's own calendar date
+actually lands on `dstart`/`dend`. If neither one agrees with the row's own date at all (or the
+column was not numeric to begin with), `djdt_events_wall_time_from_postmeta_time()` falls back to
+that same trusted date plus a time of day read from the post's own postmeta instead, the matching
+`mec_in_days` entry for that exact date on a custom days post, otherwise `mec_date`'s own base
+start/end time. And at the whole list level: if the table exists, returns rows, but not one of them
+produces a usable occurrence (`$had_unparsed_rows`, `djdt_events_occurrences_from_mec_dates_table()`,
+by reference), the caller now falls back to the postmeta reader for the entire list and logs one
+`error_log()` line, rather than ever quietly showing the empty state again the way this exact bug
+just did.
+
+**Verified with a pure logic simulation** (no PHP interpreter or DB access in this environment,
+consistent with every release this session): JS standing in for `gmdate()`/`wp_date()` against both
+storage conventions (MEC's own "fake UTC" quirk, and a genuine correctly converted UTC timestamp,
+including an end time crossing midnight), confirming the matching picks the correct wall clock time
+either way. **Not run against the real database or the real MEC install**, same standing limitation
+as v1.8.2's own occurrence table work; this needs a real live check more than most patches this
+session, since a wrong guess here reproduces exactly the kind of silent, total failure this fix
+exists to catch.
+
 ## Admin: three screens
 A top level "DigiMark" item in the WordPress sidebar (v1.4.0, replacing the single page that used to
 live under Settings), with three screens: Theme Settings, Hero Photos, Venues

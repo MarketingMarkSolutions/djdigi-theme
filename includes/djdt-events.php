@@ -234,8 +234,13 @@ function djdt_events_page_url() {
  * 0 means all.
  */
 function djdt_events_get_upcoming_occurrences( $limit = 0 ) {
-	$occurrences = djdt_events_occurrences_from_mec_dates_table();
-	if ( null === $occurrences ) {
+	$had_unparsed_rows = false;
+	$occurrences        = djdt_events_occurrences_from_mec_dates_table( $had_unparsed_rows );
+	if ( null === $occurrences || $had_unparsed_rows ) {
+		if ( $had_unparsed_rows ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- deliberate, one line, see the v1.8.3 note on djdt_events_occurrences_from_mec_dates_table().
+			error_log( 'djdigi-theme: mec_dates returned rows but none parsed into a usable occurrence, falling back to postmeta.' );
+		}
 		$occurrences = djdt_events_occurrences_from_postmeta();
 	}
 
@@ -265,8 +270,17 @@ function djdt_events_get_upcoming_occurrences( $limit = 0 ) {
  * fallback below understands. Returns null (not an empty array) when the
  * table does not exist at all, so the caller knows to fall back rather
  * than treating "no table" the same as "table exists, genuinely no rows".
+ *
+ * $had_unparsed_rows (by reference, v1.8.3) is set true when the table
+ * exists and returned rows but not one of them produced a usable
+ * occurrence: found live, this happened for every row through v1.8.2
+ * (see the note on djdt_events_datetime_from_mec_row() below) and the
+ * table being genuinely queryable but every row failing to parse was
+ * silently treated the same as "no rows at all", the empty state shown
+ * instead of ever falling back to postmeta. The caller checks this flag
+ * explicitly now rather than relying on an empty array alone.
  */
-function djdt_events_occurrences_from_mec_dates_table() {
+function djdt_events_occurrences_from_mec_dates_table( &$had_unparsed_rows = false ) {
 	global $wpdb;
 	$table = $wpdb->prefix . 'mec_dates';
 
@@ -298,31 +312,49 @@ function djdt_events_occurrences_from_mec_dates_table() {
 		if ( ! $post ) {
 			continue;
 		}
-		$start = djdt_events_datetime_from_mec_row( $row->dstart, $row->tstart );
-		$end   = djdt_events_datetime_from_mec_row( $row->dend, $row->tend );
+		$dstart = trim( (string) $row->dstart );
+		$dend   = trim( (string) $row->dend );
+
+		$start = djdt_events_datetime_from_mec_row( $dstart, $row->tstart );
+		if ( ! $start ) {
+			$start = djdt_events_wall_time_from_postmeta_time( $dstart, $post, 'start' );
+		}
+		$end = djdt_events_datetime_from_mec_row( $dend, $row->tend );
+		if ( ! $end ) {
+			$end = djdt_events_wall_time_from_postmeta_time( $dend, $post, 'end' );
+		}
 		if ( ! $start || ! $end ) {
 			continue;
 		}
 		$occurrences[] = array( 'start' => $start, 'end' => $end, 'post' => $post );
 	}
 
+	if ( ! empty( $rows ) && empty( $occurrences ) ) {
+		$had_unparsed_rows = true;
+	}
+
 	return $occurrences;
 }
 
 /**
- * mec_dates' own dstart/dend and tstart/tend columns, combined into one
- * DateTimeImmutable. Their exact stored format was not confirmed live (no
- * DB access from this session): PHP's own flexible DateTimeImmutable
- * string parser is used here rather than a hand written format specific
- * one, since getting that format guess wrong would silently reintroduce
- * the same kind of bug this table exists to fix, and DateTimeImmutable
- * already handles the common 'Y-m-d' plus 'H:i:s' / 'H:i' combinations
- * MEC is known to use without needing to pin down which one exactly.
+ * mec_dates' own dstart/dend columns are plain 'Y-m-d' dates; tstart/tend
+ * are Unix timestamps (confirmed live, v1.8.3: this function used to
+ * concatenate them onto the date string as if they were a clock time,
+ * "2026-10-22 1792...", which threw inside DateTimeImmutable every
+ * single time, the catch returned null, and every occurrence from this
+ * table was silently dropped). A numeric tstart/tend is now read as a
+ * timestamp instead, resolved against the row's own date column by
+ * djdt_events_wall_time_from_timestamp() below; anything else (not
+ * numeric, or a timestamp that cannot be made to agree with that date at
+ * all) returns null here so the caller falls back to the post's own
+ * postmeta time instead of guessing.
  */
-function djdt_events_datetime_from_mec_row( $date_val, $time_val ) {
-	$date_str = trim( (string) $date_val );
+function djdt_events_datetime_from_mec_row( $date_str, $time_val ) {
 	if ( '' === $date_str ) {
 		return null;
+	}
+	if ( is_numeric( $time_val ) ) {
+		return djdt_events_wall_time_from_timestamp( (int) $time_val, $date_str );
 	}
 	$time_str = trim( (string) $time_val );
 	$combined = '' !== $time_str ? ( $date_str . ' ' . $time_str ) : $date_str;
@@ -331,6 +363,80 @@ function djdt_events_datetime_from_mec_row( $date_val, $time_val ) {
 	} catch ( \Exception $e ) {
 		return null;
 	}
+}
+
+/**
+ * Resolves a mec_dates timestamp column (tstart/tend) against that same
+ * row's own date column (dstart/dend), which is never in question, MEC's
+ * own stored 'Y-m-d'. The timestamp alone is ambiguous: MEC appears to
+ * store a wall clock time encoded as if it were already UTC (no real
+ * timezone conversion happened when it was generated, a common pattern
+ * for this kind of plugin), so this tries that reading first (gmdate())
+ * and a properly converted one (wp_date(), in wp_timezone()) second,
+ * trusting whichever one's own calendar date actually lands on
+ * $date_str; the matched wall clock time is then rebuilt as a
+ * DateTimeImmutable in wp_timezone(). Returns null if neither reading's
+ * date agrees with $date_str at all.
+ */
+function djdt_events_wall_time_from_timestamp( $timestamp, $date_str ) {
+	$utc_wall  = gmdate( 'Y-m-d H:i:s', $timestamp );
+	$site_wall = wp_date( 'Y-m-d H:i:s', $timestamp, wp_timezone() );
+
+	$candidate = null;
+	if ( 0 === strpos( $utc_wall, $date_str ) ) {
+		$candidate = $utc_wall;
+	} elseif ( $site_wall && 0 === strpos( $site_wall, $date_str ) ) {
+		$candidate = $site_wall;
+	}
+	if ( ! $candidate ) {
+		return null;
+	}
+
+	try {
+		return new DateTimeImmutable( $candidate, wp_timezone() );
+	} catch ( \Exception $e ) {
+		return null;
+	}
+}
+
+/**
+ * Per occurrence fallback when a mec_dates row's own tstart/tend cannot
+ * be resolved into a real wall clock time at all: trusts the row's own
+ * date column (dstart/dend, never in question) and reads a time of day
+ * from the post's own postmeta instead, the matching mec_in_days entry
+ * for that exact date if this post repeats on custom days, otherwise
+ * mec_date's own base start/end time. $which is 'start' or 'end'.
+ */
+function djdt_events_wall_time_from_postmeta_time( $date_str, $post, $which ) {
+	$in_days = get_post_meta( $post->ID, 'mec_in_days', true );
+	if ( is_array( $in_days ) ) {
+		foreach ( $in_days as $entry ) {
+			$parts = explode( ':', (string) $entry );
+			if ( 4 !== count( $parts ) ) {
+				continue;
+			}
+			list( $entry_start_date, $entry_end_date, $entry_start_time, $entry_end_time ) = $parts;
+			$entry_date = ( 'start' === $which ) ? $entry_start_date : $entry_end_date;
+			if ( $entry_date === $date_str ) {
+				$time_str = ( 'start' === $which ) ? $entry_start_time : $entry_end_time;
+				return djdt_events_datetime_from_date_and_hyphen_time( $date_str, $time_str );
+			}
+		}
+	}
+
+	$mec_date = get_post_meta( $post->ID, 'mec_date', true );
+	if ( is_array( $mec_date ) && ! empty( $mec_date[ $which ] ) && is_array( $mec_date[ $which ] ) ) {
+		$parts   = $mec_date[ $which ];
+		$hour    = isset( $parts['hour'] ) ? (int) $parts['hour'] : 12;
+		$minutes = isset( $parts['minutes'] ) ? (int) $parts['minutes'] : 0;
+		$ampm    = isset( $parts['ampm'] ) ? strtoupper( (string) $parts['ampm'] ) : 'AM';
+		$ampm    = ( 'PM' === $ampm ) ? 'PM' : 'AM';
+		$str     = sprintf( '%s %02d:%02d %s', $date_str, $hour, $minutes, $ampm );
+		$dt      = DateTimeImmutable::createFromFormat( 'Y-m-d h:i A', $str, wp_timezone() );
+		return $dt ? $dt : null;
+	}
+
+	return null;
 }
 
 /**
