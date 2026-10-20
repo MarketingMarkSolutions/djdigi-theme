@@ -13,6 +13,26 @@
 	var hero = document.querySelector('.djd-hero');
 	if (!hero) return;
 
+	/* v1.8.2: a plain class fallback for the :has() rule in site.css that
+	   zeroes an Avada fusion-fullwidth container's own padding when it
+	   holds one of this theme's full bleed sections (see the var(--djd-vw)
+	   breakout note on .djd-hero, hero.css). Only matters in a browser
+	   without :has() support; the CSS selector already does the same job
+	   on its own everywhere else. */
+	function djdAddBreakoutHostClass(selector) {
+		document.querySelectorAll(selector).forEach(function (el) {
+			var node = el.parentElement;
+			while (node && node !== document.body) {
+				if (node.classList.contains('fusion-fullwidth')) {
+					node.classList.add('djd-breakout-host');
+					break;
+				}
+				node = node.parentElement;
+			}
+		});
+	}
+	djdAddBreakoutHostClass('.djd-hero, .djd-player-section');
+
 	/* -----------------------------------------------------------------------
 	 * Full intro once per session, quick after that. ?intro=1 forces the full
 	 * sequence for testing, but still marks the session as seen afterward, so

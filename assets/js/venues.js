@@ -7,6 +7,18 @@
 	var section = document.querySelector('.djd-venues');
 	if (!section) return;
 
+	/* v1.8.2: :has() fallback class, same as hero.js, see its own comment. */
+	(function () {
+		var node = section.parentElement;
+		while (node && node !== document.body) {
+			if (node.classList.contains('fusion-fullwidth')) {
+				node.classList.add('djd-breakout-host');
+				break;
+			}
+			node = node.parentElement;
+		}
+	})();
+
 	var card = section.querySelector('.djd-venues__card');
 	var track = section.querySelector('.djd-venues__track');
 

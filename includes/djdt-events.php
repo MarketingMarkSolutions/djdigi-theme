@@ -213,13 +213,132 @@ function djdt_events_page_url() {
 
 /* -------------------------------------------------------------------------
  * Reading MEC's data
+ *
+ * v1.8.2, found live: the homepage row showed two single, non repeating
+ * events from January 2025 (long past) as upcoming, and was missing "DJ
+ * DigiMark at The Cafe" entirely, a real occurrence three days away. The
+ * postmeta based parsing below (mec_date's own base start/end, mec_in_days
+ * for a "custom_days" repeat) is kept only as a fallback now, for a site
+ * where MEC's own occurrence table does not exist; the primary source is
+ * MEC's own {$wpdb->prefix}mec_dates table (post_id, dstart, dend, tstart,
+ * tend), which MEC itself maintains as the authoritative occurrence list
+ * for every repeat type, custom days and exceptions included, so this
+ * module no longer has to correctly reverse engineer MEC's own postmeta
+ * schema by hand at all, the likely source of both bugs above.
  * ---------------------------------------------------------------------- */
 
 /**
  * All upcoming occurrences across every mec-events post, sorted by start,
- * each one tonight's or later and not yet ended. $limit = 0 means all.
+ * each one tonight's or later and not yet ended (full date and time, year
+ * included: a DateTimeImmutable comparison, never a string one). $limit =
+ * 0 means all.
  */
 function djdt_events_get_upcoming_occurrences( $limit = 0 ) {
+	$occurrences = djdt_events_occurrences_from_mec_dates_table();
+	if ( null === $occurrences ) {
+		$occurrences = djdt_events_occurrences_from_postmeta();
+	}
+
+	$now      = current_datetime();
+	$upcoming = array();
+	foreach ( $occurrences as $occ ) {
+		if ( $occ['end'] >= $now ) {
+			$upcoming[] = $occ;
+		}
+	}
+
+	usort( $upcoming, function ( $a, $b ) {
+		return $a['start'] <=> $b['start'];
+	} );
+
+	if ( $limit > 0 && count( $upcoming ) > $limit ) {
+		$upcoming = array_slice( $upcoming, 0, $limit );
+	}
+
+	return $upcoming;
+}
+
+/**
+ * Every occurrence, read straight from MEC's own {$wpdb->prefix}mec_dates
+ * table: one row per occurrence already, covering every repeat type MEC
+ * itself supports, not just the single "custom_days" case the postmeta
+ * fallback below understands. Returns null (not an empty array) when the
+ * table does not exist at all, so the caller knows to fall back rather
+ * than treating "no table" the same as "table exists, genuinely no rows".
+ */
+function djdt_events_occurrences_from_mec_dates_table() {
+	global $wpdb;
+	$table = $wpdb->prefix . 'mec_dates';
+
+	$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+	if ( $table !== $exists ) {
+		return null;
+	}
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table and $wpdb->posts are not user input, the standard WP pattern for a dynamic table name.
+	$rows = $wpdb->get_results( $wpdb->prepare(
+		"SELECT d.post_id, d.dstart, d.dend, d.tstart, d.tend
+		FROM {$table} d
+		INNER JOIN {$wpdb->posts} p ON p.ID = d.post_id
+		WHERE p.post_type = %s AND p.post_status = 'publish'",
+		DJDT_EVENTS_MEC_POST_TYPE
+	) );
+	if ( ! is_array( $rows ) ) {
+		return null;
+	}
+
+	$posts_by_id = array();
+	$occurrences = array();
+	foreach ( $rows as $row ) {
+		$post_id = (int) $row->post_id;
+		if ( ! array_key_exists( $post_id, $posts_by_id ) ) {
+			$posts_by_id[ $post_id ] = get_post( $post_id );
+		}
+		$post = $posts_by_id[ $post_id ];
+		if ( ! $post ) {
+			continue;
+		}
+		$start = djdt_events_datetime_from_mec_row( $row->dstart, $row->tstart );
+		$end   = djdt_events_datetime_from_mec_row( $row->dend, $row->tend );
+		if ( ! $start || ! $end ) {
+			continue;
+		}
+		$occurrences[] = array( 'start' => $start, 'end' => $end, 'post' => $post );
+	}
+
+	return $occurrences;
+}
+
+/**
+ * mec_dates' own dstart/dend and tstart/tend columns, combined into one
+ * DateTimeImmutable. Their exact stored format was not confirmed live (no
+ * DB access from this session): PHP's own flexible DateTimeImmutable
+ * string parser is used here rather than a hand written format specific
+ * one, since getting that format guess wrong would silently reintroduce
+ * the same kind of bug this table exists to fix, and DateTimeImmutable
+ * already handles the common 'Y-m-d' plus 'H:i:s' / 'H:i' combinations
+ * MEC is known to use without needing to pin down which one exactly.
+ */
+function djdt_events_datetime_from_mec_row( $date_val, $time_val ) {
+	$date_str = trim( (string) $date_val );
+	if ( '' === $date_str ) {
+		return null;
+	}
+	$time_str = trim( (string) $time_val );
+	$combined = '' !== $time_str ? ( $date_str . ' ' . $time_str ) : $date_str;
+	try {
+		return new DateTimeImmutable( $combined, wp_timezone() );
+	} catch ( \Exception $e ) {
+		return null;
+	}
+}
+
+/**
+ * Fallback for a site where MEC's own mec_dates table does not exist:
+ * every occurrence built from each post's own mec_date / mec_in_days
+ * postmeta instead, the only source this module had through v1.8.1.
+ */
+function djdt_events_occurrences_from_postmeta() {
 	$posts = get_posts( array(
 		'post_type'      => DJDT_EVENTS_MEC_POST_TYPE,
 		'post_status'    => 'publish',
@@ -228,25 +347,12 @@ function djdt_events_get_upcoming_occurrences( $limit = 0 ) {
 		'order'          => 'ASC',
 	) );
 
-	$now         = current_datetime();
 	$occurrences = array();
-
 	foreach ( $posts as $post ) {
 		foreach ( djdt_events_build_occurrences_for_post( $post ) as $occ ) {
-			if ( $occ['end'] >= $now ) {
-				$occurrences[] = $occ;
-			}
+			$occurrences[] = $occ;
 		}
 	}
-
-	usort( $occurrences, function ( $a, $b ) {
-		return $a['start'] <=> $b['start'];
-	} );
-
-	if ( $limit > 0 && count( $occurrences ) > $limit ) {
-		$occurrences = array_slice( $occurrences, 0, $limit );
-	}
-
 	return $occurrences;
 }
 
@@ -397,13 +503,6 @@ function djdt_events_get_more_info( $post_id ) {
 
 /* ----- Date/time formatting --------------------------------------------- */
 
-function djdt_events_format_date_line( $occurrence ) {
-	$display   = djdt_events_display_date( $occurrence );
-	$date_part = $display->format( 'D M j' );
-	$time_part = djdt_events_format_time_range( $occurrence['start'], $occurrence['end'] );
-	return $date_part . ' · ' . $time_part;
-}
-
 function djdt_events_format_time_range( $start, $end ) {
 	$start_ampm = $start->format( 'A' );
 	$end_ampm   = $end->format( 'A' );
@@ -483,51 +582,80 @@ function djdt_events_render_grid( $occurrences, $is_row ) {
 	<?php
 }
 
+/**
+ * v1.8.2: sleeker card, Mark's call. Two collapsed lines only now (venue,
+ * then time), the date moves onto the photo itself as a stub block, the
+ * description/address/more-info link move into the drawer entirely (see
+ * djdt_events_render_card_drawer() below), no excerpt in the collapsed
+ * view at all, the eject button small and inline at the end of the venue
+ * line rather than a large circle overlaid on the photo.
+ */
 function djdt_events_render_card( $occ, $i ) {
 	$post       = $occ['post'];
 	$venue      = djdt_events_get_venue( $post->ID );
-	$more_info  = djdt_events_get_more_info( $post->ID );
 	$venue_name = $venue ? $venue['name'] : get_the_title( $post );
-	$date_line  = djdt_events_format_date_line( $occ );
-	$card_id    = 'djd-events-tray-' . $post->ID . '-' . $i;
+	$display    = djdt_events_display_date( $occ );
+	$time_line  = djdt_events_format_time_range( $occ['start'], $occ['end'] );
+	$drawer_id  = 'djd-events-drawer-' . $post->ID . '-' . $i;
 	$btn_id     = 'djd-events-eject-' . $post->ID . '-' . $i;
 	$img        = get_the_post_thumbnail_url( $post->ID, 'medium_large' );
-	$excerpt    = has_excerpt( $post ) ? get_the_excerpt( $post ) : wp_trim_words( wp_strip_all_tags( $post->post_content ), 24, '…' );
-	$label      = sprintf( 'More info for %s, %s', $venue_name, $occ['start']->format( 'M j' ) );
+	$label      = sprintf( 'More info for %s, %s', $venue_name, $display->format( 'M j' ) );
 	?>
 	<div class="djd-events__card">
-		<div class="djd-events__card-collapsed">
-			<?php if ( $img ) : ?>
-				<div class="djd-events__card-photo">
-					<img src="<?php echo esc_url( $img ); ?>" alt="" loading="lazy" decoding="async">
-				</div>
-			<?php endif; ?>
-			<div class="djd-events__card-body">
-				<div class="djd-events__card-venue"><?php echo esc_html( $venue_name ); ?></div>
-				<div class="djd-events__card-date"><?php echo esc_html( $date_line ); ?></div>
-				<?php if ( $excerpt ) : ?>
-					<p class="djd-events__card-excerpt"><?php echo esc_html( $excerpt ); ?></p>
-				<?php endif; ?>
-			</div>
-			<button
-				type="button"
-				id="<?php echo esc_attr( $btn_id ); ?>"
-				class="djd-events__card-eject"
-				aria-expanded="false"
-				aria-controls="<?php echo esc_attr( $card_id ); ?>"
-				aria-label="<?php echo esc_attr( $label ); ?>"
-			>
-				<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-					<path d="M12 4 L20 15 L4 15 Z" fill="currentColor"/>
-					<rect x="4" y="18" width="16" height="3" fill="currentColor"/>
-				</svg>
-			</button>
-		</div>
-		<div class="djd-events__card-tray" id="<?php echo esc_attr( $card_id ); ?>" role="region" aria-labelledby="<?php echo esc_attr( $btn_id ); ?>" hidden>
-			<div class="djd-events__card-tray-inner">
+		<div class="djd-events__card-inner">
+			<div class="djd-events__card-photo">
 				<?php if ( $img ) : ?>
-					<div class="djd-events__card-disc" style="--djd-events-disc-img: url('<?php echo esc_url( $img ); ?>');" aria-hidden="true"></div>
+					<img src="<?php echo esc_url( $img ); ?>" alt="" loading="lazy" decoding="async">
 				<?php endif; ?>
+				<div class="djd-events__card-datestub" aria-hidden="true">
+					<span class="djd-events__card-datestub-day"><?php echo esc_html( $display->format( 'D' ) ); ?></span>
+					<span class="djd-events__card-datestub-num"><?php echo esc_html( $display->format( 'j' ) ); ?></span>
+					<span class="djd-events__card-datestub-month"><?php echo esc_html( $display->format( 'M' ) ); ?></span>
+				</div>
+			</div>
+			<div class="djd-events__card-body">
+				<div class="djd-events__card-venueline">
+					<span class="djd-events__card-venue"><?php echo esc_html( $venue_name ); ?></span>
+					<button
+						type="button"
+						id="<?php echo esc_attr( $btn_id ); ?>"
+						class="djd-events__card-eject"
+						aria-expanded="false"
+						aria-controls="<?php echo esc_attr( $drawer_id ); ?>"
+						aria-label="<?php echo esc_attr( $label ); ?>"
+					>
+						<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+							<path d="M12 4 L20 15 L4 15 Z" fill="currentColor"/>
+							<rect x="4" y="18" width="16" height="3" fill="currentColor"/>
+						</svg>
+					</button>
+				</div>
+				<div class="djd-events__card-time"><?php echo esc_html( $time_line ); ?></div>
+			</div>
+		</div>
+		<?php djdt_events_render_card_drawer( $occ, $drawer_id, $btn_id, $img ); ?>
+	</div>
+	<?php
+}
+
+/**
+ * The CD drawer (v1.8.2, replacing the under card tray): a disc slides out
+ * from the card's own right side (events.js toggles .is-open, the slide,
+ * spin and unfold are plain CSS transitions, see events.css), the details
+ * panel unfolding beside it, the full description, the venue address and
+ * the Tickets/Info link now living here instead of the collapsed card.
+ */
+function djdt_events_render_card_drawer( $occ, $drawer_id, $btn_id, $img ) {
+	$post      = $occ['post'];
+	$venue     = djdt_events_get_venue( $post->ID );
+	$more_info = djdt_events_get_more_info( $post->ID );
+	?>
+	<div class="djd-events__card-drawer" id="<?php echo esc_attr( $drawer_id ); ?>" role="region" aria-labelledby="<?php echo esc_attr( $btn_id ); ?>" hidden>
+		<?php if ( $img ) : ?>
+			<div class="djd-events__card-disc" style="--djd-events-disc-img: url('<?php echo esc_url( $img ); ?>');" aria-hidden="true"></div>
+		<?php endif; ?>
+		<div class="djd-events__card-panel">
+			<div class="djd-events__card-panel-inner">
 				<div class="djd-events__card-full"><?php echo wp_kses_post( apply_filters( 'the_content', $post->post_content ) ); ?></div>
 				<?php if ( $venue && $venue['address'] ) : ?>
 					<p class="djd-events__card-address">

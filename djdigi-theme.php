@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_venues], and [djdigi_events] for djdigimark.com.
- * Version: 1.8.1
+ * Version: 1.8.2
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.8.1' );
+define( 'DJDT_VERSION', '1.8.2' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -570,6 +570,39 @@ add_action( 'wp_head', function () {
 	echo '<link rel="preload" href="' . esc_url( $f . 'saira-extra-condensed-800.woff2' ) . '" as="font" type="font/woff2" crossorigin>' . "\n";
 	echo '<link rel="preload" href="' . esc_url( $f . 'archivo-wdth.woff2' ) . '" as="font" type="font/woff2" crossorigin>' . "\n";
 }, 2 );
+
+/**
+ * --djd-vw: the real viewport width in px, read from document.documentElement.
+ * clientWidth (unlike 100vw, this never includes the scrollbar's own width,
+ * the same bug that sat the hero 7px too far left back in v1.7.0), set on
+ * html itself so every full bleed theme section (.djd-hero,
+ * .djd-player-section, .djd-events, .djd-venues, each in their own
+ * stylesheet) can read it with width: var(--djd-vw) and break out to the
+ * true window width regardless of how many Avada containers deep their own
+ * direct parent happens to sit (v1.8.2, found live at 2000px wide: Home v2's
+ * content now sits inside a real Avada Builder row, not the flat template
+ * every earlier release assumed, see hero.css for the full history).
+ * Printed as a plain inline script, synchronous, in wp_head, specifically so
+ * it runs and finishes before the page body is ever parsed or painted: this
+ * project does not ship a flash of the wrong width for a moment and then
+ * correct it, same reasoning as the header background kill block below.
+ */
+add_action( 'wp_head', function () {
+	if ( ! djdt_is_active() ) {
+		return;
+	}
+	?>
+	<script>
+	(function () {
+		function djdSetVw() {
+			document.documentElement.style.setProperty( '--djd-vw', document.documentElement.clientWidth + 'px' );
+		}
+		djdSetVw();
+		window.addEventListener( 'resize', djdSetVw );
+	})();
+	</script>
+	<?php
+}, 1 );
 
 /**
  * Avada's own global header background image (an Options panel setting)

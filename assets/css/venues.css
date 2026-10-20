@@ -11,13 +11,11 @@
    at the container's own width/margins, leaving a visible cream strip of
    the page's own background on both sides, and the section read as a
    separate block rather than a continuation of the hero above it).
-   width: 100%, not 100vw (v1.7.0): 100vw includes the scrollbar's own
-   width, which sat this section about 7px too far left and overhanging
-   the same amount on the right, same bug and same fix as .djd-hero and
-   .djd-player-section, see hero.css. width: 100% alone still left a
-   30px strip on each side until v1.7.1 zeroed #main's own side padding
-   on hero pages (site.css): see the v1.7.1 note on .djd-hero in
-   hero.css for why. */
+   width: var(--djd-vw), not 100% (v1.8.2): 100% only ever matched this
+   section's own direct parent, which found live at 2000px wide is a
+   1248px wide Avada builder row these days, not the full page; see the
+   v1.8.2 note on .djd-hero in hero.css for the full history and why a
+   measured viewport width now drives this instead. */
 .djd-venues {
 	position: relative;
 	/* v1.8.0: explicit stacking, not left to rely on plain DOM paint
@@ -26,10 +24,29 @@
 	   underneath it. See the identical note on .djd-player-section__inner,
 	   hero.css. */
 	z-index: 1;
-	width: 100%;
+	/* v1.8.2, found while adding the var(--djd-vw) breakout below: this
+	   section carries its own 40px side padding directly (just below),
+	   unlike .djd-hero and .djd-player-section, whose own horizontal
+	   padding lives one level down on a child instead. With no
+	   box-sizing of its own this section has always been content-box (the
+	   CSS default), so width: 100% plus that 40px padding on each side
+	   actually rendered 80px wider than its parent's own content box,
+	   silently clipped by html's overflow-x: hidden (site.css) rather
+	   than ever showing as a visible scrollbar, with nothing forcing
+	   anyone to notice the section's own true right edge sitting 80px
+	   further right than it should. border-box here is what makes
+	   width: var(--djd-vw) below actually equal var(--djd-vw), padding
+	   included rather than added on top, the same box model .djd-hero and
+	   .djd-events already use. */
+	box-sizing: border-box;
+	width: var(--djd-vw, 100%);
+	margin-left: calc(50% - var(--djd-vw, 100%) / 2);
 	background: var(--djd-night);
 	padding: 56px 40px 64px;
 }
+.djd-venues *,
+.djd-venues *::before,
+.djd-venues *::after { box-sizing: border-box; }
 
 /* ---------------------------------------------------------------------
    Card: a thin border, rounded corners, and the traveling beam. The beam

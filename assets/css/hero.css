@@ -7,23 +7,34 @@
 
 .djd-hero {
 	position: relative;
-	/* v1.7.0, found live: 100vw includes the scrollbar's own width, which
-	   100% does not, so width: 100vw plus margin-left: calc(50% - 50vw)
-	   (the usual trick to break a section out of Avada's own centered,
-	   padded container) sat the hero about 7px too far left and overhung
-	   the same amount on the right, at every width. width: 100% has no
-	   scrollbar in it at all: it simply matches its own parent's content
-	   box. v1.7.0 assumed that box was already the full, correct page
-	   width purely from the page using Avada's 100% Width template with
-	   a zero padding container (readme.txt, "Test page"); v1.7.1 found
-	   live that assumption was wrong, #main itself still carries its own
-	   0 30px padding regardless of that per-page container setting,
-	   which is what actually left a 30px strip of page background on
-	   each side. Fixed at the source instead (site.css zeroes #main's
-	   own side padding on hero pages), not here: once that padding is
-	   genuinely zero, this plain width: 100% is correct with no JS
-	   measurement needed either way, same as before. */
-	width: 100%;
+	/* v1.8.2, found live at 2000px wide: Home v2's content now sits inside
+	   a real Avada Builder container (div.fusion-fullwidth, padding 30px >
+	   div.fusion-builder-row.fusion-row, max-width 1248px > a column >
+	   div.fusion-text), not the flat "100% Width template, zero padding
+	   container" every earlier release through v1.7.2 assumed. width: 100%
+	   only ever matches this section's own direct parent, so under a
+	   builder row like this one it rendered at the row's own 1200px
+	   content width, not the window's. --djd-vw (set in PHP, wp_head, a
+	   tiny inline script run before the page body paints so there is
+	   nothing to flash) holds the real viewport width in px, read fresh
+	   from document.documentElement.clientWidth, which (unlike 100vw)
+	   never includes the scrollbar's own width either, the exact bug that
+	   made the old 100vw trick sit this section 7px too far left back in
+	   v1.7.0. width: var(--djd-vw) plus margin-left: calc(50% - var(--djd-vw)
+	   / 2) is that same old centering trick, just driven by a real
+	   measured number instead of 100vw or an assumption about the parent:
+	   it breaks this section out to the full window width relative to
+	   whatever its own direct parent happens to be, any number of Avada
+	   containers deep, with no dependency on a specific template or zero
+	   padding container existing at all. Falls back to the plain, pre
+	   v1.8.2 100% behavior if JS never runs (var()'s own fallback syntax,
+	   no media query or @supports needed): not full bleed in that case, but
+	   not broken either. site.css still separately zeroes any Avada
+	   fusion-fullwidth container that actually holds one of these
+	   sections (:has(), v1.8.2), its own 30px padding being empty space
+	   this breakout would otherwise have to escape past on every side. */
+	width: var(--djd-vw, 100%);
+	margin-left: calc(50% - var(--djd-vw, 100%) / 2);
 	background: var(--djd-night);
 	color: var(--djd-paper);
 	isolation: isolate;
@@ -471,9 +482,11 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
    ------------------------------------------------------------------ */
 .djd-player-section {
 	position: relative;
-	/* width: 100%, not 100vw: see the identical note on .djd-hero above,
-	   same scrollbar-width bug and the same v1.7.1 #main-padding fix. */
-	width: 100%;
+	/* width: var(--djd-vw), not 100%: see the identical note on .djd-hero
+	   above, same fix, same v1.8.2 finding (an Avada builder row, not a
+	   flat template). */
+	width: var(--djd-vw, 100%);
+	margin-left: calc(50% - var(--djd-vw, 100%) / 2);
 	background: var(--djd-night);
 	color: var(--djd-paper);
 	font-family: var(--djd-sans);

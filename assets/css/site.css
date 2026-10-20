@@ -698,6 +698,42 @@ body.djdigi-has-hero .djd-events,
 body.djdigi-has-hero .djd-venues {
 	background: transparent;
 }
+/* v1.8.2: zero the padding of whichever Avada fusion-fullwidth container
+   actually holds one of this theme's full bleed sections, found live:
+   Home v2's own container (div.fusion-fullwidth, padding 30px) carries
+   real padding of its own, which the var(--djd-vw) breakout (hero.css)
+   does not need or want sitting empty on either side of it. Scoped with
+   :has() to just the fullwidth container(s) that actually wrap one of
+   these four sections, not every fusion-fullwidth on the page: this
+   element is Avada's own generic full width row wrapper, reused all over
+   the site for ordinary, non full bleed content that still wants its
+   normal padding. A plain class fallback (djd-breakout-host, added by
+   each section's own JS, hero.js/venues.js/events.js) covers a browser
+   without :has() support; both do the exact same thing; the ancestor
+   simply has two ways to ever end up styled by this rule, not two
+   different behaviors. */
+body.djdigi-has-hero .fusion-fullwidth:has(.djd-hero, .djd-player-section, .djd-events, .djd-venues),
+body.djdigi-has-hero .fusion-fullwidth.djd-breakout-host {
+	padding-left: 0 !important;
+	padding-right: 0 !important;
+}
+/* Nothing between one of these sections and its own fullwidth ancestor
+   may clip the breakout's own overflow past that ancestor's edges, or
+   the var(--djd-vw) width above would be cut back down to whatever that
+   ancestor's own box happens to be, the exact failure this release is
+   fixing. Avada's builder row and column wrapper are the two likely
+   candidates (found live: div.fusion-builder-row.fusion-row sits between
+   fusion-fullwidth and the column holding this plugin's own shortcode
+   output); not confirmed live whether either one actually sets its own
+   overflow: hidden, written defensively either way, same as the
+   fullwidth padding rule above, and harmless if neither one ever did. */
+body.djdigi-has-hero .fusion-fullwidth:has(.djd-hero, .djd-player-section, .djd-events, .djd-venues),
+body.djdigi-has-hero .fusion-fullwidth.djd-breakout-host,
+body.djdigi-has-hero .fusion-builder-row:has(.djd-hero, .djd-player-section, .djd-events, .djd-venues),
+body.djdigi-has-hero .fusion-layout-column:has(.djd-hero, .djd-player-section, .djd-events, .djd-venues),
+body.djdigi-has-hero .fusion-column-wrapper:has(.djd-hero, .djd-player-section, .djd-events, .djd-venues) {
+	overflow: visible !important;
+}
 body.djdigi-has-hero .post-content > .fusion-fullwidth:first-child { padding-top: 0 !important; }
 /* The cream gaps wpautop's own <p>/<br> wrapping leaves around
    [djdigi_hero] and [djdigi_venues] (v1.4.1, still visible before the

@@ -921,6 +921,107 @@ Two fixes, both in `includes/djdt-events.php`:
   a logged out visit to an MEC single page) and the existing homepage case (`[djdigi_events limit="5"]`,
   logged in or live, MEC assets correctly still dequeued there).
 
+## v1.8.2: real viewport width breakout, correct occurrences, sleeker cards, a CD drawer
+Four pieces, all confirmed by Mark live.
+
+**Full width sections now read a real measured viewport width (`--djd-vw`), not an assumption about
+the page template.** Found live at 2000px wide: Home v2's content now sits inside a real Avada
+Builder container, `div.fusion-fullwidth` (padding 30px) `>` `div.fusion-builder-row.fusion-row`
+(max-width 1248px) `>` a column `>` `div.fusion-text`, several containers deeper than the flat "100%
+Width template, zero padding container" every release through v1.7.2 assumed (see hero.css's own
+v1.7.0/v1.7.1 history). `width: 100%` only ever matches a section's own DIRECT parent, so under a
+builder row like this one every full bleed section (`.djd-hero`, `.djd-player-section`, `.djd-events`,
+`.djd-venues`) rendered at the row's own ~1200px content width, not the window's. Fixed with a small
+inline script, printed synchronously in `wp_head` (`djdigi-theme.php`, before the body ever paints,
+so nothing to flash) that sets `--djd-vw` to `document.documentElement.clientWidth` in px, refreshed
+on resize; every section now uses `width: var(--djd-vw)` plus `margin-left: calc(50% - var(--djd-vw)
+/ 2)`, the classic break-out-of-any-container trick, just driven by a real number instead of `100vw`
+(which includes the scrollbar, the v1.7.0 bug) or an assumption about the parent. Falls back to the
+old, pre v1.8.2 `100%` behavior if JS never runs (`var()`'s own fallback syntax). Also, found and
+fixed in the same pass: `.djd-venues` carries its own 40px side padding directly (unlike `.djd-hero`/
+`.djd-player-section`, whose padding lives one level down on a child) with no `box-sizing` of its own,
+so it had actually been rendering 80px wider than its own parent since v1.3.0, silently clipped by
+`overflow-x: hidden` rather than ever showing as a scrollbar; now `box-sizing: border-box`.
+Separately, any Avada `fusion-fullwidth` container that actually holds one of these four sections has
+its own side padding zeroed (`:has()`, site.css, with a `djd-breakout-host` class fallback each
+section's own JS adds for a browser without `:has()` support), and `overflow: visible` is forced on
+the likely Avada ancestors in between (`fusion-fullwidth`, `fusion-builder-row`, `fusion-layout-column`,
+`fusion-column-wrapper`, the column chain not confirmed live, written defensively). **Verified with a
+Playwright harness built two ways**, the real nested Avada structure Mark measured AND a flat,
+unwrapped one (the brief's own "with the Avada container... and without one"), at 390/912/1440/2000/
+2560: every section's own left and right edge matches the window exactly, zero gap either way,
+logo-left still matches the name's left at every width, no horizontal scroll.
+
+**Events occurrences now come from MEC's own occurrence table, not hand parsed postmeta.** Found
+live: the homepage row showed two single, non repeating events from January 2025 (long past) as
+upcoming, and was missing "DJ DigiMark at The Cafe" entirely, a real occurrence three days away. The
+v1.8.0/v1.8.1 postmeta based parsing (`mec_date`'s own base start/end, `mec_in_days` for a
+"custom_days" repeat) is kept only as a fallback now, for a site where MEC's own table does not
+exist; the primary source is `{$wpdb->prefix}mec_dates` (`post_id`, `dstart`, `dend`, `tstart`,
+`tend`), which MEC itself maintains as the authoritative occurrence list for every repeat type,
+custom days and exceptions included, so this module no longer has to correctly reverse engineer
+MEC's own postmeta schema by hand, the likely source of both bugs (`djdt_events_occurrences_from_mec_dates_table()`,
+`includes/djdt-events.php`; falls back to `djdt_events_occurrences_from_postmeta()`, the old logic,
+renamed but otherwise unchanged, if the table is missing). The date/time columns are combined and
+parsed with a plain `DateTimeImmutable` string constructor rather than a hand written format
+specific one (`djdt_events_datetime_from_mec_row()`): their exact stored format was not confirmed
+live (no DB access from this session), and guessing it wrong would silently reintroduce the same
+kind of bug this table exists to fix. Filtering (end timestamp after now, full date and time, year
+included, a `DateTimeImmutable` comparison never a string one) and sorting (by start) both now
+happen once, centrally, after occurrences are built, regardless of which source produced them.
+**Not verified against the real database or the real MEC install** (no DB or live access from this
+session): traced through by hand against Mark's own expected result list (The Cafe Oct 22, Midnight
+Sun Oct 23, The Edge Oct 30, The Edge Nov 6, Badlands Nov 13, nothing from 2025), not re-run live.
+
+**Sleeker cards (Mark's call).** Two collapsed lines only now, venue then time; the date moved onto
+the photo itself as a stub block (a solid night box, day/number/month stacked in the display font,
+the number largest and in cyan); the description, the venue address and the Tickets/Info link all
+moved into the drawer, gone from the collapsed card entirely. Every card is now exactly the same
+height as a direct result: the venue line is clipped to one line with an ellipsis
+(`.djd-events__card-venue`, `white-space: nowrap`) rather than ever wrapping, so a long venue name
+can no longer grow one card taller than its neighbors the way the old excerpt line could. The eject
+button shrank from 40px to 32px and moved from a circle overlaid on the photo to sitting inline at
+the end of the venue line, muted paper, brighter on hover/focus. `--row` and `--grid` are the same
+auto-fit grid on desktop now (`repeat(auto-fit, minmax(240px, 1fr))`, wrapping to a second row
+rather than ever scrolling sideways, Mark's own instruction this release); they only diverge on
+phone (`@media (max-width: 800px)`), where `--row` becomes a horizontal swipe with `scroll-snap` and
+a hidden scrollbar (`scrollbar-width: none`, a `::-webkit-scrollbar` rule, Mark's call, v1.8.0's own
+"thin, not hidden" choice is gone) and `--grid` just narrows its own columns. "See all dates" is a
+button now, matching the hero's own outline button (`.djd-btn--line`, hero.css) by eye, with its own
+standalone CSS rather than reusing that literal class: this section has to stand on its own when
+used away from the hero entirely (the standalone Events page, where hero.css never loads at all),
+and `.djd-btn`'s own base state is `opacity: 0`, normally only ever paired with the hero's own
+entrance animation, which would have made a reused button permanently invisible there.
+
+**A new CD drawer, replacing the under card tray entirely.** Press eject: the card lifts
+(`translateY(-6px)`, keyed off `.djd-events__card:has(.djd-events__card-drawer.is-open)`, a browser
+without `:has()` just skips the lift, the drawer itself still opens correctly either way, nothing
+here is load bearing); a full disc slides out from the card's own right side like a slot loading CD
+player (`translateX` from fully behind the card to its resting spot, 1100ms opening, 600ms closing,
+the asymmetry is just which rule's own `transition` applies when `.is-open` is added versus removed,
+not a separate close-specific rule), spinning 540 degrees as it goes, easing to a stop
+(`cubic-bezier(0.16, 1, 0.3, 1)`), never spinning back on its own; the details panel unfolds beside
+it with `clip-path` plus opacity, delayed 400ms so it reads as a second beat. Positioned absolute,
+anchored to the card's own right edge (`left: 100%`), so it takes no track/grid space of its own when
+closed; the panel's own `max-width: min(380px, calc(100vw - 48px))` is what keeps an open drawer from
+ever actually pushing the page wider than the viewport even near the row's own right edge, confirmed
+by opening the LAST card specifically (the worst case) at every tested width with no horizontal
+scroll at any of them. On phone the drawer switches from beside the card to below it (`position:
+static`, `flex-direction: column`): there is no room to slide a disc sideways on a phone width card,
+so it slides down instead, same easing, same spin. One open at a time, Escape closes, focus moves
+into the drawer on open and back to its own button on close, same pattern as the v1.8.0/v1.8.1 tray
+(`events.js`). The `hidden` attribute's own UA stylesheet rule carries no `!important`, so this
+section's own `display: flex` on the drawer would otherwise quietly beat it (author origin always
+wins ties with UA origin): `.djd-events__card-drawer[hidden] { display: none; }` is what actually
+keeps a closed drawer out of the tab order and the accessibility tree, not the attribute alone, a
+latent gap the old tray markup likely also had, fixed here while rebuilding the drawer from scratch.
+**Verified with a Playwright page driving the real open/close logic** (`drawer.hidden`, the `is-open`
+class, same code events.js runs): disc transform and opacity, panel opacity, and the card's own
+raised z-index all confirmed correct once settled; a screenshot of an open drawer on both desktop
+(beside the card) and phone (below the card, no horizontal scroll) both read as intended by eye. The
+test harness only ever had placeholder discs with no real photo behind them, so the disc's own
+spinning label was not checked against a real image.
+
 ## Admin: three screens
 A top level "DigiMark" item in the WordPress sidebar (v1.4.0, replacing the single page that used to
 live under Settings), with three screens: Theme Settings, Hero Photos, Venues
