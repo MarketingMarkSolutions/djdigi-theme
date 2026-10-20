@@ -884,6 +884,43 @@ else. The fix is not in the glow itself, which is unchanged:
    or exact fade distance**, same standing limitation as the rest of this release: no logged-in
   access to measure the real rendered page from this session.
 
+## v1.8.1 hotfix: every events behavior actually behind djdt_is_active()
+Found live, logged out, right after v1.8.0 shipped: `/upcoming-events/` (MEC's own real calendar,
+not yet switched to `[djdigi_events]`) rendered MEC's own markup (about 200 `mec-` classes) with
+zero MEC CSS/JS actually loaded, and an MEC single event page (`/events/midnight-sun/`) 301
+redirected for a logged out visitor even though the theme itself was still admin only. Both bugs
+trace back to the same mistake: v1.8.0 kept the MEC dequeue and the single page redirect
+unconditional, independent of `djdt_is_active()`, on the reasoning that MEC's front end is never
+used on this site regardless of whether djdigi-theme is public yet. That reasoning does not survive
+contact with "admin only until Live for everyone is checked": the one guarantee that setting exists
+to make is that a logged out visitor sees the site exactly as it was before this plugin, untouched,
+and both of these behaviors broke that for a logged out visitor specifically.
+
+Two fixes, both in `includes/djdt-events.php`:
+- `djdt_events_redirect_mec_singles()` now returns immediately when `djdt_is_active()` is false, same
+  one-line gate every other theme feature already uses.
+- `djdt_events_dequeue_mec_assets()` is an allowlist now, not a blocklist, the opposite of v1.8.0's
+  own approach. v1.8.0 stripped MEC's assets everywhere EXCEPT a page with a literal MEC shortcode
+  in it, which is exactly what misfired on the real `/upcoming-events/` page: its own MEC markup
+  apparently does not come from a literal `[MEC...]` shortcode tag the old scan could see, so the old
+  logic treated it as "safe to strip" when it was not. The new version only ever dequeues on a page
+  it can positively confirm carries `[djdigi_events]` (`djdt_events_current_request_renders_djdigi_events()`,
+  the same literal post_content string scan technique the MEC shortcode check already used, done this
+  early specifically because `wp_enqueue_scripts` runs before the main content loop has actually
+  executed any shortcode yet, so there is no later point to check "did it actually render" instead)
+  AND that same page does not also carry a real MEC shortcode of its own. Everywhere else, MEC's own
+  assets are left alone, Mark's own instruction: "if unsure, keep MEC assets." Also gated behind
+  `djdt_is_active()` itself now, same as the redirect.
+- The `djdt-events` style/script REGISTRATION (not just enqueueing) is also now gated behind
+  `djdt_is_active()`, matching how `djdt-hero` and `djdt-venues` are already registered in
+  djdigi-theme.php's own main asset block: v1.8.0 had left this one unconditional, an inconsistency
+  this hotfix also cleaned up while making the "every events behavior behind djdt_is_active()" rule
+  actually hold everywhere in this file, not just in the two places the live bugs were found.
+- Not verified against the real site in this session (no live or logged in access available): traced
+  through by hand instead, both scenarios Mark described (a logged out visit to `/upcoming-events/`,
+  a logged out visit to an MEC single page) and the existing homepage case (`[djdigi_events limit="5"]`,
+  logged in or live, MEC assets correctly still dequeued there).
+
 ## Admin: three screens
 A top level "DigiMark" item in the WordPress sidebar (v1.4.0, replacing the single page that used to
 live under Settings), with three screens: Theme Settings, Hero Photos, Venues

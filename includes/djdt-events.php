@@ -58,6 +58,9 @@ define( 'DJDT_EVENTS_MEC_TAXONOMY', 'mec_location' );
 add_shortcode( 'djdigi_events', 'djdt_events_shortcode' );
 
 add_action( 'wp_enqueue_scripts', function () {
+	if ( ! djdt_is_active() ) {
+		return;
+	}
 	wp_register_style(
 		'djdt-events',
 		DJDT_URL . 'assets/css/events.css',
@@ -74,26 +77,49 @@ add_action( 'wp_enqueue_scripts', function () {
 }, 20 );
 
 /* -------------------------------------------------------------------------
- * Stop MEC's own front end assets from loading, and send its own single
- * event pages to the events page instead. Both run unconditionally,
- * independent of djdt_is_active(): MEC's front end is not used on this
- * site at all regardless of whether djdigi-theme itself is public yet,
- * same behavior as the djdigi-library version this was ported from.
+ * Stop MEC's own front end assets from loading on this module's own
+ * [djdigi_events] page, and send MEC's own single event pages to the
+ * events page instead. v1.8.1, found live, logged out: both of these ran
+ * unconditionally through v1.8.0, independent of djdt_is_active(), on the
+ * reasoning that MEC's front end is never used on this site regardless of
+ * whether djdigi-theme itself is public yet. Two real bugs that reasoning
+ * missed: the dequeue is a blocklist (strip MEC's assets everywhere
+ * unless this exact page has a literal MEC shortcode in it), which
+ * misfired on the real /upcoming-events/ page itself, MEC's own calendar
+ * still live there and genuinely needing its own CSS/JS, which the
+ * literal shortcode scan below did not detect it as having (confirmed
+ * live: MEC's own markup rendered, about 200 mec- classes, with zero MEC
+ * CSS/JS actually loaded); and the redirect fired for a logged out
+ * visitor even while the theme itself is still admin only, which breaks
+ * the one guarantee djdt_is_active() exists to make, a logged out visitor
+ * sees the site exactly as it was before this plugin, untouched, until
+ * "Live for everyone" is checked.
  * ---------------------------------------------------------------------- */
 
 add_action( 'wp_enqueue_scripts', 'djdt_events_dequeue_mec_assets', 9999 );
 add_action( 'template_redirect', 'djdt_events_redirect_mec_singles' );
 
 /**
- * Stops MEC's own front end CSS/JS from loading on pages that do not use
- * one of MEC's own shortcodes: this module never calls into MEC's
- * rendering code at all, so MEC's assets are dead weight everywhere
- * except a page that genuinely still has a real MEC shortcode on it.
- * Matched by the registered handle's own source path containing MEC's
- * plugin folder, not by a guessed handle name, which is not something
- * this session had a way to confirm directly against the live site.
+ * Stops MEC's own front end CSS/JS from loading, but only on this
+ * module's own [djdigi_events] page, and only once that page is
+ * confirmed not to also render real MEC output of its own. v1.8.1: an
+ * allowlist now, not a blocklist, the opposite of v1.8.0's own
+ * reasoning. Dequeuing MEC's assets is dead weight exactly one place,
+ * the page carrying [djdigi_events]; everywhere else, including the
+ * cases this cannot positively confirm, MEC's assets are left alone.
+ * "If unsure, keep MEC assets" (Mark's own wording): the cost of a false
+ * negative here (MEC loads its own CSS/JS on a page that did not
+ * actually need it) is a few unused kilobytes; the cost of a false
+ * positive (a page that did need MEC's styling loses it) is what
+ * actually happened live.
  */
 function djdt_events_dequeue_mec_assets() {
+	if ( ! djdt_is_active() ) {
+		return;
+	}
+	if ( ! djdt_events_current_request_renders_djdigi_events() ) {
+		return;
+	}
 	if ( djdt_events_current_request_has_mec_shortcode() ) {
 		return;
 	}
@@ -108,6 +134,23 @@ function djdt_events_dequeue_mec_assets() {
 			}
 		}
 	}
+}
+
+/**
+ * Literal string scan for '[djdigi_events' in the current request's own
+ * post content, the same technique djdt_events_current_request_has_mec_shortcode()
+ * already uses for MEC's own shortcode below: cheap, and available this
+ * early (wp_enqueue_scripts, before the main content loop has actually
+ * run do_shortcode() on anything), unlike checking whether the shortcode
+ * itself has already executed, which it has not yet at this point in the
+ * request.
+ */
+function djdt_events_current_request_renders_djdigi_events() {
+	global $post;
+	if ( ! $post ) {
+		return false;
+	}
+	return false !== strpos( (string) $post->post_content, '[djdigi_events' );
 }
 
 function djdt_events_looks_like_mec_handle( $handle, $registry ) {
@@ -137,9 +180,14 @@ function djdt_events_current_request_has_mec_shortcode() {
 /**
  * MEC's own single event pages 301 to the events page instead: this
  * module renders every upcoming set as its own card, MEC's own single
- * template is never used.
+ * template is never used. v1.8.1: gated behind djdt_is_active() now,
+ * found live redirecting a logged out visitor even while the theme
+ * itself was still admin only, see the section comment above.
  */
 function djdt_events_redirect_mec_singles() {
+	if ( ! djdt_is_active() ) {
+		return;
+	}
 	if ( is_singular( DJDT_EVENTS_MEC_POST_TYPE ) ) {
 		wp_safe_redirect( djdt_events_page_url(), 301 );
 		exit;
