@@ -500,33 +500,54 @@ body.djdigi-has-hero .fusion-header {
 	body.djdigi-has-hero .fusion-main-menu {
 		float: none !important;
 	}
+	/* v1.7.2, found live: the row above was spreading 5 children apart,
+	   not 2. Avada's own clearfix pattern on this row (the row's own
+	   ::before/::after pseudo elements, plus a div.fusion-clearfix
+	   child) are ordinary content as far as flex is concerned, so
+	   justify-content: space-between spaced all of them out instead of
+	   just the logo and the menu: the logo measured at left 106px
+	   against the name's own 38px, and the menu sat at left 246px
+	   instead of the gutter's right edge. None of these three elements
+	   render anything on their own (a clearfix exists only to force
+	   height in normal flow, meaningless once this row is already
+	   flex), so hiding them outright is correct, not a workaround. */
+	body.djdigi-has-hero .fusion-header-wrapper .fusion-row::before,
+	body.djdigi-has-hero .fusion-header-wrapper .fusion-row::after,
+	body.djdigi-has-hero .fusion-header-wrapper .fusion-row > .fusion-clearfix {
+		display: none !important;
+	}
+	/* With the clearfix pieces gone, the row is genuinely just these two
+	   children, but they are still two independent flex items, not a
+	   pair justify-content can be trusted to pin to the opposite ends on
+	   its own if a third invisible item ever reappears (a future Avada
+	   update, an admin notice, anything). margin-left: auto on the menu
+	   pins it to the right edge directly, the same reasoning
+	   justify-content: space-between was already leaning on, just not
+	   dependent on there being exactly two items in the row. */
+	body.djdigi-has-hero .fusion-main-menu {
+		margin-left: auto;
+	}
 }
 body.djdigi-has-hero .fusion-logo {
-	/* v1.7.0's margin-top nudge (half the measured 72px/40px height
-	   difference) is gone: it patched around the row not truly
-	   centering, which the flex row above now does for real, so a fixed
-	   nudge on top of a genuine center would just reintroduce the same
-	   kind of offset it was trying to fix. margin-bottom: 0 cancels
-	   whatever default spacing Avada's own logo markup carries there,
-	   unrelated to the row's own alignment. */
-	margin-bottom: 0 !important;
-	/* v1.6.2, found live: margin-left: 0 only lined the logo up with
-	   .fusion-header's own padding box (--djd-gutter, same as
-	   .djd-hero__inner uses, hero.css); it did not line up with "DJ
-	   DigiMark" itself, which sits 8px further left again (.djd-hero__name's
-	   own negative margin). Reading that same --djd-name-edge custom
-	   property here (defined once, above) instead of a separate 0 keeps the
-	   two left edges tied to one value rather than two independent guesses
-	   that can drift apart. Unaffected by the flex row above: this is a
-	   horizontal offset inside the logo's own box, not the row's own
-	   alignment, and applies at every width since the hero content it
-	   lines up against does too. */
-	margin-left: var(--djd-name-edge, -8px) !important;
+	/* v1.7.2, found live: margin-top: 10px (Avada's own default) was
+	   never actually overridden, just the v1.7.0 nudge that used to sit
+	   on top of it; the logo center was still 5px below the menu
+	   center. One shorthand now sets every side at once instead of
+	   leaving whichever ones nobody has measured yet to Avada's own
+	   defaults: top and bottom at 0 (the flex row above centers it
+	   vertically; a leftover Avada margin would reintroduce exactly the
+	   kind of offset that row is supposed to prevent), left at
+	   --djd-name-edge, the same horizontal offset "DJ DigiMark" uses
+	   (v1.6.2, found live: the logo's left edge did not line up with the
+	   name's own, which sits 8px further left from its own negative
+	   margin). One value read in two places, not two independent guesses
+	   that can drift apart. */
+	margin: 0 0 0 var(--djd-name-edge, -8px) !important;
 	/* v1.6.2 attempt: centering the image within the logo's own box
 	   directly, kept here since it is still a reasonable thing to do on
 	   its own (in case the logo's own box is ever taller than the image
 	   inside it for some other reason), but the flex row above is what
-	   actually closes the measured gap in v1.7.1, not this. */
+	   actually closes the measured gap, not this. */
 	display: flex !important;
 	align-items: center !important;
 }

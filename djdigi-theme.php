@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, and [djdigi_venues] for djdigimark.com.
- * Version: 1.7.1
+ * Version: 1.7.2
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.7.1' );
+define( 'DJDT_VERSION', '1.7.2' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -600,18 +600,30 @@ add_action( 'wp_head', function () {
 }, 9999 );
 
 /* -------------------------------------------------------------------------
- * Hero photo baking: riso halftone (v1.6.0, replacing the flat duotone
- * tint). Generated once, when a photo is saved into Hero Photos
- * (djdt_sanitize's 'photos' branch), not on every front end page load:
- * grayscale with a contrast boost, then two rotated halftone dot screens,
- * violet for the shadows and cyan for the mids, slightly off register,
- * on a near white paper ground, baked straight into a plain JPEG. The
- * front end then serves a plain photo with no CSS filter, no
- * mix-blend-mode and no mask-image on the photo itself, all three of
- * which were forcing a repaint every frame together with the Ken Burns
- * zoom (see CLAUDE.md, "Smoothness" / why the hero photo and the venue
- * strip were choppy). Falls back to the unprocessed original if baking is
- * not possible or comes out wrong, see djdt_bake_is_gray() below.
+ * Hero photo baking: smooth duotone base plus a light halftone overlay
+ * (v1.7.2, "style A", built live on Home v2 and picked by Mark over the
+ * alternatives). Generated once, when a photo is saved into Hero Photos
+ * (djdt_sanitize's 'photos' branch), not on every front end page load, and
+ * baked straight into a plain JPEG. The front end then serves a plain
+ * photo with no CSS filter, no mix-blend-mode and no mask-image on the
+ * photo itself, all three of which were forcing a repaint every frame
+ * together with the Ken Burns zoom (see CLAUDE.md, "Smoothness" / why the
+ * hero photo and the venue strip were choppy). Falls back to the
+ * unprocessed original if baking is not possible or comes out wrong, see
+ * djdt_bake_is_gray() below.
+ *
+ * v1.6.0 through v1.7.1's recipe painted two rotated dot screens straight
+ * onto a blank paper canvas: between dots there was nothing but flat
+ * paper, so the dots themselves were the only thing carrying any detail
+ * at all. v1.7.2 replaces that with a continuous tone map instead: every
+ * pixel gets its own color from a smooth gradient driven by that pixel's
+ * own luminance (djdt_halftone_gradient_rgb() below), so a face, headphones
+ * and decks stay fully legible on their own; the two halftone screens
+ * (djdt_halftone_screen_distance() below) then blend a small fraction of
+ * each pixel toward a darker ink color wherever that pixel falls inside a
+ * screen's own rotated dot grid, which is what reads as fine dot texture
+ * up close rather than the sole source of the image's own detail. See
+ * djdt_halftone_render() for the exact per pixel math.
  *
  * Every baked file gets a unique name (the recipe version plus a short
  * hash of the source file, djdt_halftone_filename() below), not a name
@@ -631,9 +643,17 @@ add_action( 'wp_head', function () {
  * level gray check, carries forward unchanged into this recipe.
  * ---------------------------------------------------------------------- */
 
+define( 'DJDT_HALFTONE_INK_DARK', '#160a33' );
 define( 'DJDT_HALFTONE_VIOLET', '#5a2e91' );
 define( 'DJDT_HALFTONE_CYAN', '#24a9e0' );
 define( 'DJDT_HALFTONE_PAPER', '#eef6fa' );
+// v1.7.2: the two halftone screens no longer paint a flat, fully opaque
+// dot; each one blends a pixel a fixed fraction of the way toward its own
+// ink color instead (see djdt_halftone_render()), a touch darker than the
+// gradient's own violet/cyan stops above so the screens still read as a
+// distinct texture on top of the smooth tone, not a repeat of it.
+define( 'DJDT_HALFTONE_SCREEN_VIOLET', '#3a1a6e' );
+define( 'DJDT_HALFTONE_SCREEN_CYAN', '#1f8fc4' );
 define( 'DJDT_HALFTONE_MAX_DIM', 2000 );
 // Bump this whenever djdt_bake_halftone() changes in a way that means an
 // already baked file needs regenerating to look right, so a recipe fix
@@ -647,7 +667,11 @@ define( 'DJDT_HALFTONE_MAX_DIM', 2000 );
 // browser stretched that up to fill the photo panel, which is what read
 // as soft, oversized dots; and the recipe was reading too dark overall.
 // Fixed below, see the note on djdt_halftone_decode_gd().
-define( 'DJDT_HALFTONE_RECIPE', 2 );
+//
+// v1.7.2: bumped to 3, the "style A" smooth duotone plus light halftone
+// overlay recipe, replacing the dots-only look entirely (see the section
+// comment above and djdt_halftone_render() below).
+define( 'DJDT_HALFTONE_RECIPE', 3 );
 
 /**
  * Returns the baked halftone URL for a hero photo attachment, generating
@@ -949,144 +973,143 @@ function djdt_halftone_decode_gd( $src_path ) {
 }
 
 /**
- * Grayscale plus a contrast boost and a mid gamma lift, the tonal basis
- * both ink layers read from. A separate image so the original color
- * decode is never mutated in place.
- *
- * v1.6.1, found live: the bake read as dark texture, face and decks hard
- * to make out. Contrast raised further (GD's own filter is inverted, a
- * more negative level means more contrast), plus a gamma correction
- * after it (`imagegammacorrect`, which lifts midtones while leaving true
- * black and true white exactly where they are, unlike a flat brightness
- * shift, which would also wash out the highlights) so the face, the
- * headphones and the decks sit in a brighter part of the tonal range
- * before the ink curves in djdt_halftone_layer() even see them, rather
- * than reading as near black and getting buried under full violet
- * coverage.
+ * Smooth gradient map: turns one luminance value (0 = black, 1 = white)
+ * into an [r, g, b] color by linearly interpolating between four fixed
+ * stops (0.00 near black violet, 0.35 violet, 0.72 cyan, 1.00 paper).
+ * This is what carries a photo's own detail now (v1.7.2): every pixel
+ * gets its own color from this curve, not just the pixels a halftone dot
+ * happens to land on, see the section comment above
+ * djdt_halftone_decode_gd() / DJDT_HALFTONE_VIOLET for why that matters.
  */
-function djdt_halftone_gray( $src, $w, $h ) {
-	$gray = imagecreatetruecolor( $w, $h );
-	imagecopy( $gray, $src, 0, 0, 0, 0, $w, $h );
-	imagefilter( $gray, IMG_FILTER_GRAYSCALE );
-	imagefilter( $gray, IMG_FILTER_CONTRAST, -50 );
-	imagegammacorrect( $gray, 1.0, 1.35 );
-	return $gray;
-}
-
-function djdt_halftone_color( $im, $hex, $alpha = 0 ) {
-	list( $r, $g, $b ) = djdt_hex_rgb( $hex );
-	return $alpha > 0 ? imagecolorallocatealpha( $im, $r, $g, $b, $alpha ) : imagecolorallocate( $im, $r, $g, $b );
+function djdt_halftone_gradient_rgb( $l, $stop0, $stop35, $stop72, $stop100 ) {
+	if ( $l <= 0.35 ) {
+		$t = $l / 0.35;
+		$a = $stop0;
+		$b = $stop35;
+	} elseif ( $l <= 0.72 ) {
+		$t = ( $l - 0.35 ) / ( 0.72 - 0.35 );
+		$a = $stop35;
+		$b = $stop72;
+	} else {
+		$t = ( $l - 0.72 ) / ( 1 - 0.72 );
+		$a = $stop72;
+		$b = $stop100;
+	}
+	return array(
+		$a[0] + ( $b[0] - $a[0] ) * $t,
+		$a[1] + ( $b[1] - $a[1] ) * $t,
+		$a[2] + ( $b[2] - $a[2] ) * $t,
+	);
 }
 
 /**
- * Paints one rotated halftone dot screen for one ink layer, straight onto
- * the output canvas: a grid of dot centers, rotated by $angle_deg and
- * offset by ($ox, $oy), each dot's diameter driven by how much ink that
- * layer wants at the source photo's own gray level under that center.
- * Plain pixel operations throughout (imagefilledellipse, imagecolorat), no
+ * Distance, in cell units, from (x, y) to the nearest center of a dot
+ * screen's own rotated grid: rotates the point into the screen's own
+ * axis aligned basis first ($cos/$sin, precomputed once per screen
+ * outside the per pixel loop that calls this), divides by the pitch so
+ * one grid cell is exactly 1.0 unit across, then measures how far that
+ * lands from the nearest whole grid coordinate in both axes. 0 means
+ * sitting exactly on a grid point, a little over 0.7 is the farthest a
+ * point can sit from the nearest one (dead center of a cell).
+ */
+function djdt_halftone_screen_distance( $x, $y, $cos, $sin, $pitch ) {
+	$u  = ( $x * $cos + $y * $sin ) / $pitch;
+	$v  = ( -$x * $sin + $y * $cos ) / $pitch;
+	$du = $u - round( $u );
+	$dv = $v - round( $v );
+	return sqrt( $du * $du + $dv * $dv );
+}
+
+/**
+ * The style A look itself (v1.7.2, built live on Home v2, Mark's pick over
+ * the alternatives): a smooth duotone base, from the gradient map above,
+ * with two rotated halftone screens blended lightly on top, violet for
+ * the shadows and cyan for the mids, so the dots read as a texture over
+ * real detail rather than being the only thing carrying any detail at
+ * all (the v1.6.0 to v1.7.1 recipe's own failure mode). Genuinely per
+ * pixel, not per dot center painted onto blank paper: every output pixel
+ * gets its own luminance, its own gradient mapped base color, and its own
+ * pass/fail test against each screen's rotated grid.
+ *
+ * Both screens use a fixed 3px pitch regardless of the output's own size
+ * (v1.6.1's dot screen instead derived a cell size from DJDT_HALFTONE_MAX_DIM,
+ * grown or shrunk with it; this recipe's dots are meant to read as a fine,
+ * fixed grain close up rather than a size that tracks the photo panel,
+ * per the brief). The violet screen samples 2px left and 1px up from
+ * where the cyan screen samples (not the output pixel's own true
+ * position), the off register look a real riso print's two passes have
+ * when they do not land in exact registration; each screen's own ink
+ * blend only ever nudges a pixel a fixed fraction toward that screen's
+ * ink color (45% violet, 30% cyan) rather than replacing it outright, so
+ * the gradient's own base color is never fully lost under a dot.
+ *
+ * Plain pixel operations throughout (imagecolorat, imagesetpixel), no
  * procedural coder of any kind, see the note on djdt_halftone_decode_gd()
  * above for why that matters on this host.
- *
- * @param resource $out       The output canvas, already filled with paper.
- * @param resource $gray      The contrast boosted grayscale source.
- * @param int      $cell      Dot cell size in pixels.
- * @param float    $angle_deg Screen angle for this layer's grid.
- * @param float    $ox        Grid offset, x, pixels.
- * @param float    $oy        Grid offset, y, pixels.
- * @param int      $color     An allocated (semi transparent) GD color.
- * @param string   $kind      'shadow' (violet) or 'mid' (cyan), which
- *                             tonal curve this layer's ink follows.
- */
-function djdt_halftone_layer( $out, $gray, $w, $h, $cell, $angle_deg, $ox, $oy, $color, $kind ) {
-	$angle = deg2rad( $angle_deg );
-	$cos   = cos( $angle );
-	$sin   = sin( $angle );
-	// Rotated grid basis vectors, scaled by the cell size: stepping by $i
-	// along u and $j along v sweeps a grid of dot centers rotated by the
-	// screen angle, same idea as a real halftone screen's own angled dot
-	// rows.
-	$ux   = $cos * $cell;
-	$uy   = $sin * $cell;
-	$vx   = -$sin * $cell;
-	$vy   = $cos * $cell;
-	$diag = (int) ceil( sqrt( $w * $w + $h * $h ) / $cell ) + 2;
-	for ( $i = -$diag; $i <= $diag; $i++ ) {
-		$base_cx = $w / 2 + $i * $ux + $ox;
-		$base_cy = $h / 2 + $i * $uy + $oy;
-		for ( $j = -$diag; $j <= $diag; $j++ ) {
-			$cx = $base_cx + $j * $vx;
-			$cy = $base_cy + $j * $vy;
-			if ( $cx < -$cell || $cx > $w + $cell || $cy < -$cell || $cy > $h + $cell ) {
-				continue;
-			}
-			$sx = (int) round( min( max( $cx, 0 ), $w - 1 ) );
-			$sy = (int) round( min( max( $cy, 0 ), $h - 1 ) );
-			$l  = ( imagecolorat( $gray, $sx, $sy ) & 0xFF ) / 255; // 0 = black, 1 = white
-			if ( 'shadow' === $kind ) {
-				// Violet: full coverage at black, fading to nothing by
-				// 38% gray (v1.6.1: narrowed from 55%, found live the
-				// photo was reading too dark; this is less territory for
-				// violet to claim, so more of the midtone range reads as
-				// cyan or breaks through to paper instead), so it owns
-				// just the true shadows and stays out of the cyan layer's
-				// own midtone range below.
-				$coverage = max( 0, min( 1, 1 - $l / 0.38 ) );
-				$coverage = pow( $coverage, 0.9 );
-			} else {
-				// Cyan: a triangle peaking at mid gray, zero at both
-				// black (violet's own territory above) and white (paper).
-				$coverage = ( $l <= 0.5 ) ? ( $l / 0.5 ) : ( ( 1 - $l ) / 0.5 );
-				$coverage = pow( max( 0, min( 1, $coverage ) ), 0.7 );
-			}
-			if ( $coverage <= 0.035 ) {
-				continue;
-			}
-			$d = $coverage * $cell * 1.15;
-			if ( $d < 1.2 ) {
-				continue;
-			}
-			imagefilledellipse( $out, (int) round( $cx ), (int) round( $cy ), (int) round( $d ), (int) round( $d ), $color );
-		}
-	}
-}
-
-/**
- * The riso halftone look itself: grayscale with a contrast boost, then two
- * ink layers, violet for the shadows at a 75 degree screen angle and cyan
- * for the mids at 15 degrees, on a near white paper ground. The violet
- * layer sits 2px right and 1px down from the cyan layer (off register, a
- * real riso print never lands its two passes in exact registration).
- * Semi transparent fills (imagecolorallocatealpha) so overlapping dots
- * read as a third, darker blended tone where both inks land on the same
- * spot, the way real riso ink does.
- *
- * Cell size is derived from the output's own long side, not a fixed
- * constant: about 3 to 4px at DJDT_HALFTONE_MAX_DIM (v1.6.1: finer than
- * the original 6px, found live the dots were reading big and soft; now
- * that djdt_halftone_decode_gd() always resizes to exactly
- * DJDT_HALFTONE_MAX_DIM, up or down, "the output's own long side" is
- * effectively always the same value, so the dot screen itself is always
- * generated at full resolution rather than being generated small and
- * then stretched by the browser along with everything else), floored at
- * 3px so the formula stays sane for a source this scales down from
- * something extreme.
  */
 function djdt_halftone_render( $src, $w, $h ) {
-	$gray = djdt_halftone_gray( $src, $w, $h );
-	$out  = imagecreatetruecolor( $w, $h );
-	imagealphablending( $out, true );
-	imagefill( $out, 0, 0, djdt_halftone_color( $out, DJDT_HALFTONE_PAPER ) );
+	$out = imagecreatetruecolor( $w, $h );
 
-	$violet = djdt_halftone_color( $out, DJDT_HALFTONE_VIOLET, 14 );
-	$cyan   = djdt_halftone_color( $out, DJDT_HALFTONE_CYAN, 14 );
+	$stop0   = djdt_hex_rgb( DJDT_HALFTONE_INK_DARK );
+	$stop35  = djdt_hex_rgb( DJDT_HALFTONE_VIOLET );
+	$stop72  = djdt_hex_rgb( DJDT_HALFTONE_CYAN );
+	$stop100 = djdt_hex_rgb( DJDT_HALFTONE_PAPER );
 
-	$long = max( $w, $h );
-	$cell = max( 3, (int) round( $long / 550 ) );
+	$ink_violet = djdt_hex_rgb( DJDT_HALFTONE_SCREEN_VIOLET );
+	$ink_cyan   = djdt_hex_rgb( DJDT_HALFTONE_SCREEN_CYAN );
 
-	djdt_halftone_layer( $out, $gray, $w, $h, $cell, 15, 0, 0, $cyan, 'mid' );
-	djdt_halftone_layer( $out, $gray, $w, $h, $cell, 75, 2, 1, $violet, 'shadow' );
+	$pitch = 3.0;
 
-	imagedestroy( $gray );
+	$violet_angle = deg2rad( 75 );
+	$violet_cos   = cos( $violet_angle );
+	$violet_sin   = sin( $violet_angle );
+
+	$cyan_angle = deg2rad( 15 );
+	$cyan_cos   = cos( $cyan_angle );
+	$cyan_sin   = sin( $cyan_angle );
+
+	for ( $y = 0; $y < $h; $y++ ) {
+		for ( $x = 0; $x < $w; $x++ ) {
+			$rgb = imagecolorat( $src, $x, $y );
+			$r   = ( $rgb >> 16 ) & 0xFF;
+			$g   = ( $rgb >> 8 ) & 0xFF;
+			$b   = $rgb & 0xFF;
+
+			$l = ( 0.299 * $r + 0.587 * $g + 0.114 * $b ) / 255;
+			$l = ( $l - 0.5 ) * 1.15 + 0.5;
+			$l = $l < 0 ? 0 : ( $l > 1 ? 1 : $l );
+			$l = pow( $l, 0.9 );
+
+			list( $cr, $cg, $cb ) = djdt_halftone_gradient_rgb( $l, $stop0, $stop35, $stop72, $stop100 );
+
+			// Violet screen (shadows): sampled 2px left, 1px up, for the
+			// off register look, see the function doc comment above.
+			$vdist = djdt_halftone_screen_distance( $x - 2, $y - 1, $violet_cos, $violet_sin, $pitch );
+			if ( $vdist < sqrt( max( 0.0, 1 - $l ) ) * 0.62 ) {
+				$cr += ( $ink_violet[0] - $cr ) * 0.45;
+				$cg += ( $ink_violet[1] - $cg ) * 0.45;
+				$cb += ( $ink_violet[2] - $cb ) * 0.45;
+			}
+
+			// Cyan screen (mids), no offset: a triangle peaking at 0.55
+			// luminance, zero at both ends of the tonal range.
+			$mid   = 1 - abs( $l - 0.55 ) * 2;
+			$cdist = djdt_halftone_screen_distance( $x, $y, $cyan_cos, $cyan_sin, $pitch );
+			if ( $cdist < sqrt( max( 0.0, $mid ) ) * 0.5 ) {
+				$cr += ( $ink_cyan[0] - $cr ) * 0.30;
+				$cg += ( $ink_cyan[1] - $cg ) * 0.30;
+				$cb += ( $ink_cyan[2] - $cb ) * 0.30;
+			}
+
+			imagesetpixel(
+				$out,
+				$x,
+				$y,
+				( ( (int) round( $cr ) ) << 16 ) | ( ( (int) round( $cg ) ) << 8 ) | (int) round( $cb )
+			);
+		}
+	}
+
 	return $out;
 }
 

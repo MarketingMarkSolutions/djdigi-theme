@@ -714,6 +714,67 @@ Two fixes, both in site.css:
   logo/header bullet above: this harness is built from Mark's own measured numbers and the standard
   `.fusion-row`/`.fusion-logo`/`.fusion-main-menu` pattern, not from rendering the real theme.
 
+## v1.7.2: style A bake recipe, and the header row's real clearfix fix
+Two unrelated fixes, confirmed by Mark live.
+
+**The bake recipe is a smooth duotone base plus a light halftone overlay now ("style A"), not
+dots-only.** Mark built this live on Home v2 and picked it over the alternatives before this was
+written up as a brief. Through v1.7.1 the two ink screens painted straight onto a blank paper
+canvas (`djdt_halftone_layer()`, scattered filled ellipses at dot centers): between dots there was
+nothing but flat paper, so the dots themselves were the only thing carrying any detail at all.
+v1.7.2 replaces the whole render step with a genuinely per pixel one (`djdt_halftone_render()`,
+djdigi-theme.php): every output pixel gets its own color from a smooth four stop gradient map
+(`djdt_halftone_gradient_rgb()`) driven by that pixel's own luminance (0.299/0.587/0.114 weights, a
+contrast curve, then a 0.9 gamma), so a face, headphones and decks stay fully legible everywhere,
+not just where a dot happens to land. The two halftone screens (`djdt_halftone_screen_distance()`,
+a point rotated into each screen's own grid basis and measured against the nearest cell center, in
+cell units) then only nudge a pixel a fixed fraction toward a darker ink color when it falls inside
+that screen's own dot (45% toward `#3a1a6e` for violet/shadows, 30% toward `#1f8fc4` for cyan/mids),
+never replacing the gradient's own base color outright. The violet screen samples 2px left and 1px
+up from the cyan screen's own position (not the output pixel's true position), the off register
+look a real riso print's two passes have when they land slightly apart. `djdt_halftone_gray()`,
+`djdt_halftone_color()` and the old `djdt_halftone_layer()` are gone entirely, replaced by this one
+function; the gray output check, the unique per bake file name, and the per photo bake version
+tracking all carry forward unchanged (`DJDT_HALFTONE_RECIPE` bumped 2 to 3, the Imagick-assisted
+decode still only pings/reads/orients/resizes before handing off to the one shared GD render path,
+see djdt_halftone_decode_gd()'s own doc comment). **Verified with a parallel Node reimplementation
+of the exact same formulas** (no PHP interpreter available in this environment to run the real
+function), against the one real source photo available locally (the bundled `hero-photo.jpg`, not
+the three live source photos Mark's own live demo used, which live in WP's uploads on the server):
+the output reads exactly as intended, a smooth tinted photo with the face, headphones, decks and a
+forearm tattoo all clearly legible, fine dot texture visible only on a 4x crop. **Not run against
+the actual PHP code or the three real source photos**, and the per pixel approach (up to around 3 to
+4 million `imagecolorat()`/`imagesetpixel()` calls plus trig and `pow()` per pixel, no native
+vectorization available in plain PHP) is real work for a shared host even with the existing raised
+memory/time limits; if a bake times out or 500s on the live host, that per pixel cost is the first
+thing to profile, not assumed to be some other regression.
+
+**The header row's `display: flex` fix from v1.7.1 was spreading 5 items, not 2.** Mark measured
+live again at 912px: `.fusion-header .fusion-row` is flex with `justify-content: space-between` as
+v1.7.1 set it, but Avada's own clearfix pattern on this same row (the row's own `::before`/`::after`
+pseudo elements, plus a `div.fusion-clearfix` child) count as ordinary flex items too, so
+`space-between` was spacing all five of them apart, not just the logo and the menu: the logo
+measured at left 106px against the name's own 38px, and the menu sat at left 246px instead of the
+gutter's own right edge. A clearfix exists only to force height in normal (float based) flow,
+meaningless the moment its container is already flex, so hiding all three outright (`display: none`
+on `.fusion-row::before`/`::after` and the `.fusion-clearfix` child, scoped to this row, inside the
+same `@media (min-width: 801px)` block v1.7.1 added) is correct, not a workaround. `.fusion-main-menu`
+also gets `margin-left: auto` now, pinning it to the row's own right edge directly rather than
+depending on `justify-content: space-between` alone to do that correctly if a third invisible item
+like this ever reappears. Separately, found in the same live check: `.fusion-logo` still carried
+Avada's own default `margin-top: 10px`, never actually overridden (only the v1.7.0 nudge sitting on
+top of it had been removed in v1.7.1), which is what put the logo's own center 5px below the menu
+pill's. `.fusion-logo`'s margins are now set as one shorthand, `margin: 0 0 0 var(--djd-name-edge,
+-8px) !important`, rather than individual properties that leave whichever side nobody has measured
+yet to Avada's own default. **Verified with a Playwright page reconstructing Avada's actual clearfix
+markup this time** (not just the logo/menu pair as in v1.7.1's own harness, which could not have
+caught this bug since it never modeled the clearfix pieces that caused it): at 912/1440/1920 wide,
+logo left exactly matches the name's left, logo center exactly matches the menu's center, and the
+menu's own right edge exactly matches the gutter's computed value, all within rounding. The 390px
+check (mobile) does not apply to the logo-center-equals-menu-center target specifically, same as
+v1.7.1: this fix is scoped to desktop widths only, per Mark's own instruction to leave Avada's
+mobile header layout untouched apart from the logo's own size.
+
 ## Admin: three screens
 A top level "DigiMark" item in the WordPress sidebar (v1.4.0, replacing the single page that used to
 live under Settings), with three screens: Theme Settings, Hero Photos, Venues
