@@ -1,99 +1,201 @@
-/* [djdigi_events]: the eject button opens a CD drawer beside its card (v1.8.2,
-   replacing the v1.8.0/v1.8.1 under card tray). All of the actual motion is
-   CSS (the disc's own slide and spin, the panel's own clip-path unfold, see
-   events.css); this only toggles state: hidden -> visible before the
-   transition starts, hidden -> true again only after the close animation has
-   had time to finish, one drawer open at a time, Escape closes, focus moves
-   into the drawer on open and back to its own button on close. */
+/* [djdigi_events]: the CD case cards (v1.9.0). All of the actual motion is
+   CSS (the disc's own open/close keyframes, the hover lift, the play
+   button glow, see events.css); this only toggles state: which card is
+   open (one at a time), the one-shot peek when the section first scrolls
+   into view, focus management, Escape to close, and the Share pill
+   (Add to calendar and Directions are plain links, no JS needed for them).
+
+   LABEL_MS below (when the label fades in after opening) is not read from
+   events.css; it must stay less than that file's own djd-cd-open duration
+   if the two are ever changed together. */
 (function () {
 	'use strict';
 
-	/* v1.8.2: a plain class fallback for the :has() rule in site.css that
-	   zeroes an Avada fusion-fullwidth container's own padding when it
-	   holds this section (see the var(--djd-vw) breakout note on .djd-hero,
-	   hero.css). Only matters in a browser without :has() support. */
-	document.querySelectorAll('.djd-events').forEach(function (section) {
-		var node = section.parentElement;
-		while (node && node !== document.body) {
-			if (node.classList.contains('fusion-fullwidth')) {
-				node.classList.add('djd-breakout-host');
-				break;
+	var LABEL_MS = 850;
+	var COPIED_MS = 2000;
+
+	var openCard = null;
+	var labelTimer = null;
+
+	function discFor( card ) {
+		return card.querySelector( '.djd-cd__disc' );
+	}
+
+	function playButtonFor( card ) {
+		return card.querySelector( '.djd-cd__play' );
+	}
+
+	function firstFocusable( card ) {
+		return card.querySelector( '.djd-cd__disc-label a, .djd-cd__disc-label button' );
+	}
+
+	function openTheCard( card ) {
+		if ( openCard && openCard !== card ) {
+			closeTheCard( openCard, false );
+		}
+		if ( labelTimer ) {
+			clearTimeout( labelTimer );
+			labelTimer = null;
+		}
+
+		var disc = discFor( card );
+		var btn = playButtonFor( card );
+
+		card.classList.add( 'is-open' );
+		disc.classList.remove( 'is-closing' );
+		disc.classList.add( 'is-opening' );
+		if ( btn ) {
+			btn.setAttribute( 'aria-expanded', 'true' );
+		}
+
+		disc.addEventListener( 'animationend', function onEnd() {
+			disc.removeEventListener( 'animationend', onEnd );
+			disc.classList.remove( 'is-opening' );
+		} );
+
+		labelTimer = setTimeout( function () {
+			card.classList.add( 'is-label-visible' );
+			var target = firstFocusable( card );
+			if ( target ) {
+				target.focus();
 			}
-			node = node.parentElement;
-		}
-	});
+			labelTimer = null;
+		}, LABEL_MS );
 
-	// A little past the close transition's own longest piece (the disc's
-	// 600ms spin back in, events.css): long enough the close animation is
-	// never visibly cut off, short enough the drawer does not sit in the
-	// accessibility tree any longer than it has to once actually closed.
-	var CLOSE_FALLBACK_MS = 650;
-
-	var openDrawer = null; // the currently open .djd-events__card-drawer, or null
-	var openBtn = null;
-
-	function drawerFor( btn ) {
-		var id = btn.getAttribute( 'aria-controls' );
-		return id ? document.getElementById( id ) : null;
+		openCard = card;
 	}
 
-	function openCard( btn, drawer ) {
-		if ( openDrawer && openDrawer !== drawer ) {
-			closeCard( openBtn, openDrawer, false );
+	function closeTheCard( card, restoreFocus ) {
+		var disc = discFor( card );
+		var btn = playButtonFor( card );
+
+		if ( labelTimer ) {
+			clearTimeout( labelTimer );
+			labelTimer = null;
 		}
-		btn.setAttribute( 'aria-expanded', 'true' );
-		drawer.hidden = false;
-		// Force a reflow so the browser registers the hidden -> visible
-		// change before adding the class that starts the slide/spin/unfold
-		// transitions; without this the two can collapse into one paint and
-		// the transition never plays.
-		void drawer.offsetHeight;
-		drawer.classList.add( 'is-open' );
-		openDrawer = drawer;
-		openBtn = btn;
 
-		var focusTarget = drawer.querySelector( 'a, button' ) || drawer;
-		if ( focusTarget !== drawer ) {
-			focusTarget.focus();
-		} else {
-			drawer.setAttribute( 'tabindex', '-1' );
-			drawer.focus();
+		card.classList.remove( 'is-open', 'is-label-visible' );
+		disc.classList.remove( 'is-opening' );
+		disc.classList.add( 'is-closing' );
+		if ( btn ) {
+			btn.setAttribute( 'aria-expanded', 'false' );
 		}
-	}
 
-	function closeCard( btn, drawer, restoreFocus ) {
-		btn.setAttribute( 'aria-expanded', 'false' );
-		drawer.classList.remove( 'is-open' );
+		disc.addEventListener( 'animationend', function onEnd() {
+			disc.removeEventListener( 'animationend', onEnd );
+			disc.classList.remove( 'is-closing' );
+		} );
 
-		setTimeout( function () {
-			drawer.hidden = true;
-		}, CLOSE_FALLBACK_MS );
-
-		if ( openDrawer === drawer ) {
-			openDrawer = null;
-			openBtn = null;
+		if ( openCard === card ) {
+			openCard = null;
 		}
-		if ( restoreFocus ) {
+		if ( restoreFocus && btn ) {
 			btn.focus();
 		}
 	}
 
-	document.addEventListener( 'click', function ( e ) {
-		var btn = e.target.closest ? e.target.closest( '.djd-events__card-eject' ) : null;
-		if ( ! btn ) return;
-		var drawer = drawerFor( btn );
-		if ( ! drawer ) return;
+	function handleShare( btn ) {
+		var title = btn.getAttribute( 'data-share-title' ) || '';
+		var url = btn.getAttribute( 'data-share-url' ) || '';
 
-		var isOpen = 'true' === btn.getAttribute( 'aria-expanded' );
-		if ( isOpen ) {
-			closeCard( btn, drawer, false );
+		if ( navigator.share ) {
+			navigator.share( { title: title, url: url } ).catch( function () {} );
+			return;
+		}
+
+		var text = title + ' ' + url;
+		var done = function () { showCopied( btn ); };
+
+		if ( navigator.clipboard && navigator.clipboard.writeText ) {
+			navigator.clipboard.writeText( text ).then( done ).catch( function () {
+				copyWithFallback( text );
+				done();
+			} );
 		} else {
-			openCard( btn, drawer );
+			copyWithFallback( text );
+			done();
+		}
+	}
+
+	function copyWithFallback( text ) {
+		var area = document.createElement( 'textarea' );
+		area.value = text;
+		area.setAttribute( 'readonly', '' );
+		area.style.position = 'fixed';
+		area.style.left = '-9999px';
+		document.body.appendChild( area );
+		area.select();
+		try {
+			document.execCommand( 'copy' );
+		} catch ( e ) {}
+		document.body.removeChild( area );
+	}
+
+	function showCopied( btn ) {
+		var label = btn.querySelector( '.djd-cd__disc-pill-label' );
+		if ( ! label ) {
+			return;
+		}
+		var original = label.textContent;
+		label.textContent = 'Copied';
+		setTimeout( function () {
+			label.textContent = original;
+		}, COPIED_MS );
+	}
+
+	document.addEventListener( 'click', function ( e ) {
+		var shareBtn = e.target.closest ? e.target.closest( '.djd-cd__disc-share' ) : null;
+		if ( shareBtn ) {
+			handleShare( shareBtn );
+			return;
+		}
+		if ( e.target.closest && e.target.closest( 'a' ) ) {
+			return; // let the calendar/directions/address links behave normally.
+		}
+		var card = e.target.closest ? e.target.closest( '.djd-cd' ) : null;
+		if ( ! card ) {
+			return;
+		}
+		if ( card.classList.contains( 'is-open' ) ) {
+			closeTheCard( card, false );
+		} else {
+			openTheCard( card );
 		}
 	} );
 
 	document.addEventListener( 'keydown', function ( e ) {
-		if ( 'Escape' !== e.key || ! openDrawer ) return;
-		closeCard( openBtn, openDrawer, true );
+		if ( 'Escape' !== e.key || ! openCard ) {
+			return;
+		}
+		closeTheCard( openCard, true );
 	} );
+
+	/* One quick peek per disc the first time the section scrolls into
+	   view, staggered 150ms per card, never repeated. */
+	if ( 'IntersectionObserver' in window ) {
+		document.querySelectorAll( '.djd-events' ).forEach( function ( section ) {
+			var peeked = false;
+			var io = new IntersectionObserver( function ( entries ) {
+				entries.forEach( function ( entry ) {
+					if ( ! entry.isIntersecting || peeked ) {
+						return;
+					}
+					peeked = true;
+					var cards = section.querySelectorAll( '.djd-cd' );
+					cards.forEach( function ( card, i ) {
+						setTimeout( function () {
+							var disc = discFor( card );
+							disc.classList.add( 'is-firstpeek' );
+							disc.addEventListener( 'animationend', function onEnd() {
+								disc.removeEventListener( 'animationend', onEnd );
+								disc.classList.remove( 'is-firstpeek' );
+							} );
+						}, i * 150 );
+					} );
+					io.disconnect();
+				} );
+			}, { threshold: 0.2 } );
+			io.observe( section );
+		} );
+	}
 })();
