@@ -24,7 +24,20 @@
    second time. v1.9.0 got the disc's own position wrong (translate(-50%,
    -50%) stacked with the open/close keyframes, which is what made the disc
    fail to land anywhere visible) plus several smaller value drifts. Do not
-   hand tune a value below without checking it against that file first. */
+   hand tune a value below without checking it against that file first.
+
+   v1.9.2, found live: this theme's own global link color
+   (body.djdigi-theme a, site.css) was beating the disc's own link colors
+   (the address, Add to calendar and Directions), a plain class selector
+   always loses to an element plus a class regardless of which stylesheet
+   loads later. Every actual link/button color inside the disc is
+   !important now, the same pattern site.css itself already uses for the
+   footer dock for the identical reason (djdigi-theme.php, .djd-dock__btn).
+   The disc's own label text is also sized in cqi units
+   off the disc's own box now (container-type: inline-size on
+   .djd-cd__disc), not vw off the viewport, and sits on its own solid
+   plate (.djd-cd__disc-plate) so the photo never shows through behind it,
+   only on the outer ring. */
 
 .djd-events {
 	position: relative;
@@ -182,6 +195,13 @@
 .djd-cd__case-day-label {
 	font-size: 19px;
 }
+.djd-cd__case-logo {
+	display: block;
+	max-height: 44px;
+	max-width: 60%;
+	object-fit: contain;
+	margin-bottom: 6px;
+}
 .djd-cd__case-venue {
 	font-family: var(--djd-display);
 	font-weight: 800;
@@ -255,7 +275,29 @@
 }
 
 /* ----- The disc: left/top percentages, never translate(-50%,-50%), so
-   every transform below is only the move itself. ----------------------- */
+   every transform below is only the move itself.
+
+   v1.9.2, found live: the closed/resting peek was invisible (confirmed by
+   measuring the real rendered circle, not just the written percentage).
+   translateY(-9%) scale(0.9), with the default center transform-origin,
+   nets out to a disc edge about 0.3% of the case's own height BELOW the
+   case's top edge, not above it: scale(0.9) shrinks the circle in toward
+   its own center, which pushes the top edge DOWN by almost exactly as
+   much as translateY(-9%) pulls it up, the two nearly canceling. This is
+   true of reference/events-cd-reference.html's own literal values too,
+   confirmed by tracing its actual computed transform matrix at rest, not
+   a mistake introduced by this port; it reads as working during a quick
+   look only because the one time scroll-into-view peek (below) and the
+   hover lift both use a deeper offset that genuinely clears the case, and
+   either one is what a quick check is likely to catch mid motion.
+   translateY(-16%) here does the same math out to about -6% of the
+   case's own height, a real, modest peek, still shallower than the hover
+   lift (-17%, true peek about -7%) and the hint's own peak (-20%, about
+   -9.8%), preserving "hover lifts further, the hint peaks deeper" exactly
+   as before. The open/close keyframes' own closed endpoints and the
+   hint's own 0%/100% (further down) all move to -16% to match, so there
+   is no jump into or out of this resting position; the hover lift and the
+   hint's own -20% peak are unchanged, they already measured correctly. */
 .djd-cd__disc {
 	position: absolute;
 	left: 4%;
@@ -265,8 +307,9 @@
 	border-radius: 50%;
 	z-index: 1;
 	pointer-events: none;
-	transform: translateY(-9%) scale(0.9);
+	transform: translateY(-16%) scale(0.9);
 	transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+	container-type: inline-size;
 }
 .djd-cd:not(.is-open):not(.is-closing):hover .djd-cd__disc {
 	transform: translateY(-17%) scale(0.9) rotate(25deg);
@@ -300,72 +343,91 @@
 	transition: opacity 0.35s ease;
 	text-align: center;
 }
+/* The printed label: a solid plate so the photo only shows on the outer
+   ring, never straight through behind the text. A plain element, first
+   child of .djd-cd__disc-text, so normal paint order alone puts it above
+   .djd-cd__disc-face and below .djd-cd__disc-top/-bottom, no z-index
+   needed. Fades with the rest of the text (same parent opacity). */
+.djd-cd__disc-plate {
+	position: absolute;
+	inset: 14%;
+	border-radius: 50%;
+	background: rgba(11, 8, 32, 0.92);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+}
 .djd-cd__disc-top {
 	position: absolute;
-	top: 9%;
-	left: 17%;
-	right: 17%;
+	top: 19%;
+	left: 22%;
+	right: 22%;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 2px;
+	gap: 1.2cqi;
 }
 .djd-cd__disc-venue {
 	font-family: var(--djd-display);
 	font-weight: 800;
-	font-size: clamp(16px, 1.5vw, 22px);
+	font-size: 7.5cqi;
 	text-transform: uppercase;
 	line-height: 1;
 	color: var(--djd-paper);
 }
 .djd-cd__disc-when {
-	font: 600 clamp(10px, 0.8vw, 12px) var(--djd-sans);
-	opacity: 0.8;
+	font-family: var(--djd-sans);
+	font-weight: 600;
+	font-size: 4cqi;
+	opacity: 0.9;
 	color: var(--djd-paper);
 }
 .djd-cd__disc-address {
 	display: block;
-	font: 700 clamp(11px, 0.95vw, 14px) / 1.3 var(--djd-sans);
-	color: var(--djd-paper);
+	font-family: var(--djd-sans);
+	font-weight: 700;
+	font-size: 4.3cqi;
+	line-height: 1.25;
+	color: #06121a !important;
 	text-decoration: none;
-	margin-top: 4px;
-	padding: 4px 8px;
-	border-radius: 6px;
-	background: rgba(36, 169, 224, 0.18);
+	margin-top: 1.5cqi;
+	padding: 1.4cqi 3cqi;
+	border-radius: 2cqi;
+	background: var(--djd-cyan);
 }
 .djd-cd__disc-address:hover,
 .djd-cd__disc-address:focus-visible {
-	background: var(--djd-cyan);
-	color: #06121a;
+	outline: 2px solid var(--djd-paper);
+	outline-offset: 2px;
 }
 .djd-cd__disc-bottom {
 	position: absolute;
-	bottom: 8%;
-	left: 20%;
-	right: 20%;
+	bottom: 17%;
+	left: 24%;
+	right: 24%;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 3px;
+	gap: 1.4cqi;
 }
 .djd-cd__disc-bottom a,
 .djd-cd__disc-bottom button {
-	font: 700 clamp(10px, 0.85vw, 12.5px) var(--djd-sans);
-	color: var(--djd-paper);
+	font-family: var(--djd-sans);
+	font-weight: 700;
+	font-size: 3.9cqi;
+	color: var(--djd-paper) !important;
 	text-decoration: none;
 	border: 0;
 	cursor: pointer;
-	padding: 3px 10px;
+	padding: 1.2cqi 3.4cqi;
 	border-radius: 999px;
-	background: rgba(241, 236, 226, 0.1);
+	background: rgba(241, 236, 226, 0.14);
 	white-space: nowrap;
 }
 .djd-cd__disc-bottom a:hover,
 .djd-cd__disc-bottom button:hover,
 .djd-cd__disc-bottom a:focus-visible,
 .djd-cd__disc-bottom button:focus-visible {
-	background: var(--djd-cyan);
-	color: #06121a;
+	background: var(--djd-paper);
+	color: #06121a !important;
 }
 .djd-cd__disc-pill-num {
 	font-family: var(--djd-display);
@@ -386,7 +448,7 @@
 	animation: djd-cd-close 0.8s cubic-bezier(0.65, 0, 0.35, 1) forwards;
 }
 @keyframes djd-cd-open {
-	0% { transform: translateY(-9%) scale(0.9) rotate(0deg); z-index: 1; }
+	0% { transform: translateY(-16%) scale(0.9) rotate(0deg); z-index: 1; }
 	45% { transform: translateY(-72%) scale(0.9) rotate(260deg); z-index: 1; }
 	46% { z-index: 5; }
 	100% { transform: translateY(0) scale(1.14) rotate(360deg); z-index: 5; }
@@ -395,13 +457,13 @@
 	0% { transform: translateY(0) scale(1.14) rotate(0deg); z-index: 5; }
 	50% { transform: translateY(-72%) scale(0.9) rotate(-200deg); z-index: 5; }
 	51% { z-index: 1; }
-	100% { transform: translateY(-9%) scale(0.9) rotate(-360deg); z-index: 1; }
+	100% { transform: translateY(-16%) scale(0.9) rotate(-360deg); z-index: 1; }
 }
 
 /* One time peek, staggered per case, when the grid first scrolls into
    view (events.js adds/removes .is-hint once, never loops). */
 @keyframes djd-cd-peek {
-	0%, 100% { transform: translateY(-9%) scale(0.9); }
+	0%, 100% { transform: translateY(-16%) scale(0.9); }
 	50% { transform: translateY(-20%) scale(0.9) rotate(30deg); }
 }
 .djd-cd.is-hint .djd-cd__disc {

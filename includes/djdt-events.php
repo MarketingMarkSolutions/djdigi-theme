@@ -590,7 +590,31 @@ function djdt_events_get_venue( $post_id ) {
 		'tel'     => (string) get_term_meta( $location_id, 'tel', true ),
 		'lat'     => get_term_meta( $location_id, 'latitude', true ),
 		'lng'     => get_term_meta( $location_id, 'longitude', true ),
+		'logo'    => djdt_events_venue_logo_url( $location_id ),
 	);
+}
+
+/**
+ * v1.9.2: the venue logo on the case front (The Edge, term 494, confirmed
+ * live to have one set). MEC's own 'thumbnail' term meta on mec_location:
+ * read live as an attachment ID on every location checked, handled here as
+ * either an attachment ID (the normal case, resolved through WordPress so
+ * it benefits from a generated size) or, defensively, an already-absolute
+ * URL, since MEC's schema for this field was never directly confirmed
+ * beyond the one location Mark pointed at. '' (no extra markup at all,
+ * djdt_events_render_card()) when the location has no thumbnail set.
+ */
+function djdt_events_venue_logo_url( $location_id ) {
+	$raw = get_term_meta( $location_id, 'thumbnail', true );
+	if ( '' === $raw || null === $raw ) {
+		return '';
+	}
+	if ( is_numeric( $raw ) ) {
+		$url = wp_get_attachment_image_url( (int) $raw, 'medium' );
+		return $url ? $url : '';
+	}
+	$raw = (string) $raw;
+	return preg_match( '#^https?://#i', $raw ) ? $raw : '';
 }
 
 /* ----- Date/time formatting --------------------------------------------- */
@@ -726,12 +750,25 @@ function djdt_events_maps_search_url( $address ) {
  * djd-cd prefix) and keeps every size, color, shadow, timing and keyframe
  * exactly as that file has them; events.css and events.js are this
  * function's own counterpart.
+ *
+ * v1.9.2, found live: site.css's global `body.djdigi-theme a { color:
+ * var(--djd-violet); }` was beating the disc's own link colors (a plain
+ * class selector loses to an element-plus-class one regardless of load
+ * order), so events.css now forces every disc text color with !important,
+ * the same pattern already used for the footer dock (djdigi-theme.php,
+ * .djd-dock__btn). The disc's own text also now sizes off the disc itself
+ * (container-type: inline-size, cqi units) instead of the viewport, and
+ * sits on its own solid plate (.djd-cd__disc-plate, below) so the photo
+ * never shows through behind it. Also added here: the venue's own logo,
+ * from MEC's own 'thumbnail' location term meta, above the venue name on
+ * the case front when that location has one set.
  */
 function djdt_events_render_card( $occ, $i ) {
 	$post        = $occ['post'];
 	$venue       = djdt_events_get_venue( $post->ID );
 	$venue_name  = $venue ? $venue['name'] : get_the_title( $post );
 	$address     = $venue ? $venue['address'] : '';
+	$logo        = $venue ? $venue['logo'] : '';
 	$display     = djdt_events_display_date( $occ );
 	$time_line   = djdt_events_format_time_range( $occ['start'], $occ['end'] );
 	$when        = djdt_events_when_tag( $display );
@@ -751,6 +788,9 @@ function djdt_events_render_card( $occ, $i ) {
 					<span class="djd-cd__case-day-num"><?php echo esc_html( $display->format( 'j' ) ); ?></span><span class="djd-cd__case-day-label"><?php echo esc_html( $display->format( 'D' ) . ' · ' . $display->format( 'M' ) ); ?></span>
 				</div>
 				<div>
+					<?php if ( $logo ) : ?>
+						<img class="djd-cd__case-logo" src="<?php echo esc_url( $logo ); ?>" alt="" loading="lazy" decoding="async">
+					<?php endif; ?>
 					<div class="djd-cd__case-venue"><?php echo esc_html( $venue_name ); ?></div>
 					<div class="djd-cd__case-time"><?php echo esc_html( $time_line ); ?></div>
 				</div>
@@ -768,6 +808,7 @@ function djdt_events_render_card( $occ, $i ) {
 		<div class="djd-cd__disc">
 			<div class="djd-cd__disc-face" <?php if ( $img ) : ?>style="--djd-cd-disc-img: url('<?php echo esc_url( $img ); ?>');"<?php endif; ?>></div>
 			<div class="djd-cd__disc-text">
+				<div class="djd-cd__disc-plate" aria-hidden="true"></div>
 				<div class="djd-cd__disc-top">
 					<div class="djd-cd__disc-venue"><?php echo esc_html( $venue_name ); ?></div>
 					<div class="djd-cd__disc-when"><?php echo esc_html( $display->format( 'D M j' ) . ' · ' . $time_line ); ?></div>
