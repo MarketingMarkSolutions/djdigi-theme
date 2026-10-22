@@ -257,22 +257,29 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 
 /* Fades the hero's own lower edge into the page (v1.6.0). A wide, full
    width overlay, roughly the bottom 25 to 30% of the hero, washing the
-   photo panel and the glows into flat night: with the scroll shrink
-   effect gone and the glows now allowed to bleed past the hero's own
-   box (see .djd-hero__glows above), this is what guarantees no visible
-   line across the width regardless of what the photo or the glow
-   positions happen to be doing at the very bottom. Extends a little past
-   the hero's own bottom edge, harmless since the player section and
-   venues right after share the exact same night background, see
-   CLAUDE.md "Smoothness". Above the photo panel and the glows, below the
-   hero's own text content. */
+   photo panel into flat night: with the scroll shrink effect gone and
+   the glows now allowed to bleed past the hero's own box (see
+   .djd-hero__glows above), this is what guarantees no visible line
+   across the width regardless of what the photo is doing at the very
+   bottom. Extends a little past the hero's own bottom edge, harmless
+   since the player section and venues right after share the exact same
+   night background, see CLAUDE.md "Smoothness".
+
+   z-index 2, found live (v1.10.1): above the photo panel (1), below the
+   glows (3). At 5, this sat above the glows too, fading them to solid
+   night inside its own band and ending about 40px below the hero, so
+   the glow reappeared at full strength right where the fade stopped, a
+   sharp horizontal line across the page. The glow needs to run
+   continuously past the hero's own bottom edge for its own fade to read
+   correctly; this now only ever fades the photo underneath it, never the
+   glow on top. */
 .djd-hero__bottom-fade {
 	position: absolute;
 	left: 0;
 	right: 0;
 	bottom: -40px;
 	height: 32%;
-	z-index: 5;
+	z-index: 2;
 	background: linear-gradient(to bottom, rgba(11, 8, 32, 0) 0%, rgba(11, 8, 32, 0.55) 45%, var(--djd-night) 100%);
 	pointer-events: none;
 }
