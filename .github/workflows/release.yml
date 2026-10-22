@@ -33,7 +33,7 @@ jobs:
           mkdir -p build/djdigi-theme
           rsync -a ./ build/djdigi-theme/ \
             --exclude .git --exclude .github --exclude build \
-            --exclude CLAUDE.md --exclude .gitignore
+            --exclude CLAUDE.md --exclude .gitignore --exclude reference
           cd build && zip -qr ../djdigi-theme.zip djdigi-theme
 
       - name: Publish release

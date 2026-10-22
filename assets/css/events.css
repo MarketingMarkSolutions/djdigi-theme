@@ -16,7 +16,15 @@
    v1.9.0: every event is its own CD case now (Mark's call, built live on
    Home v2 and approved there), replacing the v1.8.x date stub card and the
    slide out drawer entirely. See includes/djdt-events.php,
-   djdt_events_render_card(), for the markup this styles. */
+   djdt_events_render_card(), for the markup this styles.
+
+   v1.9.1: the CD case rules below (from "The CD case" on) are ported
+   straight from reference/events-cd-reference.html, the file Mark actually
+   approved, 1:1 on every value, not rebuilt from the written brief a
+   second time. v1.9.0 got the disc's own position wrong (translate(-50%,
+   -50%) stacked with the open/close keyframes, which is what made the disc
+   fail to land anywhere visible) plus several smaller value drifts. Do not
+   hand tune a value below without checking it against that file first. */
 
 .djd-events {
 	position: relative;
@@ -100,7 +108,16 @@
 .djd-events__seeall:focus-visible { outline: 3px solid var(--djd-cyan); outline-offset: 3px; }
 
 /* =======================================================================
-   The CD case
+   The CD case (reference/events-cd-reference.html; .cs -> .djd-cd,
+   .case+.face -> .djd-cd__case, .ph -> .djd-cd__case-photo, .sp ->
+   .djd-cd__case-spine, .in -> .djd-cd__case-inner, .dt -> .djd-cd__case-
+   date, .n/.s -> .djd-cd__case-day-num/-day-label, .v/.tm ->
+   .djd-cd__case-venue/-time, .wh -> .djd-cd__case-when, .cue ->
+   .djd-cd__play, .d6 -> .djd-cd__disc, .lbl -> .djd-cd__disc-face, .txt ->
+   .djd-cd__disc-text, .top/.vn/.wd/.ad6 -> .djd-cd__disc-top/-venue/-when/
+   -address, .bot/.no -> .djd-cd__disc-bottom/-pill-num, .share stays
+   .djd-cd__disc-share. The reference's own .case wrapper added nothing
+   (a plain inset:0 box around .face); folded into .djd-cd__case directly.
    ====================================================================== */
 
 .djd-cd {
@@ -109,196 +126,18 @@
 	min-width: 0;
 	cursor: pointer;
 }
+.djd-cd.is-open { z-index: 6; }
 
-/* ----- The disc: behind the case, peeking out of its top ------------- */
-.djd-cd__disc {
-	position: absolute;
-	left: 50%;
-	top: 50%;
-	width: 92%;
-	height: 92%;
-	border-radius: 50%;
-	z-index: 1;
-	cursor: pointer;
-	transform: translate(-50%, -50%) translateY(-9%) scale(0.9) rotate(0deg);
-	transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
-	background-image:
-		radial-gradient(circle, transparent 6.5%, rgba(255, 255, 255, 0.85) 7%, rgba(255, 255, 255, 0.85) 8.3%, transparent 8.8%),
-		radial-gradient(circle, rgba(11, 8, 32, 0.55), rgba(11, 8, 32, 0.82) 70%),
-		repeating-radial-gradient(circle, rgba(255, 255, 255, 0.05) 0, rgba(255, 255, 255, 0.05) 1px, transparent 1px, transparent 3px),
-		var(--djd-cd-disc-img, none);
-	background-size: 100% 100%, 100% 100%, 100% 100%, cover;
-	background-position: center;
-	box-shadow: 0 0 0 2px rgba(235, 240, 248, 0.9), 0 0 0 7px rgba(255, 255, 255, 0.08), 0 18px 40px rgba(0, 0, 0, 0.6);
-}
-/* The sheen: a soft conic highlight at two points, on top of everything
-   else baked into the disc's own layered background above. */
-.djd-cd__disc::after {
-	content: "";
-	position: absolute;
-	inset: 0;
-	border-radius: 50%;
-	pointer-events: none;
-	mix-blend-mode: soft-light;
-	background: conic-gradient(
-		from 200deg,
-		rgba(255, 255, 255, 0.55) 0deg,
-		transparent 40deg,
-		transparent 180deg,
-		rgba(255, 255, 255, 0.4) 200deg,
-		transparent 240deg,
-		transparent 360deg
-	);
-}
-@media (hover: hover) {
-	.djd-cd:not(.is-open):hover .djd-cd__disc:not(.is-opening):not(.is-closing) {
-		transform: translate(-50%, -50%) translateY(-17%) scale(0.9) rotate(25deg);
-	}
-}
-
-/* One-shot peek the moment the section first scrolls into view (events.js
-   adds/removes this class once, staggered per card). Starts and ends on
-   the exact same transform as the resting peek above, so there is no jump
-   into or out of it. */
-@keyframes djd-cd-firstpeek {
-	0%, 100% { transform: translate(-50%, -50%) translateY(-9%) scale(0.9) rotate(0deg); }
-	50% { transform: translate(-50%, -50%) translateY(-20%) scale(0.9) rotate(0deg); }
-}
-.djd-cd__disc.is-firstpeek {
-	animation: djd-cd-firstpeek 1s cubic-bezier(0.22, 1, 0.36, 1) 1;
-}
-
-/* Opening: rises from the peek, spins to 260deg at 45%, switches in front
-   of the case at 46%, lands at scale(1.14) rotate(360deg). events.js adds
-   this class and removes it on animationend. */
-@keyframes djd-cd-open {
-	0% { transform: translate(-50%, -50%) translateY(-9%) scale(0.9) rotate(0deg); z-index: 1; }
-	45% { transform: translate(-50%, -50%) translateY(-72%) scale(0.9) rotate(260deg); z-index: 1; }
-	46% { z-index: 3; }
-	100% { transform: translate(-50%, -50%) translateY(0) scale(1.14) rotate(360deg); z-index: 3; }
-}
-.djd-cd__disc.is-opening {
-	animation: djd-cd-open 1.15s cubic-bezier(0.22, 1, 0.36, 1) 1 forwards;
-}
-
-/* Closing: the reverse trip, shorter and with a different ease, switching
-   behind the case again at the midpoint. */
-@keyframes djd-cd-close {
-	0% { transform: translate(-50%, -50%) translateY(0) scale(1.14) rotate(360deg); z-index: 3; }
-	54% { transform: translate(-50%, -50%) translateY(-72%) scale(0.9) rotate(100deg); z-index: 3; }
-	55% { z-index: 1; }
-	100% { transform: translate(-50%, -50%) translateY(-9%) scale(0.9) rotate(0deg); z-index: 1; }
-}
-.djd-cd__disc.is-closing {
-	animation: djd-cd-close 0.8s cubic-bezier(0.65, 0, 0.35, 1) 1 forwards;
-}
-
-/* Open, settled: holds the landed position once the open keyframes finish
-   (is-opening is removed on animationend; this class stays for as long as
-   the case is open) without relying on animation-fill-mode across a class
-   swap. */
-.djd-cd.is-open .djd-cd__disc:not(.is-opening):not(.is-closing) {
-	transform: translate(-50%, -50%) translateY(0) scale(1.14) rotate(0deg);
-	z-index: 3;
-	transition: none;
-}
-
-/* ----- The disc's label: fades in once the disc has landed ----------- */
-.djd-cd__disc-label {
-	position: absolute;
-	inset: 0;
-	z-index: 1;
-	display: flex;
-	flex-direction: column;
-	justify-content: space-between;
-	align-items: center;
-	text-align: center;
-	padding: 9% 15% 8%;
-	opacity: 0;
-	pointer-events: none;
-	transition: opacity 0.3s ease;
-}
-.djd-cd.is-label-visible .djd-cd__disc-label {
-	opacity: 1;
-	pointer-events: auto;
-}
-.djd-cd__disc-venue {
-	margin: 0;
-	font-family: var(--djd-display);
-	font-weight: 800;
-	font-size: clamp(16px, 1.5vw, 22px);
-	line-height: 1.1;
-	text-transform: uppercase;
-	color: var(--djd-paper);
-}
-.djd-cd__disc-when {
-	margin: 4px 0 0;
-	font-size: clamp(10px, 0.8vw, 12px);
-	color: rgba(241, 236, 226, 0.8);
-}
-.djd-cd__disc-address {
-	margin: 8px 0 0;
-}
-.djd-cd__disc-address a {
-	display: inline-block;
-	padding: 4px 10px;
-	border-radius: 6px;
-	background: rgba(36, 169, 224, 0.18);
-	color: var(--djd-paper);
-	font-size: clamp(11px, 0.95vw, 14px);
-	font-weight: 700;
-	text-decoration: none;
-	transition: background-color 0.2s ease, color 0.2s ease;
-}
-.djd-cd__disc-address a:hover,
-.djd-cd__disc-address a:focus-visible {
-	background: var(--djd-cyan);
-	color: var(--djd-night);
-}
-
-.djd-cd__disc-bottom {
-	display: flex;
-	flex-direction: column;
-	align-items: stretch;
-	gap: 6px;
-	width: 100%;
-}
-.djd-cd__disc-pill {
-	display: block;
-	border: 0;
-	border-radius: 999px;
-	padding: 6px 12px;
-	background: rgba(241, 236, 226, 0.1);
-	color: var(--djd-paper);
-	font-family: var(--djd-sans);
-	font-size: 11px;
-	font-weight: 600;
-	text-align: center;
-	text-decoration: none;
-	cursor: pointer;
-	transition: background-color 0.2s ease, color 0.2s ease;
-}
-.djd-cd__disc-pill-num {
-	font-family: var(--djd-display);
-	opacity: 0.6;
-}
-.djd-cd__disc-pill:hover,
-.djd-cd__disc-pill:focus-visible {
-	background: var(--djd-cyan);
-	color: var(--djd-night);
-}
-.djd-cd__disc-pill:focus-visible { outline: 2px solid var(--djd-paper); outline-offset: 2px; }
-
-/* ----- The case (closed face) ---------------------------------------- */
+/* ----- The case (front cover) ----------------------------------------- */
 .djd-cd__case {
 	position: absolute;
 	inset: 0;
-	z-index: 2;
+	z-index: 3;
 	overflow: hidden;
 	border-radius: 6px;
 	background: #160f33;
-	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 14px 32px rgba(0, 0, 0, 0.45);
-	transition: transform 0.4s ease, opacity 0.4s ease;
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 10px 30px rgba(0, 0, 0, 0.35);
+	transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease;
 }
 .djd-cd.is-open .djd-cd__case {
 	transform: scale(0.96);
@@ -312,11 +151,6 @@
 	object-fit: cover;
 	opacity: 0.35;
 }
-.djd-cd__case-gradient {
-	position: absolute;
-	inset: 0;
-	background: linear-gradient(to top, rgba(11, 8, 32, 0.92), rgba(11, 8, 32, 0.15) 60%);
-}
 .djd-cd__case-spine {
 	position: absolute;
 	left: 0;
@@ -325,118 +159,251 @@
 	width: 12px;
 	background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.04));
 }
-
-.djd-cd__case-date {
+.djd-cd__case-inner {
 	position: absolute;
-	left: 16px;
-	top: 14px;
+	inset: 0;
+	padding: 16px 18px 16px 26px;
 	display: flex;
 	flex-direction: column;
+	justify-content: space-between;
+	background: linear-gradient(to top, rgba(11, 8, 32, 0.92), rgba(11, 8, 32, 0.15) 60%);
+}
+.djd-cd__case-date {
+	font-family: var(--djd-display);
+	font-weight: 800;
+	text-transform: uppercase;
 	line-height: 0.85;
 }
 .djd-cd__case-day-num {
-	font-family: var(--djd-display);
-	font-weight: 800;
+	display: block;
 	font-size: 84px;
 	color: var(--djd-cyan);
 }
 .djd-cd__case-day-label {
-	margin-top: 4px;
-	font-family: var(--djd-display);
-	font-weight: 700;
 	font-size: 19px;
-	color: var(--djd-paper);
-}
-
-.djd-cd__case-when {
-	position: absolute;
-	right: 14px;
-	top: 14px;
-	padding: 5px 11px;
-	border-radius: 999px;
-	background: var(--djd-cyan);
-	color: var(--djd-night);
-	font-family: var(--djd-sans);
-	font-size: 11px;
-	font-weight: 700;
-}
-
-.djd-cd__case-foot {
-	position: absolute;
-	left: 16px;
-	bottom: 16px;
-	right: 70px;
 }
 .djd-cd__case-venue {
-	margin: 0;
 	font-family: var(--djd-display);
 	font-weight: 800;
 	font-size: 24px;
-	line-height: 1.1;
 	text-transform: uppercase;
-	color: var(--djd-paper);
+	line-height: 1;
 }
 .djd-cd__case-time {
-	margin: 2px 0 0;
 	font-size: 13px;
 	font-weight: 600;
 	opacity: 0.85;
-	color: var(--djd-paper);
+	margin-top: 4px;
+}
+.djd-cd__case-when {
+	position: absolute;
+	top: 16px;
+	right: 16px;
+	font: 700 11px var(--djd-sans);
+	background: var(--djd-cyan);
+	color: #06121a;
+	border-radius: 999px;
+	padding: 4px 9px;
 }
 
-/* ----- The play button ------------------------------------------------ */
+/* ----- The play button, glow behind it -------------------------------- */
 .djd-cd__play {
 	position: absolute;
 	right: 14px;
 	bottom: 14px;
-	z-index: 1;
+	z-index: 4;
 	width: 44px;
 	height: 44px;
 	border: 0;
+	padding: 0;
 	border-radius: 50%;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	background: var(--djd-paper);
-	color: var(--djd-night);
-	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 	cursor: pointer;
-	transition: transform 0.2s ease, opacity 0.2s ease;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+	transition: transform 0.2s ease;
 }
-.djd-cd__play svg { transform: translateX(3px); }
+.djd-cd__play svg { margin-left: 3px; }
 @media (hover: hover) {
-	.djd-cd__play:hover { transform: scale(1.08); }
+	.djd-cd:hover .djd-cd__play { transform: scale(1.08); }
 }
 .djd-cd__play:focus-visible { outline: 3px solid var(--djd-cyan); outline-offset: 3px; }
 .djd-cd.is-open .djd-cd__play {
 	opacity: 0;
 	pointer-events: none;
 }
-
-/* The glow: two pseudo elements behind the button, pulsing out and fading,
-   staggered per card via --djd-cd-glow-dur (inline style, events.php) and
-   offset from each other by half their own duration. */
 .djd-cd__play::before,
 .djd-cd__play::after {
 	content: "";
 	position: absolute;
-	inset: -16px;
+	inset: 0;
 	z-index: -1;
 	border-radius: 50%;
 	pointer-events: none;
 	background: radial-gradient(circle, rgba(241, 236, 226, 0.55), rgba(36, 169, 224, 0.35) 55%, transparent 72%);
-	animation: djd-cd-play-glow var(--djd-cd-glow-dur, 2.6s) ease-in-out infinite;
+	animation: djd-cd-glow var(--djd-cd-glow-dur, 2.6s) ease-in-out infinite;
 }
 .djd-cd__play::after {
 	animation-delay: calc(var(--djd-cd-glow-dur, 2.6s) / -2);
 }
-@keyframes djd-cd-play-glow {
+@keyframes djd-cd-glow {
 	0% { transform: scale(1); opacity: 0; }
-	50% { opacity: 0.9; }
+	35% { opacity: 0.9; }
 	100% { transform: scale(2.1); opacity: 0; }
 }
 
-@media (max-width: 559px) {
-	.djd-cd__case-day-num { font-size: 64px; }
-	.djd-cd__case-venue { font-size: 20px; }
+/* ----- The disc: left/top percentages, never translate(-50%,-50%), so
+   every transform below is only the move itself. ----------------------- */
+.djd-cd__disc {
+	position: absolute;
+	left: 4%;
+	top: 4%;
+	width: 92%;
+	height: 92%;
+	border-radius: 50%;
+	z-index: 1;
+	pointer-events: none;
+	transform: translateY(-9%) scale(0.9);
+	transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.djd-cd:not(.is-open):not(.is-closing):hover .djd-cd__disc {
+	transform: translateY(-17%) scale(0.9) rotate(25deg);
+}
+
+.djd-cd__disc-face {
+	position: absolute;
+	inset: 0;
+	border-radius: 50%;
+	background:
+		radial-gradient(circle, transparent 0 6.5%, rgba(255, 255, 255, 0.85) 7% 8.3%, transparent 8.8%),
+		radial-gradient(circle, rgba(11, 8, 32, 0.55), rgba(11, 8, 32, 0.82) 70%),
+		repeating-radial-gradient(circle, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 3px),
+		var(--djd-cd-disc-img, none) center / cover;
+	box-shadow: 0 0 0 2px rgba(235, 240, 248, 0.9), 0 0 0 7px rgba(255, 255, 255, 0.08), 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+.djd-cd__disc-face::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: 50%;
+	pointer-events: none;
+	background: conic-gradient(rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 22%, rgba(255, 255, 255, 0.16) 52%, rgba(255, 255, 255, 0) 66%);
+}
+
+/* ----- The disc's text, hidden until the disc lands -------------------- */
+.djd-cd__disc-text {
+	position: absolute;
+	inset: 0;
+	opacity: 0;
+	transition: opacity 0.35s ease;
+	text-align: center;
+}
+.djd-cd__disc-top {
+	position: absolute;
+	top: 9%;
+	left: 17%;
+	right: 17%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+}
+.djd-cd__disc-venue {
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: clamp(16px, 1.5vw, 22px);
+	text-transform: uppercase;
+	line-height: 1;
+	color: var(--djd-paper);
+}
+.djd-cd__disc-when {
+	font: 600 clamp(10px, 0.8vw, 12px) var(--djd-sans);
+	opacity: 0.8;
+	color: var(--djd-paper);
+}
+.djd-cd__disc-address {
+	display: block;
+	font: 700 clamp(11px, 0.95vw, 14px) / 1.3 var(--djd-sans);
+	color: var(--djd-paper);
+	text-decoration: none;
+	margin-top: 4px;
+	padding: 4px 8px;
+	border-radius: 6px;
+	background: rgba(36, 169, 224, 0.18);
+}
+.djd-cd__disc-address:hover,
+.djd-cd__disc-address:focus-visible {
+	background: var(--djd-cyan);
+	color: #06121a;
+}
+.djd-cd__disc-bottom {
+	position: absolute;
+	bottom: 8%;
+	left: 20%;
+	right: 20%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 3px;
+}
+.djd-cd__disc-bottom a,
+.djd-cd__disc-bottom button {
+	font: 700 clamp(10px, 0.85vw, 12.5px) var(--djd-sans);
+	color: var(--djd-paper);
+	text-decoration: none;
+	border: 0;
+	cursor: pointer;
+	padding: 3px 10px;
+	border-radius: 999px;
+	background: rgba(241, 236, 226, 0.1);
+	white-space: nowrap;
+}
+.djd-cd__disc-bottom a:hover,
+.djd-cd__disc-bottom button:hover,
+.djd-cd__disc-bottom a:focus-visible,
+.djd-cd__disc-bottom button:focus-visible {
+	background: var(--djd-cyan);
+	color: #06121a;
+}
+.djd-cd__disc-pill-num {
+	font-family: var(--djd-display);
+	opacity: 0.6;
+	margin-right: 6px;
+}
+
+/* ----- Open and close --------------------------------------------------- */
+.djd-cd.is-open .djd-cd__disc {
+	animation: djd-cd-open 1.15s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+	pointer-events: auto;
+}
+.djd-cd.is-open .djd-cd__disc-text {
+	opacity: 1;
+	transition-delay: 0.85s;
+}
+.djd-cd.is-closing .djd-cd__disc {
+	animation: djd-cd-close 0.8s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+@keyframes djd-cd-open {
+	0% { transform: translateY(-9%) scale(0.9) rotate(0deg); z-index: 1; }
+	45% { transform: translateY(-72%) scale(0.9) rotate(260deg); z-index: 1; }
+	46% { z-index: 5; }
+	100% { transform: translateY(0) scale(1.14) rotate(360deg); z-index: 5; }
+}
+@keyframes djd-cd-close {
+	0% { transform: translateY(0) scale(1.14) rotate(0deg); z-index: 5; }
+	50% { transform: translateY(-72%) scale(0.9) rotate(-200deg); z-index: 5; }
+	51% { z-index: 1; }
+	100% { transform: translateY(-9%) scale(0.9) rotate(-360deg); z-index: 1; }
+}
+
+/* One time peek, staggered per case, when the grid first scrolls into
+   view (events.js adds/removes .is-hint once, never loops). */
+@keyframes djd-cd-peek {
+	0%, 100% { transform: translateY(-9%) scale(0.9); }
+	50% { transform: translateY(-20%) scale(0.9) rotate(30deg); }
+}
+.djd-cd.is-hint .djd-cd__disc {
+	animation: djd-cd-peek 1s cubic-bezier(0.22, 1, 0.36, 1);
 }

@@ -715,15 +715,17 @@ function djdt_events_maps_search_url( $address ) {
 }
 
 /**
- * v1.9.0: the card is a CD case now, Mark's call, replacing the v1.8.x date
- * stub card and the slide out drawer entirely (see djdt_events_render_card_drawer()
- * in git history for the old version). Closed, it is a square case with the
- * photo, the date, a "Tonight/Tomorrow/In N days" tag and a play button; the
- * disc peeks out of its top. Pressing play, or clicking anywhere on the
- * case, opens the disc in front of the case (events.js drives the open/close
- * state, every motion is the CSS transform/opacity in events.css). The
- * disc's own label carries the venue, date, address and the three action
- * pills that used to live in the drawer panel.
+ * v1.9.1: rebuilt to match reference/events-cd-reference.html exactly, the
+ * file Mark approved live on Home v2 (see that file's own top comment).
+ * v1.9.0 reimplemented the same idea from the written brief alone and got
+ * the disc's own positioning wrong (translate(-50%,-50%) stacked with the
+ * open/close keyframes, which is what made the disc fail to land anywhere
+ * visible) along with several smaller value mismatches (the glow, the
+ * case's padding and shadows, the disc label's own insets). This version
+ * carries the reference's class names over 1:1 (renamed to this theme's
+ * djd-cd prefix) and keeps every size, color, shadow, timing and keyframe
+ * exactly as that file has them; events.css and events.js are this
+ * function's own counterpart.
  */
 function djdt_events_render_card( $occ, $i ) {
 	$post        = $occ['post'];
@@ -734,67 +736,66 @@ function djdt_events_render_card( $occ, $i ) {
 	$time_line   = djdt_events_format_time_range( $occ['start'], $occ['end'] );
 	$when        = djdt_events_when_tag( $display );
 	$img         = get_the_post_thumbnail_url( $post->ID, 'medium_large' );
-	$disc_id     = 'djd-cd-disc-' . $post->ID . '-' . $i;
-	$play_id     = 'djd-cd-play-' . $post->ID . '-' . $i;
 	$play_label  = sprintf( 'Show details for %s, %s', $venue_name, $display->format( 'M j' ) );
 	$glow_dur    = array( '2.6s', '2.9s', '3.2s' )[ $i % 3 ];
 	$share_title = sprintf( 'DJ DigiMark at %s, %s %s, %s', $venue_name, $display->format( 'D' ), $display->format( 'M j' ), $time_line );
 	?>
 	<div class="djd-cd" style="--djd-cd-glow-dur: <?php echo esc_attr( $glow_dur ); ?>;">
-		<div
-			class="djd-cd__disc"
-			id="<?php echo esc_attr( $disc_id ); ?>"
-			<?php if ( $img ) : ?>style="--djd-cd-disc-img: url('<?php echo esc_url( $img ); ?>');"<?php endif; ?>
-		>
-			<div class="djd-cd__disc-label">
-				<div class="djd-cd__disc-top">
-					<p class="djd-cd__disc-venue"><?php echo esc_html( $venue_name ); ?></p>
-					<p class="djd-cd__disc-when"><?php echo esc_html( $display->format( 'D M j' ) . ' · ' . $time_line ); ?></p>
-					<?php if ( $address ) : ?>
-						<p class="djd-cd__disc-address">
-							<a href="<?php echo esc_url( djdt_events_maps_search_url( $address ) ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $address ); ?></a>
-						</p>
-					<?php endif; ?>
-				</div>
-				<div class="djd-cd__disc-bottom">
-					<a class="djd-cd__disc-pill" href="<?php echo esc_url( djdt_events_calendar_url( $venue_name, $occ['start'], $occ['end'], $address ) ); ?>" target="_blank" rel="noopener"><span class="djd-cd__disc-pill-num">01</span> Add to calendar</a>
-					<?php if ( $address ) : ?>
-						<a class="djd-cd__disc-pill" href="<?php echo esc_url( djdt_events_directions_url( $address ) ); ?>" target="_blank" rel="noopener"><span class="djd-cd__disc-pill-num">02</span> Directions</a>
-					<?php endif; ?>
-					<button type="button" class="djd-cd__disc-pill djd-cd__disc-share" data-share-title="<?php echo esc_attr( $share_title ); ?>" data-share-url="<?php echo esc_url( djdt_events_page_url() ); ?>">
-						<span class="djd-cd__disc-pill-num">03</span> <span class="djd-cd__disc-pill-label">Share with a friend</span>
-					</button>
-				</div>
-			</div>
-		</div>
 		<div class="djd-cd__case">
 			<?php if ( $img ) : ?>
 				<img class="djd-cd__case-photo" src="<?php echo esc_url( $img ); ?>" alt="" loading="lazy" decoding="async">
 			<?php endif; ?>
-			<div class="djd-cd__case-gradient" aria-hidden="true"></div>
 			<div class="djd-cd__case-spine" aria-hidden="true"></div>
-			<div class="djd-cd__case-date" aria-hidden="true">
-				<span class="djd-cd__case-day-num"><?php echo esc_html( $display->format( 'j' ) ); ?></span>
-				<span class="djd-cd__case-day-label"><?php echo esc_html( strtoupper( $display->format( 'D' ) . ' · ' . $display->format( 'M' ) ) ); ?></span>
+			<div class="djd-cd__case-inner">
+				<div class="djd-cd__case-date" aria-hidden="true">
+					<span class="djd-cd__case-day-num"><?php echo esc_html( $display->format( 'j' ) ); ?></span><span class="djd-cd__case-day-label"><?php echo esc_html( $display->format( 'D' ) . ' · ' . $display->format( 'M' ) ); ?></span>
+				</div>
+				<div>
+					<div class="djd-cd__case-venue"><?php echo esc_html( $venue_name ); ?></div>
+					<div class="djd-cd__case-time"><?php echo esc_html( $time_line ); ?></div>
+				</div>
 			</div>
-			<div class="djd-cd__case-when"><?php echo esc_html( $when ); ?></div>
-			<div class="djd-cd__case-foot">
-				<p class="djd-cd__case-venue"><?php echo esc_html( $venue_name ); ?></p>
-				<p class="djd-cd__case-time"><?php echo esc_html( $time_line ); ?></p>
-			</div>
+			<span class="djd-cd__case-when"><?php echo esc_html( $when ); ?></span>
 			<button
 				type="button"
-				id="<?php echo esc_attr( $play_id ); ?>"
 				class="djd-cd__play"
 				aria-expanded="false"
-				aria-controls="<?php echo esc_attr( $disc_id ); ?>"
 				aria-label="<?php echo esc_attr( $play_label ); ?>"
 			>
-				<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5 L19 12 L8 19 Z" fill="currentColor"/></svg>
+				<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4 L20 12 L6 20 Z" fill="<?php echo esc_attr( djdt_events_ink_on_cyan() ); ?>"/></svg>
 			</button>
+		</div>
+		<div class="djd-cd__disc">
+			<div class="djd-cd__disc-face" <?php if ( $img ) : ?>style="--djd-cd-disc-img: url('<?php echo esc_url( $img ); ?>');"<?php endif; ?>></div>
+			<div class="djd-cd__disc-text">
+				<div class="djd-cd__disc-top">
+					<div class="djd-cd__disc-venue"><?php echo esc_html( $venue_name ); ?></div>
+					<div class="djd-cd__disc-when"><?php echo esc_html( $display->format( 'D M j' ) . ' · ' . $time_line ); ?></div>
+					<?php if ( $address ) : ?>
+						<a class="djd-cd__disc-address" href="<?php echo esc_url( djdt_events_maps_search_url( $address ) ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $address ); ?></a>
+					<?php endif; ?>
+				</div>
+				<div class="djd-cd__disc-bottom">
+					<a href="<?php echo esc_url( djdt_events_calendar_url( $venue_name, $occ['start'], $occ['end'], $address ) ); ?>" target="_blank" rel="noopener"><span class="djd-cd__disc-pill-num">01</span>Add to calendar</a>
+					<?php if ( $address ) : ?>
+						<a href="<?php echo esc_url( djdt_events_directions_url( $address ) ); ?>" target="_blank" rel="noopener"><span class="djd-cd__disc-pill-num">02</span>Directions</a>
+					<?php endif; ?>
+					<button type="button" class="djd-cd__disc-share" data-share-title="<?php echo esc_attr( $share_title ); ?>" data-share-url="<?php echo esc_url( djdt_events_page_url() ); ?>"><span class="djd-cd__disc-pill-num">03</span><span class="djd-cd__disc-pill-label">Share with a friend</span></button>
+				</div>
+			</div>
 		</div>
 	</div>
 	<?php
+}
+
+/**
+ * The specific "ink on cyan" color the reference uses for the when-tag
+ * text and every pill's hover state (#06121a), a touch darker than
+ * --djd-night and used only against the cyan background, never reused as
+ * a general night color elsewhere.
+ */
+function djdt_events_ink_on_cyan() {
+	return '#06121a';
 }
 
 function djdt_events_render_json_ld( $occurrences ) {
