@@ -1,10 +1,19 @@
-/* [djdigi_venues]: a bordered card on the night background with a traveling
-   light beam, a slow-moving row of venue logos, and a static genre list
-   underneath. Loaded only when the shortcode renders, same pattern as
-   hero.css. Transform and opacity only throughout, same lightness rules
-   as the hero (see CLAUDE.md, "Intro" and "Ticker" sections, v1.2.2 and
-   v1.2.3): no filter or backdrop-filter animation, nothing that forces a
-   repaint on every frame. */
+/* [djdigi_venues]: a slow-moving row of venue logos on the night
+   background, with a static genre list underneath. Loaded only when the
+   shortcode renders, same pattern as hero.css. Transform and opacity only
+   throughout, same lightness rules as the hero (see CLAUDE.md, "Intro"
+   and "Ticker" sections, v1.2.2 and v1.2.3): no filter or backdrop-filter
+   animation, nothing that forces a repaint on every frame.
+
+   v1.10.0: the outlined card, its border beam and the heading's own
+   per-letter color sweep (tied to the beam's timing) are gone, Mark's
+   call, part of the "one page system" pass: no section on a hero page
+   gets its own boxed-in treatment anymore. The heading is
+   .djd-section-heading now (site.css), the one style shared with the
+   player and events sections; the logo row (.djd-venues__window) runs
+   gutter to gutter directly, not inside a centered 1200px card; the
+   genre list is left aligned at the gutter, not centered. See
+   djdigi-theme.php, djdt_venues_shortcode(), for the markup this styles. */
 
 /* Full bleed, same trick .djd-hero uses to break out of Avada's own
    container padding (v1.4.0: without this, the night background stopped
@@ -24,120 +33,29 @@
 	   underneath it. See the identical note on .djd-player-section__inner,
 	   hero.css. */
 	z-index: 1;
-	/* v1.8.2, found while adding the var(--djd-vw) breakout below: this
-	   section carries its own 40px side padding directly (just below),
-	   unlike .djd-hero and .djd-player-section, whose own horizontal
-	   padding lives one level down on a child instead. With no
-	   box-sizing of its own this section has always been content-box (the
-	   CSS default), so width: 100% plus that 40px padding on each side
-	   actually rendered 80px wider than its parent's own content box,
-	   silently clipped by html's overflow-x: hidden (site.css) rather
-	   than ever showing as a visible scrollbar, with nothing forcing
-	   anyone to notice the section's own true right edge sitting 80px
-	   further right than it should. border-box here is what makes
-	   width: var(--djd-vw) below actually equal var(--djd-vw), padding
-	   included rather than added on top, the same box model .djd-hero and
-	   .djd-events already use. */
 	box-sizing: border-box;
 	width: var(--djd-vw, 100%);
 	margin-left: calc(50% - var(--djd-vw, 100%) / 2);
 	background: var(--djd-night);
-	padding: 56px 40px 64px;
+	/* v1.10.0: side padding is --djd-gutter now, not a hardcoded 40px, so
+	   this section's own content lines up at the same edges as the hero
+	   name, the player and the events grid. Top is the shared
+	   --djd-section-gap (site.css), same "one rhythm" change as those two
+	   sections; bottom is the same value too, this being the last section
+	   on the page, giving the footer some real breathing room where the
+	   other sections leave that to whatever follows them. */
+	padding: var(--djd-section-gap) var(--djd-gutter);
 }
 .djd-venues *,
 .djd-venues *::before,
 .djd-venues *::after { box-sizing: border-box; }
 
 /* ---------------------------------------------------------------------
-   Card: a thin border, rounded corners, and the traveling beam. The beam
-   is a conic gradient rotated by a custom property (registered with
-   @property so the browser can animate its angle smoothly, which it
-   cannot do with an unregistered custom property), masked down to just
-   the border ring (padding-box excluded from border-box) so only a
-   short arc shows at a time, not the whole gradient disc. --djd-beam-dur
-   is worked out once in JS from the card's own perimeter, so the beam's
-   speed holds steady regardless of how big the card ends up being.
-   ------------------------------------------------------------------ */
-@property --djd-beam-angle {
-	syntax: '<angle>';
-	initial-value: 0deg;
-	inherits: false;
-}
-.djd-venues__card {
-	position: relative;
-	max-width: 1200px;
-	margin: 0 auto;
-	border: 1px solid rgba(241, 236, 226, 0.15);
-	border-radius: 24px;
-	padding: 32px 32px 28px;
-	overflow: hidden;
-	contain: layout paint;
-}
-/* Brighter and a touch wider than the first pass (v1.4.0: Mark could not
-   really see it against the border). A longer bright window and a thicker
-   ring, full opacity cyan rather than a half faded one. */
-.djd-venues__beam {
-	position: absolute;
-	inset: 0;
-	border-radius: inherit;
-	padding: 2px;
-	background: conic-gradient(
-		from var(--djd-beam-angle, 0deg),
-		transparent 0deg,
-		transparent 300deg,
-		rgba(36, 169, 224, 0) 312deg,
-		var(--djd-cyan) 334deg,
-		var(--djd-violet) 356deg,
-		transparent 360deg
-	);
-	-webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-	-webkit-mask-composite: xor;
-	mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-	mask-composite: exclude;
-	animation: djd-beam-spin var(--djd-beam-dur, 7s) linear infinite;
-	pointer-events: none;
-}
-@keyframes djd-beam-spin {
-	to { --djd-beam-angle: 360deg; }
-}
-
-/* Heading sits above the card now, a plain centered label (v1.4.0: it used
-   to break the card's own top border like a fieldset legend; moved out so
-   nothing sits on the border and nothing can get clipped by the card's
-   own overflow: hidden, which the beam needs). */
-.djd-venues__heading {
-	margin: 0 0 28px;
-	text-align: center;
-	font-family: var(--djd-display);
-	font-weight: 800;
-	text-transform: uppercase;
-	letter-spacing: 0.06em;
-	font-size: clamp(20px, 2.6vw, 30px);
-	color: var(--djd-paper);
-}
-/* Each letter rests at paper, with a brief cyan to violet sweep once per
-   loop, the same duration as the beam and staggered per letter so the
-   color visibly travels left to right, timed to when the beam itself is
-   passing behind the heading (see djd-venues__beam above, the arc is
-   drawn to reach full color right at 360deg/0deg, the heading's own
-   position). */
-.djd-venues__letter {
-	display: inline-block;
-	color: var(--djd-paper);
-	animation: djd-venues-sweep var(--djd-beam-dur, 7s) linear infinite;
-	animation-delay: calc(var(--i) * 0.015s);
-}
-@keyframes djd-venues-sweep {
-	0%, 90%, 100% { color: var(--djd-paper); }
-	95% { color: var(--djd-cyan); }
-	98% { color: var(--djd-violet); }
-}
-
-/* ---------------------------------------------------------------------
    Logo row: one track holding the (possibly repeated, see PHP) venue set
    twice, sliding by exactly half its own width, transform only, same
    seamless-loop technique as the old ticker. Edges fade with a mask, not
-   an overlay wash, so it works against any logo color underneath.
+   an overlay wash, so it works against any logo color underneath. Runs
+   gutter to gutter directly now (v1.10.0), no card wrapping it.
    ------------------------------------------------------------------ */
 .djd-venues__window {
 	position: relative;
@@ -151,7 +69,7 @@
 	will-change: transform;
 	animation: djd-venues-marquee var(--djd-venues-dur, 30s) linear infinite;
 }
-.djd-venues__card:hover .djd-venues__track { animation-play-state: paused; }
+.djd-venues__window:hover .djd-venues__track { animation-play-state: paused; }
 @keyframes djd-venues-marquee {
 	from { transform: translate3d(0, 0, 0); }
 	to { transform: translate3d(-50%, 0, 0); }
@@ -229,20 +147,16 @@
 }
 
 /* ---------------------------------------------------------------------
-   Genres: static, no motion at all, plain brand-colored type.
+   Genres: static, no motion at all, plain brand-colored type. Left
+   aligned at the gutter now (v1.10.0), not centered in its own
+   max-width box; still the same type style otherwise.
    ------------------------------------------------------------------ */
-/* The genres are the statement now (v1.5.0: the "What I play" label is
-   gone, Mark's call, a tiny wide tracked label read as filler). Large
-   display type in one color, no accent, generous space between items;
-   two lines on narrow screens is fine, centered either way. */
 .djd-genres {
-	max-width: 1600px;
-	margin: 40px auto 0;
-	padding: 0 40px;
+	margin-top: 40px;
 	display: flex;
 	flex-wrap: wrap;
 	align-items: baseline;
-	justify-content: center;
+	justify-content: flex-start;
 	gap: 14px 28px;
 }
 .djd-genres__item {
@@ -257,10 +171,7 @@
 .djd-genres__sub { opacity: 0.5; padding: 0 0.2em; }
 
 @media (max-width: 800px) {
-	.djd-venues { padding: 40px 16px 48px; }
-	.djd-venues__heading { margin-bottom: 20px; }
-	.djd-venues__card { padding: 24px 20px 20px; border-radius: 18px; }
 	.djd-venues__set { gap: 36px; padding-right: 36px; }
-	.djd-genres { padding: 0 16px; gap: 10px 20px; }
+	.djd-genres { gap: 10px 20px; }
 	.djd-genres__item { font-size: clamp(20px, 6vw, 24px); }
 }

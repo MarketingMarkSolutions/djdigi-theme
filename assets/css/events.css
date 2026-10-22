@@ -33,11 +33,18 @@
    loads later. Every actual link/button color inside the disc is
    !important now, the same pattern site.css itself already uses for the
    footer dock for the identical reason (djdigi-theme.php, .djd-dock__btn).
-   The disc's own label text is also sized in cqi units
-   off the disc's own box now (container-type: inline-size on
-   .djd-cd__disc), not vw off the viewport, and sits on its own solid
-   plate (.djd-cd__disc-plate) so the photo never shows through behind it,
-   only on the outer ring. */
+   The disc's own label text is also sized in cqi units off the disc's own
+   box now (container-type: inline-size on .djd-cd__disc), not vw off the
+   viewport.
+
+   v1.10.0: the heading is .djd-section-heading now (site.css), the one
+   style shared with the player and venues sections, left aligned at the
+   gutter; .djd-events__heading is gone. padding-top is the shared
+   --djd-section-gap (site.css) too, padding-bottom 0, same "one rhythm"
+   change as the player and venues sections, so the vertical space before
+   this section is the same number everywhere on the page. The v1.9.2
+   solid disc plate is gone as well, see includes/djdt-events.php and "The
+   disc's text" section further down. */
 
 .djd-events {
 	position: relative;
@@ -48,21 +55,11 @@
 	background: var(--djd-night);
 	color: var(--djd-paper);
 	font-family: var(--djd-sans);
-	padding: 56px var(--djd-gutter) 64px;
+	padding: var(--djd-section-gap) var(--djd-gutter) 0;
 }
 .djd-events *,
 .djd-events *::before,
 .djd-events *::after { box-sizing: border-box; }
-
-.djd-events__heading {
-	margin: 0 0 28px;
-	font-family: var(--djd-display);
-	font-weight: 800;
-	font-size: clamp(28px, 3vw, 36px);
-	text-transform: uppercase;
-	letter-spacing: 0.005em;
-	color: var(--djd-paper);
-}
 
 /* ---------------------------------------------------------------------
    Empty state: "New dates coming soon" plus an Instagram link.
@@ -315,24 +312,28 @@
 	transform: translateY(-17%) scale(0.9) rotate(25deg);
 }
 
+/* v1.10.0, tested live: replaces the v1.9.2 solid plate (a flat dark
+   circle sitting under the text, which killed the photo as printed label
+   art entirely). A center hub (hole plus silver rings) over a faint
+   rainbow sheen (screen blended, so it only brightens) over a radial
+   wash that darkens toward the rim and fades back out right at the edge
+   (multiply blended, so it tints the photo rather than hiding it) over
+   a violet to cyan duotone wash (also multiply) over the photo itself.
+   Nothing may sit over the hub, the disc's own center 27%: see the top
+   and bottom text blocks further down, which stop well clear of it on
+   both sides (height 27% ending at 36%, and starting again at 64%). */
 .djd-cd__disc-face {
 	position: absolute;
 	inset: 0;
 	border-radius: 50%;
 	background:
-		radial-gradient(circle, transparent 0 6.5%, rgba(255, 255, 255, 0.85) 7% 8.3%, transparent 8.8%),
-		radial-gradient(circle, rgba(11, 8, 32, 0.55), rgba(11, 8, 32, 0.82) 70%),
-		repeating-radial-gradient(circle, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 3px),
+		radial-gradient(circle, transparent 0 5%, rgba(235, 240, 248, 0.95) 5.3% 5.9%, rgba(255, 255, 255, 0.1) 6.2% 12.5%, rgba(235, 240, 248, 0.55) 12.8% 13.2%, transparent 13.6%),
+		conic-gradient(from 210deg, rgba(255, 80, 160, 0), rgba(255, 80, 160, 0.22), rgba(255, 220, 90, 0.18), rgba(80, 230, 160, 0.18), rgba(60, 170, 255, 0.24), rgba(170, 90, 255, 0.22), rgba(255, 80, 160, 0) 60%, rgba(255, 255, 255, 0)),
+		radial-gradient(circle, rgba(11, 8, 32, 0) 0 12.5%, rgba(11, 8, 32, 0.62) 13.5%, rgba(11, 8, 32, 0.7) 60%, rgba(11, 8, 32, 0.45) 92%, rgba(11, 8, 32, 0) 97%),
+		linear-gradient(160deg, rgba(90, 46, 145, 0.55), rgba(36, 169, 224, 0.25)),
 		var(--djd-cd-disc-img, none) center / cover;
+	background-blend-mode: normal, screen, normal, multiply, normal;
 	box-shadow: 0 0 0 2px rgba(235, 240, 248, 0.9), 0 0 0 7px rgba(255, 255, 255, 0.08), 0 18px 40px rgba(0, 0, 0, 0.6);
-}
-.djd-cd__disc-face::after {
-	content: "";
-	position: absolute;
-	inset: 0;
-	border-radius: 50%;
-	pointer-events: none;
-	background: conic-gradient(rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 22%, rgba(255, 255, 255, 0.16) 52%, rgba(255, 255, 255, 0) 66%);
 }
 
 /* ----- The disc's text, hidden until the disc lands -------------------- */
@@ -343,53 +344,44 @@
 	transition: opacity 0.35s ease;
 	text-align: center;
 }
-/* The printed label: a solid plate so the photo only shows on the outer
-   ring, never straight through behind the text. A plain element, first
-   child of .djd-cd__disc-text, so normal paint order alone puts it above
-   .djd-cd__disc-face and below .djd-cd__disc-top/-bottom, no z-index
-   needed. Fades with the rest of the text (same parent opacity). */
-.djd-cd__disc-plate {
-	position: absolute;
-	inset: 14%;
-	border-radius: 50%;
-	background: rgba(11, 8, 32, 0.92);
-	border: 1px solid rgba(255, 255, 255, 0.12);
-}
 .djd-cd__disc-top {
 	position: absolute;
-	top: 19%;
-	left: 22%;
-	right: 22%;
+	top: 9%;
+	height: 27%;
+	left: 20%;
+	right: 20%;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
+	justify-content: flex-end;
 	gap: 1.2cqi;
 }
 .djd-cd__disc-venue {
 	font-family: var(--djd-display);
 	font-weight: 800;
-	font-size: 7.5cqi;
+	font-size: 6.6cqi;
 	text-transform: uppercase;
 	line-height: 1;
 	color: var(--djd-paper);
+	text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65);
 }
 .djd-cd__disc-when {
 	font-family: var(--djd-sans);
 	font-weight: 600;
-	font-size: 4cqi;
-	opacity: 0.9;
+	font-size: 3.6cqi;
 	color: var(--djd-paper);
+	text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
 }
 .djd-cd__disc-address {
 	display: block;
 	font-family: var(--djd-sans);
 	font-weight: 700;
-	font-size: 4.3cqi;
+	font-size: 3.6cqi;
 	line-height: 1.25;
 	color: #06121a !important;
 	text-decoration: none;
-	margin-top: 1.5cqi;
-	padding: 1.4cqi 3cqi;
+	margin-top: 1cqi;
+	padding: 1cqi 2.6cqi;
 	border-radius: 2cqi;
 	background: var(--djd-cyan);
 }
@@ -400,7 +392,7 @@
 }
 .djd-cd__disc-bottom {
 	position: absolute;
-	bottom: 17%;
+	top: 64%;
 	left: 24%;
 	right: 24%;
 	display: flex;
@@ -412,14 +404,15 @@
 .djd-cd__disc-bottom button {
 	font-family: var(--djd-sans);
 	font-weight: 700;
-	font-size: 3.9cqi;
+	font-size: 3.5cqi;
 	color: var(--djd-paper) !important;
 	text-decoration: none;
 	border: 0;
 	cursor: pointer;
-	padding: 1.2cqi 3.4cqi;
+	padding: 1cqi 3cqi;
 	border-radius: 999px;
-	background: rgba(241, 236, 226, 0.14);
+	background: rgba(11, 8, 32, 0.72);
+	box-shadow: 0 0 0 1px rgba(241, 236, 226, 0.25);
 	white-space: nowrap;
 }
 .djd-cd__disc-bottom a:hover,

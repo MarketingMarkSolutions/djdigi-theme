@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_venues], and [djdigi_events] for djdigimark.com.
- * Version: 1.9.2
+ * Version: 1.10.0
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.9.2' );
+define( 'DJDT_VERSION', '1.10.0' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -603,6 +603,47 @@ add_action( 'wp_head', function () {
 	</script>
 	<?php
 }, 1 );
+
+/**
+ * v1.10.0, found live at 2000px wide: every full bleed section (.djd-hero,
+ * .djd-player-section, .djd-events, .djd-venues) still sat about 7px off
+ * the true left edge even with width: var(--djd-vw) in place. The CSS
+ * breakout formula (margin-left: calc(50% - var(--djd-vw) / 2), each
+ * section's own stylesheet) only lands exactly on 0 if the section's own
+ * direct parent is itself perfectly centered in the viewport; any small
+ * asymmetry anywhere in Avada's own container chain throws it off by
+ * whatever that asymmetry is, which is what the measured 7px actually
+ * was, not a fixed, guessable number. This stops guessing: for each of
+ * these sections, zero its margin, read its own real distance from the
+ * viewport's left edge (getBoundingClientRect, after the zero so nothing
+ * upstream is still pushing it over), then set margin-left to exactly
+ * cancel that out, whatever it turns out to be. Printed in wp_footer, not
+ * wp_head like djdSetVw above: this needs the sections to actually exist
+ * in the DOM and be laid out, which they are not yet this early. The
+ * trade off is a brief correction right as the page finishes loading
+ * rather than nothing to correct at all; the CSS formula above is still
+ * what paints first, this only fixes whatever small residual it leaves.
+ */
+add_action( 'wp_footer', function () {
+	if ( ! djdt_is_active() ) {
+		return;
+	}
+	?>
+	<script>
+	(function () {
+		function djdFixBreakout() {
+			document.querySelectorAll( '.djd-hero, .djd-player-section, .djd-events, .djd-venues' ).forEach( function ( el ) {
+				el.style.marginLeft = '0px';
+				var left = el.getBoundingClientRect().left;
+				el.style.marginLeft = ( -left ) + 'px';
+			} );
+		}
+		djdFixBreakout();
+		window.addEventListener( 'resize', djdFixBreakout );
+	})();
+	</script>
+	<?php
+}, 100 );
 
 /**
  * Avada's own global header background image (an Options panel setting)
@@ -1558,6 +1599,7 @@ function djdt_player_section() {
 	?>
 	<section class="djd-player-section" aria-label="Latest live set">
 		<div class="djd-player-section__inner">
+			<h2 class="djd-section-heading">Latest live set</h2>
 			<div class="djd-player<?php echo $mix['picture'] ? ' has-artwork' : ''; ?>" data-feed="<?php echo esc_attr( $mix['key'] ); ?>" data-length="<?php echo (int) $mix['length']; ?>">
 				<div class="djd-player__art">
 					<?php if ( $mix['picture'] ) : ?>
@@ -1570,7 +1612,6 @@ function djdt_player_section() {
 				</div>
 				<div class="djd-player__body">
 					<div class="djd-player__top">
-						<span class="djd-player__status">Latest live set</span>
 						<div class="djd-player__skip">
 							<button type="button" class="djd-player__skipbtn" data-skip="-30" aria-label="Back 30 seconds">-30</button>
 							<button type="button" class="djd-player__skipbtn" data-skip="30" aria-label="Forward 30 seconds">+30</button>
@@ -1603,8 +1644,7 @@ function djdt_genre_item( $text ) {
 
 /**
  * Splits a word into one span per letter, each carrying its index in --i so
- * CSS can stagger something per letter (the hero name's entrance, or the
- * venues heading's beam sweep, each with their own class and animation).
+ * CSS can stagger something per letter (the hero name's own entrance).
  * aria-hidden: the parent heading already carries the readable text in its
  * own aria-label.
  *
@@ -1744,17 +1784,14 @@ function djdt_venues_shortcode() {
 	ob_start();
 	?>
 	<section class="djd-venues" aria-label="<?php echo esc_attr( $heading ); ?>">
-		<h2 class="djd-venues__heading"><?php echo djdt_split_letters( $heading, 'djd-venues__letter' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></h2>
-		<div class="djd-venues__card">
-			<div class="djd-venues__beam" aria-hidden="true"></div>
-			<div class="djd-venues__window">
-				<div class="djd-venues__track">
-					<?php for ( $copy = 0; $copy < 2; $copy++ ) : ?>
-						<div class="djd-venues__set"<?php echo $copy ? ' aria-hidden="true"' : ''; ?>>
-							<?php foreach ( $padded as $v ) : djdt_venue_item( $v ); endforeach; ?>
-						</div>
-					<?php endfor; ?>
-				</div>
+		<h2 class="djd-section-heading"><?php echo esc_html( $heading ); ?></h2>
+		<div class="djd-venues__window">
+			<div class="djd-venues__track">
+				<?php for ( $copy = 0; $copy < 2; $copy++ ) : ?>
+					<div class="djd-venues__set"<?php echo $copy ? ' aria-hidden="true"' : ''; ?>>
+						<?php foreach ( $padded as $v ) : djdt_venue_item( $v ); endforeach; ?>
+					</div>
+				<?php endfor; ?>
 			</div>
 		</div>
 		<?php if ( $genres ) : ?>

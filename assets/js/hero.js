@@ -200,7 +200,6 @@
 	if (!player) return;
 
 	var btn = player.querySelector('.djd-player__btn');
-	var status = player.querySelector('.djd-player__status');
 	var scrub = player.querySelector('.djd-player__scrub');
 	var tooltip = player.querySelector('.djd-player__tooltip');
 	var posEl = player.querySelector('.djd-player__pos');
@@ -223,7 +222,6 @@
 	function setPlaying(on) {
 		player.classList.toggle('is-playing', on);
 		btn.setAttribute('aria-label', (on ? 'Pause ' : 'Play ') + title);
-		status.textContent = on ? 'Now playing' : 'Latest live set';
 	}
 
 	function loadScript(src) {

@@ -505,10 +505,15 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	   underneath it (.djd-hero__glows, above, overflow: visible, reaches
 	   about 260px past the hero's own bottom edge). Keeps the player card
 	   fully readable regardless of how the glow and this section's stacking
-	   context happen to resolve. */
+	   context happen to resolve.
+
+	   v1.10.0: padding-top is the one shared --djd-section-gap (site.css)
+	   now, padding-bottom 0, same change as events.css/venues.css, so the
+	   space before this section is the same number everywhere on the page
+	   and never two sections' own padding stacked together. */
 	position: relative;
 	z-index: 1;
-	padding: 48px var(--djd-gutter);
+	padding: var(--djd-section-gap) var(--djd-gutter) 0;
 }
 /* The card itself also spans gutter to gutter now, not a narrow 760px
    box centered inside the section (v1.7.0): the artwork stays a fixed
@@ -562,19 +567,11 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 .djd-player.is-loading .djd-player__btn { opacity: 0.7; cursor: progress; }
 
 .djd-player__body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-.djd-player__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.djd-player__status {
-	display: inline-flex;
-	align-items: center;
-	padding: 3px 10px;
-	border-radius: 999px;
-	background: var(--djd-orange);
-	color: var(--djd-ink);
-	font-weight: 700;
-	font-size: 10px;
-	letter-spacing: 0.1em;
-	text-transform: uppercase;
-}
+/* v1.10.0: the orange "Latest live set" status tag is gone, replaced by
+   the section's own .djd-section-heading above the card (djdigi-theme.php,
+   djdt_player_section()); justify-content moves to flex-end since the
+   skip buttons are the only thing left in this row. */
+.djd-player__top { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
 .djd-player__skip { display: flex; gap: 6px; }
 .djd-player__skipbtn {
 	border: 1px solid rgba(241, 236, 226, 0.3);
@@ -736,7 +733,13 @@ body:not(.djd-intro-ready) .djd-btn {
 	   clamp already lands close to the same size down here on its own. */
 	.djd-hero__inner { padding: 16px var(--djd-gutter) 0; }
 	.djd-hero__row { padding: 28px 0 40px; }
-	.djd-player-section__inner { padding: 32px var(--djd-gutter); }
+	/* v1.10.0: .djd-player-section__inner's own padding used to get a
+	   fixed 32px override here; the base rule's padding-top is
+	   var(--djd-section-gap) now (site.css, already 72px at this
+	   breakpoint) and padding-bottom is 0, so there is nothing left for
+	   this breakpoint to override, and doing so again would silently
+	   double the gap before the events section, found exactly this way
+	   (104px measured instead of 72px). */
 	.djd-player { flex-wrap: wrap; padding: 14px 16px; gap: 14px; }
 	.djd-player__btn,
 	.djd-player__art { flex-basis: 56px; width: 56px; height: 56px; }

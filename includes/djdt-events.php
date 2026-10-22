@@ -683,7 +683,7 @@ function djdt_events_render_grid( $occurrences, $is_row ) {
 	?>
 	<div class="djd-events">
 		<?php if ( $is_row ) : ?>
-			<h2 class="djd-events__heading">Upcoming sets</h2>
+			<h2 class="djd-section-heading">Upcoming sets</h2>
 		<?php endif; ?>
 		<div class="djd-events__track">
 			<?php foreach ( $occurrences as $i => $occ ) : ?>
@@ -757,11 +757,18 @@ function djdt_events_maps_search_url( $address ) {
  * order), so events.css now forces every disc text color with !important,
  * the same pattern already used for the footer dock (djdigi-theme.php,
  * .djd-dock__btn). The disc's own text also now sizes off the disc itself
- * (container-type: inline-size, cqi units) instead of the viewport, and
- * sits on its own solid plate (.djd-cd__disc-plate, below) so the photo
- * never shows through behind it. Also added here: the venue's own logo,
- * from MEC's own 'thumbnail' location term meta, above the venue name on
- * the case front when that location has one set.
+ * (container-type: inline-size, cqi units) instead of the viewport. Also
+ * added here: the venue's own logo, from MEC's own 'thumbnail' location
+ * term meta, above the venue name on the case front when that location
+ * has one set.
+ *
+ * v1.10.0: the v1.9.2 solid plate behind the disc's text (.djd-cd__disc-
+ * plate, a flat dark circle) is gone; .djd-cd__disc-face's own layered
+ * background (events.css) now does the whole job itself, a center hub
+ * (hole, silver rings), a faint rainbow sheen, and the photo as printed
+ * label art, close enough to the hub's own edge that the top/bottom text
+ * blocks (events.css, top 9%/height 27%, bottom from 64%) never overlap
+ * it, keeping the disc's own markup here unchanged, no new element.
  */
 function djdt_events_render_card( $occ, $i ) {
 	$post        = $occ['post'];
@@ -808,7 +815,6 @@ function djdt_events_render_card( $occ, $i ) {
 		<div class="djd-cd__disc">
 			<div class="djd-cd__disc-face" <?php if ( $img ) : ?>style="--djd-cd-disc-img: url('<?php echo esc_url( $img ); ?>');"<?php endif; ?>></div>
 			<div class="djd-cd__disc-text">
-				<div class="djd-cd__disc-plate" aria-hidden="true"></div>
 				<div class="djd-cd__disc-top">
 					<div class="djd-cd__disc-venue"><?php echo esc_html( $venue_name ); ?></div>
 					<div class="djd-cd__disc-when"><?php echo esc_html( $display->format( 'D M j' ) . ' · ' . $time_line ); ?></div>

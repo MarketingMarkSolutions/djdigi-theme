@@ -27,6 +27,15 @@ body.djdigi-theme {
 	   from phone width up through an ultra-wide monitor, not just the
 	   widths actually tested live. */
 	--djd-gutter: clamp(24px, 5vw, 120px);
+	/* v1.10.0: the one vertical rhythm every full width hero page section
+	   (the player, events and venues sections) uses for the space before
+	   it, replacing each section's own independent top/bottom padding
+	   (found live: 48px here, 56/64px there, no two sections agreeing).
+	   Each section's own padding-top is this value and padding-bottom is
+	   0, so the space between any two sections is this number exactly,
+	   never two different sections' padding added together. 72px on
+	   phone, see the @media block below. */
+	--djd-section-gap: 120px;
 
 	/* Avada 7 typography variables */
 	--body_typography-font-family: var(--djd-sans);
@@ -42,6 +51,9 @@ body.djdigi-theme {
 	   anything neither of those caught, rather than relying on getting both
 	   exactly right on the first pass. */
 	overflow-x: hidden;
+}
+@media (max-width: 800px) {
+	body.djdigi-theme { --djd-section-gap: 72px; }
 }
 
 /* html has no body class to key off, so the paper color is set directly here.
@@ -89,6 +101,34 @@ body.djdigi-theme h3 {
 	font-family: var(--djd-display);
 	font-weight: 800;
 	letter-spacing: 0.005em;
+}
+
+/* v1.10.0: one heading style for every full width hero page section
+   ("Latest live set", "Upcoming sets", "Where I've played"), left aligned
+   at the same gutter as the hero name, the logo and the menu, replacing
+   each section's own heading (djd-events__heading, djd-venues__heading,
+   the player's old orange status tag) with this single shared class. 48px
+   at 2000px wide (3vw hits the 48px cap at 1600px and holds from there),
+   scaling down to 28px on a narrow phone.
+
+   margin-left reuses --djd-name-edge, the same small negative nudge
+   .djd-hero__name already carries (hero.css): both are set in the same
+   display font at a heavy weight, and that font's own left side bearing
+   reads as a few pixels of dead space the plain gutter alone does not
+   account for. Section CONTENT below a heading (the player card, the
+   events grid, the venues logo row) does not get this nudge, only ever
+   the plain gutter, the same split the hero itself already has between
+   the name and the slogan/buttons under it (.djd-hero__row, no side
+   padding of its own, gutter only). */
+.djd-section-heading {
+	margin: 0 0 28px var(--djd-name-edge, -8px);
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: clamp(28px, 3vw, 48px);
+	text-transform: uppercase;
+	letter-spacing: 0.005em;
+	color: var(--djd-paper);
+	text-align: left;
 }
 
 /* ---------- Header: every layer that can carry Avada's background image ---------- */
