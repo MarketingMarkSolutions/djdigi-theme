@@ -683,7 +683,7 @@ function djdt_events_render_grid( $occurrences, $is_row ) {
 	?>
 	<div class="djd-events">
 		<?php if ( $is_row ) : ?>
-			<h2 class="djd-section-heading">Upcoming sets</h2>
+			<h2 class="djd-section-heading"><?php echo djdt_heading_html( 'Upcoming sets' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></h2>
 		<?php endif; ?>
 		<div class="djd-events__track">
 			<?php foreach ( $occurrences as $i => $occ ) : ?>

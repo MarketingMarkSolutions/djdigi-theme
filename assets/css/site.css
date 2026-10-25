@@ -128,6 +128,20 @@ body.djdigi-theme h3 {
 	color: var(--djd-paper);
 	text-align: left;
 }
+/* v1.12.0: every word but the last in an outline, the last word solid
+   cyan (djdt_heading_html(), djdigi-theme.php: "Upcoming sets" becomes an
+   outline "Upcoming" plus a solid "sets", etc; a one-word heading is all
+   solid). Uppercase and sizing both stay on the shared rule above, these
+   two only ever touch color. Fallback first (solid paper, same as the
+   rest of the heading would otherwise read), the actual stroke look
+   behind @supports: a browser without -webkit-text-stroke would otherwise
+   show fully invisible (transparent, no stroke) text for this half of
+   every heading. */
+.djd-hw-outline { color: var(--djd-paper); }
+@supports (-webkit-text-stroke: 1px) {
+	.djd-hw-outline { color: transparent; -webkit-text-stroke: 1.5px var(--djd-paper); }
+}
+.djd-hw-solid { color: var(--djd-cyan); }
 
 /* ---------- Header: every layer that can carry Avada's background image ---------- */
 
@@ -700,6 +714,21 @@ body.djdigi-has-hero .djd-events,
 body.djdigi-has-hero .djd-venues {
 	background: transparent;
 }
+/* v1.12.0: events right after the hero (the new Home v2 order,
+   [djdigi_hero player="no"], [djdigi_events], [djdigi_player],
+   [djdigi_venues]) get a short 40px gap instead of the usual
+   --djd-section-gap, so the first CD cards show on the first screen
+   alongside the now-shorter hero. The general sibling combinator (~), not
+   adjacent (+): mirrorball.js's own #djd-wire and #djd-ball-canvas (fixed
+   position, always output right after the hero, djdigi-theme.php) and
+   whatever empty <p>/<br> wpautop leaves between adjacent shortcode lines
+   both sit in between a plain adjacent selector would miss. When a player
+   section DOES sit between the hero and events (the hero's own inline
+   player, player="yes", the default), the second rule here overrides the
+   first back to the normal gap: equal specificity, later in the cascade
+   wins. */
+body.djdigi-has-hero .djd-hero ~ .djd-events { padding-top: 40px; }
+body.djdigi-has-hero .djd-player-section ~ .djd-events { padding-top: var(--djd-section-gap); }
 /* v1.8.2: zero the padding of whichever Avada fusion-fullwidth container
    actually holds one of this theme's full bleed sections, found live:
    Home v2's own container (div.fusion-fullwidth, padding 30px) carries

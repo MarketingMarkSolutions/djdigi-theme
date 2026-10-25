@@ -205,6 +205,93 @@ real Avada markup or the real baked logo** (same standing caveat as every other 
 file): confirm live, the same standing review workflow as every other release (see "Working rules"
 above: Mark reviews every round live, not from a screenshot gallery).
 
+## Homepage polish (v1.12.0)
+Four independent changes to the mirror ball hero and the hero page sections, previewed live on
+Home v2 and confirmed before building. Numbers below supersede the matching ones in "Mirror ball
+hero" above; that section's structure (the layer stack, the logo bake, the settings fields) is
+otherwise unchanged.
+
+**Shorter hero, events on the first screen.** `.djd-hero`'s own `height` is `max(540px, 68vh)` now
+(was `max(640px, 100vh)`), `.djd-hero__logo` is `min(34vh, 330px)` (`min(30vh, 260px)` under 700px
+wide, was `min(54vh, 500px)`/`40vh`), and `.djd-hero__inner` gained `padding-top: 60px` so the
+smaller logo still clears the floating header. A new shortcode, `[djdigi_player]`
+(`djdt_player_shortcode()`), outputs the exact same "Latest live set" markup `[djdigi_hero]` has
+always output right after itself (`djdt_player_section()`, shared by both), so a page can place it
+somewhere other than immediately after the hero; `[djdigi_hero player="no"]` keeps working exactly
+as before. Home v2's own content changed to `[djdigi_hero player="no"]`, `[djdigi_events]`,
+`[djdigi_player]`, `[djdigi_venues]`, a content edit, not code. `.djd-events` gets a short `40px`
+top gap instead of the usual `--djd-section-gap` specifically when it follows the hero with no
+player section in between (site.css, `.djd-hero ~ .djd-events`, overridden back to the normal gap
+by a second, later rule when `.djd-player-section ~ .djd-events` also matches); the general sibling
+combinator, not adjacent, since `mirrorball.js`'s own `#djd-wire`/`#djd-ball-canvas` (fixed
+position, always output right after the hero) and whatever empty `<p>`/`<br>` wpautop leaves
+between adjacent shortcode lines both sit in between a plain adjacent selector would miss. No
+change was needed to `djdFixBreakout` (`djdigi-theme.php`, `wp_footer`) or the `--djd-vw` script
+(`wp_head`) for the new shortcode: both already select by class (`.djd-player-section`) or set a
+property on `document.documentElement` globally, neither cares which shortcode rendered a given
+element. One real fix was needed: `hero.js` used to bail out entirely (`if (!hero) return`) when
+there was no `.djd-hero` on the page, which would have silently broken `[djdigi_player]` used on
+its own (its Mixcloud player logic lives in that same file); that guard is gone, hero.js now runs
+its player logic regardless of whether the hero itself is also on the page.
+
+**Entrance: every page load, slower, bigger landing.** The `sessionStorage`
+`djdHeroSeen`/`djd-ball-noanim` "quick repeat visit" skip from v1.11.0 is gone entirely: the full
+~3.3s entrance plays on every load of a hero page now, Mark's call. `?intro=1` is accordingly a
+no-op, there is nothing left for it to force; the one remaining mention of it is in Theme Settings'
+own help text, now saying so. New timeline, all in `mirrorball.js`'s `frame()`/`play()`: 0 to 400ms
+black overlay, ball hidden; 400 to 2200ms the drop (`eBack(dp, 0.9)`, was `c1 = 1.25`, now `0.9`, a
+smoother settle); 2200 to 2500ms the hang (ball holds at the slot); 2500ms landing (`flash = 1`,
+900ms decay, was 650ms); 2450 to 3150ms the black overlay (and the spotlight, see below) fades out;
+2550ms the logo; 2900 to 3350ms the wire fades; 3050ms the slogan and buttons; first photo change
+at 6600ms (was 5200ms), then every 6s as before. Two new visual elements, both drawn on
+`.djd-hero__fx` (the same canvas the specks use, see the z-index note below) via a new, undotted
+`softGlow()` helper (unlike `cluster()`, no halftone texture, just a plain radial gradient, paper
+color): a **spotlight** (400 to 2500ms, `3 * ball radius`, 12% alpha through the drop swelling to
+20% during the hang, then multiplied by the overlay's own fade curve so both finish together,
+`overlayFade()`) and a one-time **landing glow ring** (2500 to 3100ms, growing to 40% of the hero's
+own width while fading from 35% alpha to 0, independent of the overlay fade). The speck burst
+itself also changed: specks now start at 1.6x size and 2x alpha and ease down to normal over the
+same 900ms they fly out over (`sizeMul`/`alphaMul`, both derived from the existing `eOut` fly-out
+progress, not a separate curve). `.djd-hero__fx`'s own `z-index` moved above `.djd-hero__dark`'s
+(was below) specifically so the spotlight can sit above the black overlay as specified; this is
+safe for the specks and the ring too, since neither ever draws anything before landing (2500ms), by
+which point the overlay is already most of the way through its own fade.
+
+**Docking fix: a real two-logos-visible bug, not just a different formula.** v1.11.0's docking used
+a plain scroll fraction (`p = smoothstep(scrollY / (0.55 * heroHeight))`), which had no actual
+relationship to where the hero's own logo was on screen, confirmed live: at roughly a third of the
+way down the hero, the header logo was already fading in while the hero's own logo was still
+clearly visible, both at once. v1.12.0 replaces `p` with `q`, computed every frame from the hero
+logo's own live position relative to the header: `q = smoothstep(clamp((headerBottom -
+heroLogoRect.top) / (0.6 * heroLogoRect.height)))`, where `headerBottom` is
+`.fusion-header-wrapper`'s own `getBoundingClientRect().bottom` (already reflecting the admin bar
+offset, since that is CSS on the header itself, not something this script recomputes). `q` is 0
+until the hero logo's own top edge reaches the header's own bottom edge, and 1 once 60% of the
+logo's own height has passed under it; a crossfade can only happen in between, while the logo is
+physically passing under the header, which is what actually guarantees the two are never both
+clearly visible. Header logo opacity is `q` directly; the hero logo's opacity is now entirely JS
+owned too (`big.style.opacity`, not a CSS class), computed as its own entrance fade
+(`clamp((t - 2550) / 600)`) times `(1 - q)`, one driver for that property instead of a CSS
+transition and a scroll handler fighting over it; only the hero logo's `transform` (the scale-in)
+stayed class driven (`body.djd-seq-1 .djd-hero__logo { transform: none; }`), since `q` never touches
+it. The ball's own center/radius still interpolate from the hero slot to the header slot by this
+same `q`, exactly as `p` did before; before the handoff (`q = 0`) the ball simply rides with the
+hero logo as it scrolls, which falls out of `slot()` re-reading `getBoundingClientRect()` every
+frame, no special case needed for it.
+
+**Section headings: outline plus cyan.** Every `.djd-section-heading` ("Upcoming sets", "Latest
+live set", the venues heading) is now rendered server side as two spans by one shared helper,
+`djdt_heading_html()` (`djdigi-theme.php`): every word but the last in `.djd-hw-outline`, the last
+word alone in `.djd-hw-solid`, called from the events grid, `djdt_player_section()`, and
+`djdt_venues_shortcode()` (the venues heading is Mark's own editable setting, not a fixed string;
+the helper does not care, it just splits on whitespace). `.djd-hw-outline` is `color: transparent;
+-webkit-text-stroke: 1.5px var(--djd-paper)`, inside `@supports (-webkit-text-stroke: 1px)`; outside
+that block (the fallback, a browser without the property) it is solid paper instead of invisible
+transparent text, see site.css. `.djd-hw-solid` is `var(--djd-cyan)`. No `aria-label` needed: the
+two spans sit in normal reading order with a plain space between them (`implode(' ', $words)` then
+a literal space before the solid span), so the visible and accessible text are the same thing. A
+one-word heading (none currently exist, but the function handles it) is all solid.
+
 ## Dock scoping
 Avada reuses the exact same `.fusion-social-networks-wrapper` class for the header's small icon
 bar and the footer's. An unscoped query for that class finds whichever comes first in the

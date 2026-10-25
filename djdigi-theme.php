@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_venues], and [djdigi_events] for djdigimark.com.
- * Version: 1.11.0
+ * Version: 1.12.0
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.11.0' );
+define( 'DJDT_VERSION', '1.12.0' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -533,7 +533,7 @@ function djdt_render_settings_theme() {
 		</tr>
 		<tr>
 			<td colspan="2">
-				<p>Hero shortcode: <code>[djdigi_hero]</code>. Put it alone in a 100% width container with no padding, at the top of the page. It also outputs the "Latest live set" player section right after the hero; add <code>player="no"</code> (<code>[djdigi_hero player="no"]</code>) to leave that out. Add <code>?intro=1</code> to any hero page URL to force the full opening sequence while testing.</p>
+				<p>Hero shortcode: <code>[djdigi_hero]</code>. Put it alone in a 100% width container with no padding, at the top of the page. It also outputs the "Latest live set" player section right after the hero; add <code>player="no"</code> (<code>[djdigi_hero player="no"]</code>) to leave that out, then place <code>[djdigi_player]</code> wherever that section should go instead, for example after <code>[djdigi_events]</code>. The mirror ball's full entrance now plays on every page load; <code>?intro=1</code> no longer does anything.</p>
 				<p>Venues shortcode: <code>[djdigi_venues]</code>. Put it right below the hero shortcode on Home v2.</p>
 				<p><strong>After saving:</strong> if a caching plugin or your host's cache is active, purge the cached copy of any page carrying <code>[djdigi_hero]</code> or <code>[djdigi_venues]</code>, or changes here can keep showing the old version. See the plugin's CLAUDE.md for exact steps.</p>
 			</td>
@@ -1569,6 +1569,13 @@ add_shortcode( 'djdigi_hero', 'djdt_hero_shortcode' );
  * they sit in the DOM, and keeping them out of `.djd-hero` means nothing
  * about the hero's own stacking context (`isolation: isolate`) can ever
  * end up between them and the header they dock into.
+ *
+ * v1.12.0: shorter hero, smaller logo, and a new entrance timeline (plays
+ * on every page load now, not just once per session), all in hero.css and
+ * mirrorball.js, see CLAUDE.md "Homepage polish". `player="no"` pairs
+ * with the new `[djdigi_player]` shortcode below, for a page (like the
+ * new Home v2) that wants the player somewhere other than immediately
+ * after the hero.
  */
 function djdt_hero_shortcode( $atts = array() ) {
 	if ( ! djdt_is_active() ) {
@@ -1678,7 +1685,7 @@ function djdt_player_section() {
 	?>
 	<section class="djd-player-section" aria-label="Latest live set">
 		<div class="djd-player-section__inner">
-			<h2 class="djd-section-heading">Latest live set</h2>
+			<h2 class="djd-section-heading"><?php echo djdt_heading_html( 'Latest live set' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></h2>
 			<div class="djd-player<?php echo $mix['picture'] ? ' has-artwork' : ''; ?>" data-feed="<?php echo esc_attr( $mix['key'] ); ?>" data-length="<?php echo (int) $mix['length']; ?>">
 				<div class="djd-player__art">
 					<?php if ( $mix['picture'] ) : ?>
@@ -1713,6 +1720,50 @@ function djdt_player_section() {
 	</section>
 	<?php
 	return ob_get_clean();
+}
+
+add_shortcode( 'djdigi_player', 'djdt_player_shortcode' );
+
+/**
+ * [djdigi_player] (v1.12.0): the same "Latest live set" markup
+ * [djdigi_hero] has always output right after itself, as its own
+ * shortcode now, for pages that want it somewhere other than immediately
+ * after the hero (Home v2's new order: [djdigi_hero player="no"],
+ * [djdigi_events], [djdigi_player], [djdigi_venues]). [djdigi_hero
+ * player="no"] still works exactly as before, this is purely additive.
+ * Enqueues djdt-hero (the stylesheet and script this section's own CSS
+ * and its Mixcloud player logic live in) directly, rather than assuming
+ * [djdigi_hero] is also on the page to have already done it: hero.js's
+ * own early return only bails when neither this section nor the hero
+ * itself is present (see hero.js), so this works standalone too.
+ */
+function djdt_player_shortcode() {
+	if ( ! djdt_is_active() ) {
+		return '';
+	}
+	wp_enqueue_style( 'djdt-hero' );
+	wp_enqueue_script( 'djdt-hero' );
+	return djdt_player_section();
+}
+
+/**
+ * Renders a section heading's text as two spans (v1.12.0): every word but
+ * the last in .djd-hw-outline, the last word alone in .djd-hw-solid (see
+ * site.css for the look: an outline plus a solid cyan word). A one-word
+ * heading is all solid, nothing to split. Shared by the events grid, the
+ * player section and the venues heading, all three via this one function
+ * rather than three independent copies of the same word-splitting logic.
+ * No aria-label needed: the two spans sit in normal reading order with a
+ * plain space between them, so the visible text and the accessible text
+ * are the same thing.
+ */
+function djdt_heading_html( $text ) {
+	$words = preg_split( '/\s+/', trim( (string) $text ), -1, PREG_SPLIT_NO_EMPTY );
+	if ( count( $words ) <= 1 ) {
+		return '<span class="djd-hw-solid">' . esc_html( $text ) . '</span>';
+	}
+	$last = array_pop( $words );
+	return '<span class="djd-hw-outline">' . esc_html( implode( ' ', $words ) ) . '</span> <span class="djd-hw-solid">' . esc_html( $last ) . '</span>';
 }
 
 /** Escapes a genre line and softens any " · " grouping dots inside it. */
@@ -1831,7 +1882,7 @@ function djdt_venues_shortcode() {
 	ob_start();
 	?>
 	<section class="djd-venues" aria-label="<?php echo esc_attr( $heading ); ?>">
-		<h2 class="djd-section-heading"><?php echo esc_html( $heading ); ?></h2>
+		<h2 class="djd-section-heading"><?php echo djdt_heading_html( $heading ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></h2>
 		<div class="djd-venues__window">
 			<div class="djd-venues__track">
 				<?php for ( $copy = 0; $copy < 2; $copy++ ) : ?>

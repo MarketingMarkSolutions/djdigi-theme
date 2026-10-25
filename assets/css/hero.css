@@ -19,7 +19,16 @@
    fixed violet/cyan glows. Their own history (the riso halftone photo bake
    this file still relies on is unrelated and unchanged) is in git log and
    CLAUDE.md if it is ever needed again; this file does not carry it
-   forward as comments any more; see CLAUDE.md, "Mirror ball hero". */
+   forward as comments any more; see CLAUDE.md, "Mirror ball hero".
+
+   v1.12.0 (see CLAUDE.md, "Homepage polish"): the hero is shorter and the
+   logo smaller, the entrance plays on every page load (not just the first
+   visit in a session) on a new, slower timeline with a spotlight and a
+   landing glow ring, and the header docking handoff is driven by the hero
+   logo's own position passing under the header, not a scroll fraction.
+   The numbers below (heights, timings, z-index) are current as of
+   v1.12.0; the rest of this file's own structure is unchanged from
+   v1.11.0. */
 
 .djd-hero {
 	position: relative;
@@ -29,9 +38,11 @@
 	   .djd-player-section below and site.css's --djd-vw note. */
 	width: var(--djd-vw, 100%);
 	margin-left: calc(50% - var(--djd-vw, 100%) / 2);
-	/* The reference's own number: tall enough to read as a real hero on
-	   any screen, never shorter than the viewport on a normal desktop. */
-	height: max(640px, 100vh);
+	/* v1.12.0, Mark's call: shorter than a full screen on purpose now, so
+	   the next section (typically [djdigi_events]) shows on the first
+	   screen alongside the hero, not just below the fold. Was max(640px,
+	   100vh). */
+	height: max(540px, 68vh);
 	background: var(--djd-night);
 	color: var(--djd-paper);
 	font-family: var(--djd-sans);
@@ -83,19 +94,31 @@
 		linear-gradient(0deg, var(--djd-night) 0%, rgba(11, 8, 32, 0) 28%);
 }
 
-/* Light specks, drawn every frame by mirrorball.js (cluster(), a soft glow
-   plus real halftone dots on the same 75 degree, 7px grid the baked
-   photos use, see CLAUDE.md "Smoothness"). mix-blend-mode: screen so they
-   only ever brighten the photo underneath, never darken it. */
-.djd-hero__fx { position: absolute; inset: 0; z-index: 3; pointer-events: none; mix-blend-mode: screen; }
+/* Black intro overlay: full opacity through the drop and the hang, then
+   fades out (2450 to 3150ms, v1.12.0) once the ball has landed
+   (mirrorball.js sets this inline every frame, not a CSS transition,
+   since it has to track the same `t` the drop and the wire do). Hides the
+   first frame's own flash of a bare photo before anything else is ready
+   to show. Below .djd-hero__fx (next): the entrance spotlight is drawn on
+   that canvas and needs to sit above this overlay, see the note there. */
+.djd-hero__dark { position: absolute; inset: 0; z-index: 3; background: #000; pointer-events: none; }
 
-/* Black intro overlay: full opacity for the first 250ms (the ball still
-   hidden too), stays full through the drop, then fades out once the ball
-   has landed (mirrorball.js sets this inline every frame, not a CSS
-   transition, since it has to track the same `t` the drop and the wire
-   do). Hides the first frame's own flash of a bare photo before anything
-   else is ready to show. */
-.djd-hero__dark { position: absolute; inset: 0; z-index: 4; background: #000; pointer-events: none; }
+/* Light specks, the entrance spotlight and the one-time landing glow ring
+   are all drawn here every frame by mirrorball.js (cluster()/softGlow(),
+   v1.12.0): a soft glow plus, for specks specifically, real halftone dots
+   on the same 75 degree, 7px grid the baked photos use (see CLAUDE.md
+   "Smoothness"). mix-blend-mode: screen so everything drawn here only
+   ever brightens whatever is underneath, never darkens it, including the
+   black overlay itself (screen blending light over pure black is a no-op,
+   which is what lets the spotlight read correctly against it before the
+   overlay starts fading). z-index above .djd-hero__dark (above), on
+   purpose, v1.12.0: the entrance spotlight needs to sit above the black
+   overlay (the brief's own words), not below it like the specks used to
+   through v1.11.0; specks and the landing ring only ever start drawing at
+   or after landing (2500ms), by which point the overlay is already
+   fading, so moving this canvas above it changes nothing about how those
+   two read. */
+.djd-hero__fx { position: absolute; inset: 0; z-index: 4; pointer-events: none; mix-blend-mode: screen; }
 
 /* Fades the hero's own lower edge into the page, full width (v1.6.0,
    unchanged by the mirror ball rebuild). See CLAUDE.md "Smoothness". Sits
@@ -143,6 +166,10 @@
 	left: var(--djd-gutter);
 	top: 54%;
 	transform: translateY(-50%);
+	/* v1.12.0: the hero got shorter (above) and the logo smaller (below),
+	   so there is more real risk of the logo sitting right under the
+	   floating header; this clears it. */
+	padding-top: 60px;
 	display: flex;
 	flex-direction: column;
 	gap: 20px;
@@ -163,22 +190,30 @@
 	border: 0;
 }
 
-/* The logo: fades in and scales up very slightly (the reference's own
+/* The logo: scales up very slightly on entrance (the reference's own
    numbers), left center transform origin so it grows from where its own
    left edge already sits rather than from its own center. Height driven,
    width auto, same reasoning the header's own logo sizing already uses
-   (site.css). */
+   (site.css). v1.12.0: smaller now that the hero itself is shorter (was
+   min(54vh, 500px)); min(30vh, 260px) under 700px wide, see the media
+   query below.
+
+   Opacity is NOT CSS/class driven any more (v1.12.0): mirrorball.js sets
+   it directly every frame, combining this same entrance fade with the
+   header docking crossfade (one driver owning the property, not two
+   fighting over it, see mirrorball.js, frame()). Only the transform
+   (the scale-in) is still class driven here. */
 .djd-hero__logo {
 	display: block;
-	height: min(54vh, 500px);
+	height: min(34vh, 330px);
 	width: auto;
 	overflow: visible;
 	opacity: 0;
 	transform: scale(0.97);
 	transform-origin: left center;
-	transition: opacity 0.6s, transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
+	transition: transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
-body.djd-seq-1 .djd-hero__logo { opacity: 1; transform: none; }
+body.djd-seq-1 .djd-hero__logo { transform: none; }
 
 .djd-hero__slogan,
 .djd-hero__buttons {
@@ -188,13 +223,6 @@ body.djd-seq-1 .djd-hero__logo { opacity: 1; transform: none; }
 }
 body.djd-seq-3 .djd-hero__slogan,
 body.djd-seq-3 .djd-hero__buttons { opacity: 1; transform: none; }
-/* A page already seen this session (mirrorball.js, play(true)) adds every
-   djd-seq-* class on the same frame instead of staggering them in; this
-   suppresses the transition above just long enough for that to land with
-   nothing visibly animating, then is removed again immediately. */
-body.djd-ball-noanim .djd-hero__logo,
-body.djd-ball-noanim .djd-hero__slogan,
-body.djd-ball-noanim .djd-hero__buttons { transition: none !important; }
 
 .djd-hero__slogan {
 	margin: 0;
@@ -453,9 +481,14 @@ body.djd-ball-noanim .djd-hero__buttons { transition: none !important; }
 	50% { transform: translate3d(0, -2px, 0); }
 }
 
+/* v1.12.0, the brief's own breakpoint (700px, not the usual 800px): the
+   logo gets smaller again below this width. */
+@media (max-width: 700px) {
+	.djd-hero__logo { height: min(30vh, 260px); }
+}
+
 /* Tablet and phone */
 @media (max-width: 800px) {
-	.djd-hero__logo { height: 40vh; }
 	/* v1.10.0: .djd-player-section__inner's own padding used to get a
 	   fixed 32px override here; the base rule's padding-top is
 	   var(--djd-section-gap) now (site.css, already 72px at this

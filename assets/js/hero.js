@@ -1,17 +1,22 @@
-/* [djdigi_hero] behavior: the Mixcloud player (its own section right after
-   the hero, found and driven from here) and the Avada breakout host class
-   fallback. The header's background image is killed by a late wp_head
-   <style> block (djdigi-theme.php), not from here. The opening sequence,
-   the photo rotation and the header docking all moved to mirrorball.js in
+/* The Mixcloud player ("Latest live set", its own section, found here
+   whether it was output by [djdigi_hero] or by the standalone
+   [djdigi_player], v1.12.0) and the Avada breakout host class fallback.
+   The header's background image is killed by a late wp_head <style>
+   block (djdigi-theme.php), not from here. The opening sequence, the
+   photo rotation and the header docking all moved to mirrorball.js in
    v1.11.0, see CLAUDE.md, "Mirror ball hero": the ball needs its own
    requestAnimationFrame loop regardless of whether this hero shortcode's
    player section exists on a given page, so it owns all of that now,
-   leaving this file with only the player and the breakout host fallback. */
+   leaving this file with only the player and the breakout host fallback.
+
+   v1.12.0: no longer bails out when there is no .djd-hero on the page.
+   [djdigi_player] can appear on its own (djdt_player_shortcode(),
+   djdigi-theme.php, enqueues this same file), and the player logic below
+   has to run for that case too; only the breakout host fallback actually
+   cares about .djd-hero specifically, and it already tolerates there
+   being none (querySelectorAll on an empty match is a no-op). */
 (function () {
 	'use strict';
-
-	var hero = document.querySelector('.djd-hero');
-	if (!hero) return;
 
 	/* v1.8.2: a plain class fallback for the :has() rule in site.css that
 	   zeroes an Avada fusion-fullwidth container's own padding when it
