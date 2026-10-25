@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_venues], and [djdigi_events] for djdigimark.com.
- * Version: 1.12.1
+ * Version: 1.13.0
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.12.1' );
+define( 'DJDT_VERSION', '1.13.0' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -538,7 +538,7 @@ function djdt_render_settings_theme() {
 			</td>
 		</tr>
 		<tr>
-			<th scope="row"><label for="djdt-sets">"Upcoming sets" button link</label></th>
+			<th scope="row"><label for="djdt-sets">"Upcoming events" button link</label></th>
 			<td><input id="djdt-sets" class="regular-text" name="<?php echo esc_attr( $n ); ?>[sets_url]" value="<?php echo esc_attr( $s['sets_url'] ); ?>"></td>
 		</tr>
 		<tr>
@@ -1420,24 +1420,106 @@ add_action( 'admin_notices', function () {
  * does not exist, pick a real whole number or reorder by registration
  * timing instead. The fix for this is the CSS backup alone now, see
  * site.css (body.djdigi-has-hero .post-content > p, > br).
+ *
+ * v1.13.0, found live: a 20px gap above the hero again, for every
+ * visitor. Home v2's content now sits inside an Avada Builder text
+ * element, so the empty <p> wpautop leaves is the first child of
+ * .fusion-text, not of .post-content, and the v1.4.2 CSS never matched
+ * it. It is stripped server side now, see djdt_strip_hero_autop() below
+ * (priority 20, a plain int, well after do_shortcode at 11), with a
+ * CSS backup in site.css.
  */
+
+/** True on a singular page whose content carries [djdigi_hero], for a viewer the theme is active for. */
+function djdt_is_hero_page() {
+	if ( ! djdt_is_active() || ! is_singular() ) {
+		return false;
+	}
+	$post = get_post();
+	return $post && has_shortcode( $post->post_content, 'djdigi_hero' );
+}
 
 add_filter( 'body_class', function ( $classes ) {
 	if ( ! djdt_is_active() ) {
 		return $classes;
 	}
 	$classes[] = 'djdigi-theme';
-	if ( is_singular() ) {
-		$post = get_post();
-		if ( $post && has_shortcode( $post->post_content, 'djdigi_hero' ) ) {
-			$classes[] = 'djdigi-has-hero';
-			if ( shortcode_exists( 'djdigi_next_up' ) ) {
-				$classes[] = 'djdigi-hero-strip';
-			}
+	if ( djdt_is_hero_page() ) {
+		$classes[] = 'djdigi-has-hero';
+		if ( shortcode_exists( 'djdigi_next_up' ) ) {
+			$classes[] = 'djdigi-hero-strip';
 		}
 	}
 	return $classes;
 } );
+
+/**
+ * Removes the wpautop leftovers around the hero (v1.13.0): the opening
+ * <p> (plus any <br> or whitespace) right before <section class="djd-hero">,
+ * which the browser otherwise closes into an empty paragraph with a 20px
+ * bottom margin above the hero, and any <br> or closing </p> right after
+ * the hero's own end marker (djdt_hero_shortcode()). Runs once the whole
+ * page content, Avada Builder elements included, has been expanded.
+ */
+function djdt_strip_hero_autop( $content ) {
+	if ( ! djdt_is_active() || false === strpos( $content, 'djd-hero' ) ) {
+		return $content;
+	}
+	$content = preg_replace( '#<p>(?:\s|&nbsp;|<br\s*/?>)*(?=<section class="djd-hero")#i', '', $content );
+	$content = preg_replace( '#(<!-- /djd-hero -->)(?:\s|<br\s*/?>)*(?:</p>)?#i', '$1', $content );
+	return $content;
+}
+add_filter( 'the_content', 'djdt_strip_hero_autop', 20 );
+
+/**
+ * The header logo on hero pages (v1.13.0): Avada prints three logo <img>s
+ * (standard, sticky, mobile), all pointing at the old DigiMarkLogo60.png
+ * with a 1x/2x srcset and a data-retina_logo_url its own JS swaps in on a
+ * high density screen. On a hero page every one of them is rewritten to
+ * the night logo (djdt_logo_url(), the bundled SVG unless Mark picked an
+ * override) before the page leaves the server, srcset cleared, so the old
+ * PNG never shows, not even for one frame before mirrorball.js runs.
+ * There is no Avada filter for these tags, so the page is buffered from
+ * template_redirect and the tags rewritten in the buffer's callback; the
+ * buffer is only ever started on a hero page.
+ */
+add_action( 'template_redirect', function () {
+	if ( ! djdt_is_hero_page() ) {
+		return;
+	}
+	$url = djdt_logo_url();
+	if ( '' === $url ) {
+		return;
+	}
+	ob_start( function ( $html ) use ( $url ) {
+		return djdt_swap_header_logos( $html, $url );
+	} );
+} );
+
+/** Rewrites every Avada header logo <img> in $html to point at $url, see above. */
+function djdt_swap_header_logos( $html, $url ) {
+	if ( ! is_string( $html ) || false === strpos( $html, '-logo' ) ) {
+		return $html;
+	}
+	$src = esc_url( $url );
+	return preg_replace_callback(
+		'#<img\b[^>]*\bclass="[^"]*\bfusion-(?:standard|sticky|mobile)-logo\b[^"]*"[^>]*>#i',
+		function ( $m ) use ( $src ) {
+			$tag = preg_replace( '#\s(?:srcset|sizes|data-srcset|data-orig-srcset)=(?:"[^"]*"|\'[^\']*\')#i', '', $m[0] );
+			$tag = preg_replace_callback(
+				'#\s(src|data-src|data-orig-src|data-retina_logo_url)=(?:"[^"]*"|\'[^\']*\')#i',
+				function ( $a ) use ( $src ) {
+					return ' ' . $a[1] . '="' . $src . '"';
+				},
+				$tag
+			);
+			$tag = preg_replace( '#\swidth=(?:"[^"]*"|\'[^\']*\')#i', ' width="1517"', $tag );
+			$tag = preg_replace( '#\sheight=(?:"[^"]*"|\'[^\']*\')#i', ' height="1798"', $tag );
+			return $tag;
+		},
+		$html
+	);
+}
 
 /* -------------------------------------------------------------------------
  * Mixcloud
@@ -1685,7 +1767,7 @@ function djdt_hero_shortcode( $atts = array() ) {
 			<img class="djd-hero__logo" src="<?php echo esc_url( $logo_url ); ?>" alt="DJ DigiMark" width="1517" height="1798">
 			<p class="djd-hero__slogan">Bringing positive vibes to the dance <span class="djd-nowrap">floor <span class="djd-eq" role="img" aria-label="Rainbow flag and music"><span></span><span></span><span></span><span></span><span></span><span></span></span></span></p>
 			<div class="djd-hero__buttons">
-				<a class="djd-btn djd-btn--solid" href="<?php echo esc_url( $sets ); ?>">Upcoming sets</a>
+				<a class="djd-btn djd-btn--solid" href="<?php echo esc_url( $sets ); ?>">Upcoming events</a>
 				<a class="djd-btn djd-btn--line" href="<?php echo esc_url( $videos ); ?>">Remix videos</a>
 			</div>
 		</div>
@@ -1705,6 +1787,7 @@ function djdt_hero_shortcode( $atts = array() ) {
 	they sit in the DOM. -->
 	<div id="djd-wire" aria-hidden="true"></div>
 	<canvas id="djd-ball-canvas" aria-hidden="true"></canvas>
+	<!-- /djd-hero -->
 	<?php
 	return ob_get_clean();
 }
@@ -1745,7 +1828,14 @@ function djdt_player_section() {
 							<button type="button" class="djd-player__skipbtn" data-skip="30" aria-label="Forward 30 seconds">+30</button>
 						</div>
 					</div>
-					<div class="djd-player__title"><?php echo esc_html( $mix['name'] ); ?></div>
+					<?php $title_lines = djdt_mix_title_lines( $mix['name'] ); ?>
+					<div class="djd-player__title" title="<?php echo esc_attr( $mix['name'] ); ?>">
+						<span class="djd-sr"><?php echo esc_html( $mix['name'] ); ?></span>
+						<span class="djd-player__title-main" aria-hidden="true"><?php echo esc_html( $title_lines[0] ); ?></span>
+						<?php if ( '' !== $title_lines[1] ) : ?>
+							<span class="djd-player__title-sub" aria-hidden="true"><?php echo esc_html( $title_lines[1] ); ?></span>
+						<?php endif; ?>
+					</div>
 					<div class="djd-player__scrub" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="<?php echo (int) $mix['length']; ?>" aria-valuenow="0">
 						<?php djdt_inline_wave( 'djd-player__wave' ); ?>
 						<div class="djd-player__progress"><?php djdt_inline_wave( '' ); ?></div>
@@ -1762,6 +1852,33 @@ function djdt_player_section() {
 	</section>
 	<?php
 	return ob_get_clean();
+}
+
+/**
+ * Splits a Mixcloud title into the player's two display lines (v1.13.0):
+ * everything up to and including the first " - " is dropped (the "DJ
+ * DigiMark Live" prefix every upload carries), and a trailing "( ... )"
+ * becomes the second line. Either step simply does not apply when its
+ * part is missing, so a title with neither shows whole on one line.
+ * Returns array( line 1, line 2 or '' ). The full original title stays
+ * the accessible name, see djdt_player_section().
+ */
+function djdt_mix_title_lines( $name ) {
+	$name = trim( (string) $name );
+	$main = $name;
+	$pos  = strpos( $main, ' - ' );
+	if ( false !== $pos ) {
+		$main = trim( substr( $main, $pos + 3 ) );
+	}
+	$sub = '';
+	if ( preg_match( '/^(.*\S)\s*\(([^()]+)\)\s*$/u', $main, $m ) ) {
+		$main = trim( $m[1] );
+		$sub  = trim( $m[2] );
+	}
+	if ( '' === $main ) {
+		return array( $name, '' );
+	}
+	return array( $main, $sub );
 }
 
 add_shortcode( 'djdigi_player', 'djdt_player_shortcode' );

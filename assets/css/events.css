@@ -1,4 +1,4 @@
-/* [djdigi_events]: upcoming sets read from Modern Events Calendar, rendered
+/* [djdigi_events]: upcoming events read from Modern Events Calendar, rendered
    as our own cards, never MEC's own front end. Reads this theme's own
    --djd-* custom properties directly (site.css).
 

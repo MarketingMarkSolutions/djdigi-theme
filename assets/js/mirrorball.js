@@ -34,14 +34,114 @@
 	// scroll. Not every page this script loads on necessarily has one (a
 	// test harness, a future Avada change), so every use of either below is
 	// null-guarded rather than assumed.
-	var mini = document.querySelector('.fusion-logo img');
+	//
+	// v1.13.0: the standard logo img specifically (site.css hides the
+	// sticky and mobile copies on hero pages), and the logo now lives in a
+	// slot on the left end of the menu pill, not at the left gutter: see
+	// placeLogo() below.
+	var mini = document.querySelector('.fusion-logo img.fusion-standard-logo') || document.querySelector('.fusion-logo img');
+	var logoBox = mini ? mini.closest('.fusion-logo') : null;
+	var logoRow = logoBox ? logoBox.parentElement : null;
 	var headerWrapper = document.querySelector('.fusion-header-wrapper');
+	var desktopPill = document.querySelector('.fusion-main-menu');
+	var mobilePill = document.querySelector('.fusion-mobile-selector');
+	var mobileList = mobilePill ? document.getElementById(mobilePill.getAttribute('aria-controls') || '') : null;
 	var wire = document.getElementById('djd-wire');
 	var bc = document.getElementById('djd-ball-canvas');
 	if (!fx || !dark || !big || !wire || !bc) return;
 
-	if (mini && cfg.logoUrl) {
-		mini.src = cfg.logoUrl;
+	// PHP already rewrites all three Avada logo imgs to the night logo
+	// (djdt_swap_header_logos()); this is the backup if a cache layer ever
+	// serves a page from before that, srcset and Avada's retina swap
+	// attribute included so neither can bring the old PNG back.
+	if (cfg.logoUrl) {
+		Array.prototype.forEach.call(document.querySelectorAll('.fusion-logo img'), function (img) {
+			img.removeAttribute('srcset');
+			img.setAttribute('data-retina_logo_url', cfg.logoUrl);
+			if (img.getAttribute('src') !== cfg.logoUrl) img.src = cfg.logoUrl;
+		});
+	}
+
+	// The logo slot (v1.13.0): the pill's own left padding grows by
+	// SLOT_GROW px as q goes 0 to 1 (6px to 52px on the desktop menu), and
+	// the logo is moved so its right edge sits SLOT_GAP px short of where
+	// the menu's first item now starts. At q = 0 that puts it just outside
+	// the pill's left end, invisible anyway (opacity follows q). The pill
+	// is whichever of Avada's desktop menu or classic mobile button is
+	// actually showing at this width.
+	var SLOT_GROW = 46, SLOT_GAP = 8;
+	function activePill() {
+		if (desktopPill && desktopPill.offsetWidth > 0) return desktopPill;
+		if (mobilePill && mobilePill.offsetWidth > 0) return mobilePill;
+		return null;
+	}
+	function basePad(el) {
+		if (el.djdBasePad === undefined) el.djdBasePad = parseFloat(getComputedStyle(el).paddingLeft) || 0;
+		return el.djdBasePad;
+	}
+	var shownPill = null;
+	function placeLogo(q) {
+		if (!mini || !logoBox || !logoRow) return;
+		var pill = activePill();
+		if (pill !== shownPill) {
+			if (shownPill) shownPill.style.removeProperty('padding-left');
+			shownPill = pill;
+		}
+		if (!pill) return;
+		var pad = basePad(pill) + SLOT_GROW * q;
+		pill.style.setProperty('padding-left', pad.toFixed(2) + 'px', 'important');
+		var pr = pill.getBoundingClientRect(), rr = logoRow.getBoundingClientRect();
+		var border = parseFloat(getComputedStyle(pill).borderLeftWidth) || 0;
+		var x = pr.left + border + pad - SLOT_GAP - mini.offsetWidth - rr.left;
+		var y = pr.top + (pr.height - mini.offsetHeight) / 2 - rr.top;
+		logoBox.style.transform = 'translate(' + x.toFixed(2) + 'px,' + y.toFixed(2) + 'px)';
+		logoBox.style.pointerEvents = q > 0.5 ? 'auto' : 'none';
+	}
+
+	// The header's own laid out bottom edge, without any hide/show
+	// transform (v1.13.0): q below must not drop back toward 0 just
+	// because the header slid up out of view. Its CSS top (0, or the admin
+	// bar offset) is read once and again on resize.
+	var headerTop = 0;
+	function readHeaderTop() {
+		headerTop = headerWrapper ? (parseFloat(getComputedStyle(headerWrapper).top) || 0) : 0;
+	}
+	readHeaderTop();
+
+	// Hide on scroll down, show on scroll up (v1.13.0), only once the page
+	// is scrolled past the hero. Always shown above that point, while the
+	// mobile menu is open, and while focus is inside the header.
+	var hdrHidden = false, lastY = window.pageYOffset, anchorY = lastY, scrollDir = 0;
+	function mobileMenuOpen() {
+		if (mobilePill && 'true' === mobilePill.getAttribute('aria-expanded')) return true;
+		return !!(mobileList && mobileList.offsetHeight > 0);
+	}
+	function headerMustShow(y) {
+		var heroBottom = hero.getBoundingClientRect().bottom + y;
+		if (y <= heroBottom) return true;
+		if (mobileMenuOpen()) return true;
+		return !!(headerWrapper && headerWrapper.contains(document.activeElement));
+	}
+	function setHeaderHidden(h) {
+		if (!headerWrapper || h === hdrHidden) return;
+		hdrHidden = h;
+		headerWrapper.classList.toggle('djd-hdr-hidden', h);
+	}
+	function onScroll() {
+		var y = window.pageYOffset, d = y - lastY;
+		if (d !== 0) {
+			var nd = d > 0 ? 1 : -1;
+			if (nd !== scrollDir) { scrollDir = nd; anchorY = lastY; }
+		}
+		lastY = y;
+		if (headerMustShow(y)) { setHeaderHidden(false); anchorY = y; return; }
+		if (scrollDir > 0 && y - anchorY > 8) setHeaderHidden(true);
+		else if (scrollDir < 0 && anchorY - y > 8) setHeaderHidden(false);
+	}
+	if (headerWrapper) {
+		window.addEventListener('scroll', onScroll, { passive: true });
+		headerWrapper.addEventListener('focusin', function () { setHeaderHidden(false); });
+		if (mobilePill) mobilePill.addEventListener('click', function () { setHeaderHidden(false); });
 	}
 
 	var fc = fx.getContext('2d');
@@ -178,7 +278,6 @@
 		var t = now - start;
 		rot += dt * .0002; flash = Math.max(0, flash - dt / 900);
 		var hr = hero.getBoundingClientRect();
-		var sb = slot(big), sm = mini ? slot(mini) : sb;
 
 		// Docking handoff (v1.12.0, replacing a plain scroll fraction): q is
 		// how far the hero logo's own top edge has passed under the fixed
@@ -189,12 +288,21 @@
 		// in), not recomputed here. Before the handoff this is 0 and the
 		// ball simply rides with the hero logo as it scrolls, since sm/sb
 		// below both still resolve to the hero's own slot.
+		//
+		// v1.13.0: headerBottom is the header's laid out position (CSS top
+		// plus its own height), not its live rect, so the hide/show
+		// transform never feeds back into q. The logo is moved into the
+		// pill's slot first, then both slots are read: slot(mini) reads the
+		// logo's live rect, the header's hide/show transform included, so
+		// the ball follows the pill up and back down.
 		var heroLogoRect = big.getBoundingClientRect();
-		var headerBottom = headerWrapper ? headerWrapper.getBoundingClientRect().bottom : 0;
+		var headerBottom = headerWrapper ? headerTop + headerWrapper.offsetHeight : 0;
 		var heroLogoH = Math.max(1, heroLogoRect.height);
 		var q = clamp((headerBottom - heroLogoRect.top) / (0.6 * heroLogoH));
 		q = q * q * (3 - 2 * q);
+		placeLogo(q);
 		if (mini) mini.style.opacity = q;
+		var sb = slot(big), sm = mini ? slot(mini) : sb;
 		// The hero logo's own entrance fade (same 600ms window the djd-seq-1
 		// class's transform transition uses, see hero.css) combined with the
 		// docking fade: one driver, not two fighting over the same property,
@@ -211,7 +319,12 @@
 			by = ty;
 			if (!landed) { landed = true; flash = 1; ring = { t0: now }; }
 		}
-		bc.style.opacity = t < 400 ? 0 : 1;
+		// Docked, the ball fades with the header as it hides and shows
+		// (v1.13.0): its computed opacity mid transition, weighted by q so
+		// the ball riding the hero logo (q = 0) is never touched by it.
+		var hdrOp = (headerWrapper && q > 0) ? parseFloat(getComputedStyle(headerWrapper).opacity) : 1;
+		if (isNaN(hdrOp)) hdrOp = 1;
+		bc.style.opacity = t < 400 ? 0 : (1 - q + q * hdrOp);
 		var lx = (mouse.x - tx) / Math.max(W, 1), ly = (mouse.y - by) / Math.max(H, 1);
 		if (mouse.x < -999) { lx = -.4; ly = -.5; }
 		var sz = drawBall(tr, lx * 2, ly * 2, now);
@@ -324,7 +437,7 @@
 
 	window.addEventListener('mousemove', function (e) { mouse.x = e.clientX; mouse.y = e.clientY; });
 	window.addEventListener('mouseleave', function () { mouse.x = -9999; });
-	window.addEventListener('resize', size);
+	window.addEventListener('resize', function () { size(); readHeaderTop(); });
 	document.addEventListener('visibilitychange', function () {
 		if (document.hidden) stopLoop(); else startLoop();
 	});

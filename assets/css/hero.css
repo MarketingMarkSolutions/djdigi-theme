@@ -429,13 +429,45 @@ body.djd-seq-3 .djd-hero__buttons { opacity: 1; transform: none; }
 	cursor: pointer;
 }
 .djd-player__skipbtn:hover { background: rgba(241, 236, 226, 0.14); }
+/* v1.13.0: the mix title reads in normal case now, exactly as written on
+   Mixcloud, in the text face rather than the condensed display face (all
+   caps condensed was hard to read live). PHP splits it into two lines,
+   djdt_mix_title_lines(): the place, then the trailing "( ... )" detail.
+   The full original title stays the accessible name through .djd-sr and
+   the title attribute; both visible lines are aria-hidden. */
 .djd-player__title {
-	font-family: var(--djd-display);
-	font-weight: 800;
-	font-size: 24px;
-	line-height: 1.08;
-	text-transform: uppercase;
+	text-transform: none;
 	overflow-wrap: anywhere;
+}
+.djd-player__title-main {
+	display: block;
+	font-family: var(--djd-sans);
+	font-weight: 600;
+	font-size: clamp(18px, 1.6vw, 24px);
+	line-height: 1.2;
+	color: var(--djd-paper);
+	text-transform: none;
+}
+.djd-player__title-sub {
+	display: block;
+	margin-top: 3px;
+	font-family: var(--djd-sans);
+	font-weight: 400;
+	font-size: 15px;
+	line-height: 1.35;
+	color: rgba(241, 236, 226, 0.7);
+	text-transform: none;
+}
+.djd-sr {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
 }
 .djd-player__scrub {
 	position: relative;
@@ -508,5 +540,4 @@ body.djd-seq-3 .djd-hero__buttons { opacity: 1; transform: none; }
 	.djd-player { flex-wrap: wrap; padding: 14px 16px; gap: 14px; }
 	.djd-player__btn,
 	.djd-player__art { flex-basis: 56px; width: 56px; height: 56px; }
-	.djd-player__title { font-size: 20px; }
 }

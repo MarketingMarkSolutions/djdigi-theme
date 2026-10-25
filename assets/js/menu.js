@@ -69,12 +69,29 @@
 			resizeTimer = setTimeout(function () { place(currentLink(), false); }, 150);
 		});
 
+		// v1.13.0: on hero pages mirrorball.js grows the bar's own left
+		// padding (the logo slot) as the logo docks, which shifts every link
+		// right while this highlight stays put. Re-place it whenever the
+		// bar's width actually changes, except mid click (the slide toward
+		// the clicked item is already running then).
+		var navigating = false;
+		if (window.ResizeObserver) {
+			var lastBarW = bar.offsetWidth;
+			new ResizeObserver(function () {
+				var w = bar.offsetWidth;
+				if (w === lastBarW) return;
+				lastBarW = w;
+				if (!navigating) place(currentLink(), false);
+			}).observe(bar);
+		}
+
 		topLevelLinks().forEach(function (a) {
 			a.addEventListener('click', function (e) {
 				if (e.metaKey || e.ctrlKey || e.shiftKey || 1 === e.button) {
 					return; // new tab: let it navigate plainly
 				}
 				e.preventDefault();
+				navigating = true;
 				place(a, true);
 				var href = a.href;
 				setTimeout(function () {

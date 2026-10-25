@@ -1,6 +1,6 @@
 <?php
 /**
- * [djdigi_events]: upcoming sets read straight from Modern Events Calendar
+ * [djdigi_events]: upcoming events read straight from Modern Events Calendar
  * Lite's own data. MEC's front end (its shortcodes, its calendar/list
  * views, its CSS/JS) is never used; this reads MEC's post type, post meta
  * and location taxonomy with plain WP APIs and renders its own cards.
@@ -195,7 +195,7 @@ function djdt_events_redirect_mec_singles() {
 }
 
 /**
- * The events page URL: reads the same admin configured "Upcoming sets"
+ * The events page URL: reads the same admin configured "Upcoming events"
  * setting the hero's own button already points at (djdt_get('sets_url'),
  * Theme Settings), rather than a separate hardcoded slug, so there is one
  * place to change it, not two that can drift apart.
@@ -683,7 +683,7 @@ function djdt_events_render_grid( $occurrences, $is_row ) {
 	?>
 	<div class="djd-events">
 		<?php if ( $is_row ) : ?>
-			<h2 class="djd-section-heading"><?php echo djdt_heading_html( 'Upcoming sets' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></h2>
+			<h2 class="djd-section-heading"><?php echo djdt_heading_html( 'Upcoming events' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></h2>
 		<?php endif; ?>
 		<div class="djd-events__track">
 			<?php foreach ( $occurrences as $i => $occ ) : ?>

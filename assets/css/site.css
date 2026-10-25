@@ -137,6 +137,15 @@ body.djdigi-theme h3 {
    behind @supports: a browser without -webkit-text-stroke would otherwise
    show fully invisible (transparent, no stroke) text for this half of
    every heading. */
+/* v1.13.0, found live: the headings still rendered in mixed case. The
+   site's own heading rules (Avada's typography CSS, e.g. .post-content h2)
+   out-rank the single class rule above and set text-transform: none, so
+   uppercase is forced here, on the heading and on both of its spans. */
+body.djdigi-theme .djd-section-heading,
+body.djdigi-theme .djd-section-heading .djd-hw-outline,
+body.djdigi-theme .djd-section-heading .djd-hw-solid {
+	text-transform: uppercase !important;
+}
 .djd-hw-outline { color: var(--djd-paper); }
 @supports (-webkit-text-stroke: 1px) {
 	.djd-hw-outline { color: transparent; -webkit-text-stroke: 1.5px var(--djd-paper); }
@@ -469,6 +478,30 @@ body.djdigi-has-hero .fusion-header-wrapper {
 	width: 100% !important;
 	background-color: transparent !important;
 	background-image: none !important;
+	transition: transform 300ms ease-out, opacity 300ms ease-out;
+}
+/* v1.13.0: once the page is scrolled past the hero, mirrorball.js adds
+   djd-hdr-hidden while scrolling down and removes it on scroll up. The
+   whole wrapper moves (it paints nothing of its own, so the pill is all
+   anyone sees go), far enough to clear the admin bar offset too. The
+   ball reads the logo's own rect every frame, this transform included,
+   and fades with it, see mirrorball.js. */
+body.djdigi-has-hero .fusion-header-wrapper.djd-hdr-hidden {
+	transform: translateY(-140%);
+	opacity: 0;
+	pointer-events: none;
+	transition: transform 250ms ease-in, opacity 250ms ease-in;
+}
+/* v1.13.0, found in the snapshot harness: once scrolled, Avada's own
+   sticky header script adds .fusion-is-sticky and makes .fusion-header
+   itself position: fixed (inline top included). The wrapper above is
+   already fixed on hero pages, so that only collapsed the wrapper to 0px
+   tall, which made the -140% hide transform move nothing and threw off
+   mirrorball.js's header bottom edge. The inner header stays in normal
+   flow inside the fixed wrapper instead. */
+body.djdigi-has-hero .fusion-header-wrapper .fusion-header {
+	position: static !important;
+	top: auto !important;
 }
 body.djdigi-has-hero.admin-bar .fusion-header-wrapper { top: 32px; }
 @media (max-width: 782px) {
@@ -534,11 +567,6 @@ body.djdigi-has-hero .fusion-header {
 	   render anything on their own (a clearfix exists only to force
 	   height in normal flow, meaningless once this row is already
 	   flex), so hiding them outright is correct, not a workaround. */
-	body.djdigi-has-hero .fusion-header-wrapper .fusion-row::before,
-	body.djdigi-has-hero .fusion-header-wrapper .fusion-row::after,
-	body.djdigi-has-hero .fusion-header-wrapper .fusion-row > .fusion-clearfix {
-		display: none !important;
-	}
 	/* With the clearfix pieces gone, the row is genuinely just these two
 	   children, but they are still two independent flex items, not a
 	   pair justify-content can be trusted to pin to the opposite ends on
@@ -551,6 +579,85 @@ body.djdigi-has-hero .fusion-header {
 		margin-left: auto;
 	}
 }
+/* v1.13.0: the clearfix rule above (v1.7.2) applies at every width now,
+   since the phone header row is flex too (below). */
+body.djdigi-has-hero .fusion-header-wrapper .fusion-row::before,
+body.djdigi-has-hero .fusion-header-wrapper .fusion-row::after,
+body.djdigi-has-hero .fusion-header-wrapper .fusion-row > .fusion-clearfix {
+	display: none !important;
+}
+body.djdigi-has-hero .fusion-header-wrapper .fusion-row { position: relative; }
+
+/* v1.13.0: one pill on the phone too. Below the desktop menu breakpoint
+   Avada shows its classic mobile menu (a "Go to..." button inside
+   .fusion-mobile-nav-holder, which opens the list below it) in place of
+   the main menu. On hero pages that button becomes the same pill as the
+   desktop menu, on the right, and the list opens as a dark panel under
+   it rather than a full width bar. mirrorball.js treats whichever of the
+   two is visible as "the pill" and grows its logo slot the same way.
+   Inner pages keep Avada's own mobile menu untouched. */
+@media (max-width: 800px) {
+	body.djdigi-has-hero .fusion-header-wrapper .fusion-row {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		padding-top: 16px;
+	}
+	body.djdigi-has-hero .fusion-mobile-nav-holder {
+		position: relative;
+		float: none !important;
+		width: auto !important;
+		margin: 0 0 0 auto !important;
+	}
+	body.djdigi-has-hero .fusion-mobile-selector {
+		display: flex !important;
+		align-items: center;
+		gap: 8px;
+		height: 40px !important;
+		line-height: 1 !important;
+		padding: 0 16px !important;
+		border-radius: 999px !important;
+		background: rgba(14, 10, 36, 0.82) !important;
+		border: 1px solid rgba(241, 236, 226, 0.16) !important;
+		color: var(--djd-paper) !important;
+		font-family: var(--djd-sans) !important;
+		font-size: 14px !important;
+		font-weight: 600 !important;
+		white-space: nowrap;
+	}
+	body.djdigi-has-hero .fusion-mobile-selector .fusion-selector-down {
+		position: static !important;
+		border: 0 !important;
+		height: auto !important;
+		width: auto !important;
+		color: var(--djd-paper) !important;
+	}
+	body.djdigi-has-hero .fusion-mobile-nav-holder > ul {
+		position: absolute !important;
+		top: calc(100% + 8px);
+		right: 0;
+		width: min(300px, calc(100vw - 2 * var(--djd-gutter)));
+		margin: 0 !important;
+		padding: 8px 0 !important;
+		border: 1px solid rgba(241, 236, 226, 0.18) !important;
+		border-radius: 16px;
+		background-color: #140f33 !important;
+		box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+	}
+	/* Avada's mobile search box shows as a third row item once the menu
+	   opens, which pushed the pill left and the panel off screen. Hero
+	   pages have no room for it in a one pill header, so it is hidden. */
+	body.djdigi-has-hero .fusion-mobile-menu-search {
+		display: none !important;
+	}
+	body.djdigi-has-hero .fusion-mobile-nav-holder li,
+	body.djdigi-has-hero .fusion-mobile-nav-holder li a {
+		background-color: transparent !important;
+		border-color: rgba(241, 236, 226, 0.08) !important;
+		color: var(--djd-paper) !important;
+	}
+}
+
 body.djdigi-has-hero .fusion-logo {
 	/* v1.7.2, found live: margin-top: 10px (Avada's own default) was
 	   never actually overridden, just the v1.7.0 nudge that used to sit
@@ -566,6 +673,22 @@ body.djdigi-has-hero .fusion-logo {
 	   margin). One value read in two places, not two independent guesses
 	   that can drift apart. */
 	margin: 0 0 0 var(--djd-name-edge, -8px) !important;
+	/* v1.13.0: superseded. There is no separate logo at the left gutter on
+	   hero pages any more: the logo lives in a slot on the pill's own left
+	   end. It is taken out of the row's flow here (top left of the row,
+	   zero margin) and mirrorball.js moves it into that slot every frame
+	   with a transform, reading the pill's own rect, so it stays in the
+	   slot as the slot grows and while the header hides and shows. Above
+	   the pill (z-index) so the pill's own background never covers it:
+	   Avada gives .fusion-main-menu z-index 200 of its own.
+	   Not clickable while it is faded out (mirrorball.js turns pointer
+	   events back on once docked). */
+	position: absolute !important;
+	top: 0;
+	left: 0;
+	z-index: 201;
+	margin: 0 !important;
+	pointer-events: none;
 	/* v1.6.2 attempt: centering the image within the logo's own box
 	   directly, kept here since it is still a reasonable thing to do on
 	   its own (in case the logo's own box is ever taller than the image
@@ -586,8 +709,23 @@ body.djdigi-has-hero .fusion-logo a {
    ratio once height is forced, rather than stretching it. No glow,
    outline or backdrop added behind it, on purpose: a plain, larger mark
    is what was asked for, nothing more. */
+/* v1.13.0: 40px, the pill's own height (was 72px, 52px on phone): the
+   logo sits inside the pill now, see .fusion-logo above. Only the
+   standard logo img is ever shown on hero pages. PHP rewrites all three
+   (standard, sticky, mobile) to the same night logo anyway
+   (djdt_swap_header_logos()), and mirrorball.js reads one element, so
+   Avada's own per breakpoint and sticky state swapping between them is
+   switched off here rather than leaving the ball to dock into whichever
+   one happens to be hidden. */
+body.djdigi-has-hero .fusion-logo img.fusion-sticky-logo,
+body.djdigi-has-hero .fusion-logo img.fusion-mobile-logo {
+	display: none !important;
+}
+body.djdigi-has-hero .fusion-logo img.fusion-standard-logo {
+	display: block !important;
+}
 body.djdigi-has-hero .fusion-logo img {
-	height: 72px !important;
+	height: 40px !important;
 	width: auto !important;
 	max-height: none !important;
 	/* Starts hidden (v1.11.0): mirrorball.js swaps this image's own src to
@@ -598,11 +736,6 @@ body.djdigi-has-hero .fusion-logo img {
 	   image Avada itself would otherwise show here first, before that
 	   script runs; a plain inline style from JS always overrides this. */
 	opacity: 0;
-}
-@media (max-width: 800px) {
-	body.djdigi-has-hero .fusion-logo img {
-		height: 52px !important;
-	}
 }
 
 body.djdigi-has-hero .fusion-secondary-header {
@@ -777,6 +910,15 @@ body.djdigi-has-hero .post-content > .fusion-fullwidth:first-child { padding-top
    :first-child, the one actually confirmed still showing; a <br>
    between two adjacent shortcode lines is a real empty element on its
    own already, the plain selector below already catches that case. */
+/* v1.13.0: and any empty paragraph (only whitespace or <br>) directly
+   before the hero, wherever it sits: Home v2's hero is inside an Avada
+   Builder text element now, so the leftover <p> is the first child of
+   .fusion-text, which the .post-content rules here never matched. PHP
+   strips it before it ever reaches the page (djdt_strip_hero_autop());
+   this is the backup. */
+body.djdigi-has-hero p:has(+ .djd-hero):not(:has(:not(br))) {
+	display: none !important;
+}
 body.djdigi-has-hero .post-content > p:first-child:not(:has(*)),
 body.djdigi-has-hero .post-content > p:empty,
 body.djdigi-has-hero .post-content > br {

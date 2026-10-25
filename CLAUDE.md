@@ -338,6 +338,86 @@ fall straight through to the default logo. Fixed by checking the mime type direc
 (`'image/svg+xml' === get_post_mime_type($id)`) and treating that case as valid on its own, ahead of
 and instead of calling `wp_attachment_is_image()`, not in addition to it.
 
+## Homepage cleanup (v1.13.0)
+Five items, confirmed by Mark and built as specified. Supersedes the header logo position and size
+described in "Header over the hero" and "Mirror ball hero" for hero pages.
+
+**No gap above the hero.** Home v2's hero now sits inside an Avada Builder text element, so the
+empty `<p>` wpautop leaves (`<p>[djdigi_hero ...]` closed by the browser at `<section>`) is the first
+child of `.fusion-text`, not `.post-content`, and the v1.4.2 CSS never matched it (20px gap, every
+visitor). `djdt_strip_hero_autop()` (`the_content`, priority 20, a plain int, well after
+`do_shortcode` at 11) removes the `<p>` (plus `<br>`/whitespace/`&nbsp;`) right before
+`<section class="djd-hero"`, and any `<br>`/`</p>` right after the `<!-- /djd-hero -->` marker
+`djdt_hero_shortcode()` now prints at the end of its output. CSS backup in site.css: any `p` directly
+before `.djd-hero` containing nothing but `<br>` is hidden (`p:has(+ .djd-hero):not(:has(:not(br)))`).
+Hero detection is one helper now, `djdt_is_hero_page()`, shared by the body class filter and the logo
+swap below.
+
+**One pill, logo inside it, hides on scroll down.** No logo at the left gutter on hero pages any more.
+- Server side: on a hero page the whole response is buffered from `template_redirect` and
+  `djdt_swap_header_logos()` rewrites all three Avada logo imgs (`fusion-standard-logo`,
+  `fusion-sticky-logo`, `fusion-mobile-logo`) to `djdt_logo_url()` (the bundled `logo-night.svg`
+  unless Mark set an override): `src`, `data-src`, `data-orig-src` and Avada's own
+  `data-retina_logo_url` (its JS swaps that in on a high density screen), `srcset`/`sizes` removed,
+  `width="1517" height="1798"`. There is no Avada filter for these tags, hence the buffer. The old
+  `DigiMarkLogo60.png` is never requested (checked in the harness). mirrorball.js repeats the swap
+  client side as a backup for a stale cached page.
+- site.css shows only the standard logo img on hero pages (sticky and mobile copies hidden), 40px tall,
+  and takes `.fusion-logo` out of flow (`position: absolute`, top left of the header row,
+  `z-index: 201`: Avada's own `.fusion-main-menu` is `z-index: 200`, found in the harness, the logo
+  rendered dimmed under the pill's background at 2). mirrorball.js `placeLogo(q)` runs every frame:
+  the visible pill's `padding-left` grows from its base by 46px with `q` (6px to 52px on the desktop
+  menu, set with `!important` since the phone pill's padding is `!important`), and the logo is
+  translated so its right edge sits 8px short of the first menu item, vertically centered on the pill.
+  The ball still docks by `slot(mini)`, now read after the logo is placed, so it reads the live rect
+  with every transform included. Slot math unchanged (85.5 / 14.2 / 9.6).
+- `headerBottom` for `q` is now the header's laid out position (CSS `top` plus `offsetHeight`), not its
+  live rect, so the hide transform never feeds back into `q`.
+- Hide/show: past the hero's bottom edge, scrolling down more than 8px adds `djd-hdr-hidden` to
+  `.fusion-header-wrapper` (`translateY(-140%)` plus fade, 250ms ease-in); scrolling up more than 8px
+  removes it (300ms ease-out). Always shown above the hero bottom, while the mobile menu is open
+  (`aria-expanded="true"` on Avada's selector, or its list is showing), and while focus is inside the
+  header. Docked, the ball's opacity follows the header's computed opacity (weighted by `q`).
+- **Avada's sticky header script, found in the harness:** once scrolled it adds `.fusion-is-sticky` and
+  makes `.fusion-header` itself `position: fixed`, which collapsed the already fixed wrapper to 0px tall
+  (the -140% transform then moved nothing, and `headerBottom` broke). `.fusion-header` is forced
+  `position: static; top: auto` inside the wrapper on hero pages.
+- **Phone (800px and under):** the classic mobile "Go to..." button (`.fusion-mobile-selector`) is the
+  pill: same background/border, 40px, on the right; the header row is flex at this width too (the
+  v1.7.2 clearfix hiding applies at every width now). The list opens as a dark panel anchored under the
+  pill's right edge, `min(300px, 100vw - 2 gutters)` wide. Avada's mobile search box
+  (`.fusion-mobile-menu-search`) is hidden on hero pages: it joined the flex row when the menu opened
+  and pushed the pill and panel off screen. Inner pages keep Avada's mobile menu untouched. This
+  supersedes the earlier "leave Avada's mobile header alone" scoping, for hero pages only.
+- menu.js re-places its current item highlight (without animation) whenever the bar's width changes
+  (ResizeObserver), since the growing slot shifts every link right; skipped mid click navigation.
+
+**"Upcoming sets" is "Upcoming events"** everywhere visible: the events heading (`UPCOMING` outline,
+`EVENTS` cyan), the hero button, the Theme Settings label, and related comments. The option key is
+still `sets_url`, intentionally not renamed (saved values would be dropped).
+
+**Headings in capitals.** Avada's own heading rules (e.g. `.post-content h2`) out-ranked
+`.djd-section-heading`'s `text-transform: uppercase`; now forced with `!important` on the heading and
+both spans.
+
+**Mix title: normal case, two lines.** `djdt_mix_title_lines()`: drop everything up to and including
+the first `" - "`, then a trailing `( ... )` becomes line 2. Each step only applies if its part exists,
+so a title with neither shows whole on one line. Line 1 `.djd-player__title-main` (Archivo 600,
+`clamp(18px, 1.6vw, 24px)`, paper), line 2 `.djd-player__title-sub` (Archivo 400, 15px, paper at 70%),
+both `aria-hidden`; the full original title is in a visually hidden `.djd-sr` span and the `title`
+attribute.
+
+**Verified** with a Playwright harness built from the saved Home v2 snapshot (real Avada header,
+mobile nav and sticky script; the new hero/events/player/venues markup placed inside a builder column
+with the wpautop leftover left in, so the CSS backup is what gets tested), at 2000, 1280 and 390,
+logged in and out: hero top at 0 (32/46 under the admin bar), headings uppercase, two line title,
+header logo hidden at the top, docked pill padding base+46, logo 40px inside the slot and centered,
+ball center within 1px of the logo dot (also mid show transition), hide on scroll down with the ball
+hidden, show on scroll up, focus keeps it shown, no horizontal scroll, no errors from plugin files,
+old logo never requested. The PHP string functions (autop strip, logo swap, title split) were
+checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
+against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
+
 ## Dock scoping
 Avada reuses the exact same `.fusion-social-networks-wrapper` class for the header's small icon
 bar and the footer's. An unscoped query for that class finds whichever comes first in the
