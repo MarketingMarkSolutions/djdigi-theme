@@ -1,285 +1,115 @@
-/* [djdigi_hero]: large right side photo, layered opening, name, slogan.
-   The player moved to its own section below (v1.6.0, djd-player-section
-   further down, djdigi-theme.php djdt_player_section()); the scroll
-   shrink effect (scale, rounded corners on scroll) is gone entirely,
-   Mark's call: the hero now flows straight into the page instead of
-   shrinking into a card. */
+/* [djdigi_hero]: the mirror ball hero (v1.11.0, reference/mirrorball-hero-
+   reference.html is the source of truth for the look, see CLAUDE.md,
+   "Mirror ball hero") and the "Latest live set" player section right
+   after it (djdigi-theme.php, djdt_player_section()).
+
+   The hero itself is now: a full bleed rotating photo panel, a dark left
+   to right wash for readability (.djd-hero__shade, the reference's own
+   .shade), a light specks canvas (.djd-hero__fx, screen blended), a black
+   intro overlay (.djd-hero__dark), and the inner block (logo, slogan, both
+   buttons) vertically centered at 54%. The spinning mirror ball itself
+   (#djd-ball-canvas) and the wire it drops in on (#djd-wire) are both
+   fixed position, drawn by mirrorball.js every frame regardless of scroll
+   position, and dock into the Avada header's own logo on the way down the
+   page; see mirrorball.js for all of that math.
+
+   Retired in this version, all replaced by the above: the name's own
+   letter by letter intro ("DJ DigiMark" typeset in Saira, with its mask,
+   echo and drift), the TV static crossfade between photos, and the three
+   fixed violet/cyan glows. Their own history (the riso halftone photo bake
+   this file still relies on is unrelated and unchanged) is in git log and
+   CLAUDE.md if it is ever needed again; this file does not carry it
+   forward as comments any more; see CLAUDE.md, "Mirror ball hero". */
 
 .djd-hero {
 	position: relative;
-	/* v1.8.2, found live at 2000px wide: Home v2's content now sits inside
-	   a real Avada Builder container (div.fusion-fullwidth, padding 30px >
-	   div.fusion-builder-row.fusion-row, max-width 1248px > a column >
-	   div.fusion-text), not the flat "100% Width template, zero padding
-	   container" every earlier release through v1.7.2 assumed. width: 100%
-	   only ever matches this section's own direct parent, so under a
-	   builder row like this one it rendered at the row's own 1200px
-	   content width, not the window's. --djd-vw (set in PHP, wp_head, a
-	   tiny inline script run before the page body paints so there is
-	   nothing to flash) holds the real viewport width in px, read fresh
-	   from document.documentElement.clientWidth, which (unlike 100vw)
-	   never includes the scrollbar's own width either, the exact bug that
-	   made the old 100vw trick sit this section 7px too far left back in
-	   v1.7.0. width: var(--djd-vw) plus margin-left: calc(50% - var(--djd-vw)
-	   / 2) is that same old centering trick, just driven by a real
-	   measured number instead of 100vw or an assumption about the parent:
-	   it breaks this section out to the full window width relative to
-	   whatever its own direct parent happens to be, any number of Avada
-	   containers deep, with no dependency on a specific template or zero
-	   padding container existing at all. Falls back to the plain, pre
-	   v1.8.2 100% behavior if JS never runs (var()'s own fallback syntax,
-	   no media query or @supports needed): not full bleed in that case, but
-	   not broken either. site.css still separately zeroes any Avada
-	   fusion-fullwidth container that actually holds one of these
-	   sections (:has(), v1.8.2), its own 30px padding being empty space
-	   this breakout would otherwise have to escape past on every side. */
+	isolation: isolate;
+	/* v1.8.2, still true: Home v2's content sits inside a real Avada
+	   Builder container, not a flat template; see the matching note on
+	   .djd-player-section below and site.css's --djd-vw note. */
 	width: var(--djd-vw, 100%);
 	margin-left: calc(50% - var(--djd-vw, 100%) / 2);
+	/* The reference's own number: tall enough to read as a real hero on
+	   any screen, never shorter than the viewport on a normal desktop. */
+	height: max(640px, 100vh);
 	background: var(--djd-night);
 	color: var(--djd-paper);
-	isolation: isolate;
-	padding-top: calc(var(--djd-head-h) + 16px);
 	font-family: var(--djd-sans);
-	/* No overflow: hidden here (v1.6.0): the glows (.djd-hero__glows) are
-	   allowed to bleed past the hero's own bottom edge into the page
-	   below, see the note there and ".djd-hero__bottom-fade" further
-	   down. .djd-hero__photos keeps its own overflow: hidden, the photo
-	   panel itself still needs to clip. */
+	/* No overflow: hidden here, on purpose: .djd-hero__bottom-fade (below)
+	   deliberately extends a little past this section's own bottom edge,
+	   same reasoning v1.6.0 dropped it for the old fixed glows, see
+	   CLAUDE.md "Smoothness". Every other layer here is inset: 0 to this
+	   same box already, so there is nothing else that overflow: hidden
+	   would ever need to clip. */
+	box-sizing: border-box;
 }
-body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); }
-
 .djd-hero *,
 .djd-hero *::before,
 .djd-hero *::after { box-sizing: border-box; }
 
-/* Top-down wash so the floating header's logo and menu pill stay readable
-   over the photo, now that the header has no background of its own
-   (v1.2.3, see site.css). A static gradient, not a filter or shadow, so
-   it costs nothing to keep on screen while other things animate. Above
-   the glows (v1.5.0: the glows moved above the photo, see below), so
-   readability holds regardless of which light color is active. */
-.djd-hero::before {
-	content: '';
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	height: 200px;
-	z-index: 4;
-	background: linear-gradient(to bottom, rgba(11, 8, 32, 0.65) 0%, rgba(11, 8, 32, 0) 100%);
-	pointer-events: none;
-}
-
 /* ---------------------------------------------------------------------
-   The glow: one fixed violet and cyan set, no color cycling (v1.6.0,
-   Mark's call: the "room light" color shifting between photos is gone,
-   see CLAUDE.md "Smoothness"). Stacked above the photo panel (v1.5.0:
-   glows used to sit behind the photo, which only ever washed the night
-   background beside it; moving them on top washes the photo too, and,
-   together with the edge fade below, is what closes the seam at the
-   photo panel's left edge). Allowed to bleed past the hero's own bottom
-   edge now (v1.6.0: no inset: 0/overflow: hidden box of its own here
-   any more, and .djd-hero itself dropped overflow: hidden too), so the
-   glow fades out into the page instead of ending in a hard clip; the
-   hero's own bottom edge is covered separately by
-   .djd-hero__bottom-fade further down. Plain radial gradients with
-   alpha, no filter, no blend mode, no mask, same as always.
+   Photos: full bleed now, not a right side panel (v1.11.0, the name no
+   longer needs the left side kept clear for it). Crossfade is driven
+   entirely by mirrorball.js: the incoming photo (.is-next) is revealed by
+   a growing clip-path circle centered on the mirror ball's own position,
+   not a CSS transition; the outgoing photo (.is-on) stays fully visible
+   underneath until the circle finishes covering it, at which point
+   mirrorball.js swaps which class is on which image. With only one photo,
+   .is-next is never added and nothing here ever moves.
    ------------------------------------------------------------------ */
-.djd-hero__glows { position: absolute; left: 0; right: 0; top: 0; bottom: -260px; z-index: 3; pointer-events: none; }
-.djd-hero__glow { position: absolute; border-radius: 50%; }
-/* v1.6.1, found live: the photo read as dark texture overall, on top of
-   the bake itself reading dark (fixed separately, see djdigi-theme.php,
-   djdt_halftone_gray()). The glow sits above the photo on purpose (see
-   the note above, closing the seam), but at the old alpha values it was
-   a second, page level layer of darkening stacked on top of an already
-   violet heavy bake, a general wash across most of the panel rather than
-   the left/bottom edge fades the brief asked to keep. Alpha values
-   reduced across all three; still reads as a glow, no longer competes
-   with the photo for attention. v1.6.2 removed the drift these glows used
-   to run (see djd-glow-in, further down): with the glows sitting above the
-   photo since v1.5.0, a slowly sliding color wash over the halftone dots
-   read as a color changer rather than a glow, Mark's call. Each one now
-   only plays its one time entrance and then sits still. */
-.djd-hero__glow--a { left: -12%; top: -25%; width: 1000px; height: 1000px; background: radial-gradient(circle, rgba(90, 46, 145, 0.38) 0%, rgba(90, 46, 145, 0) 65%); }
-.djd-hero__glow--b { right: 2%; top: -10%; width: 820px; height: 820px; background: radial-gradient(circle, rgba(36, 169, 224, 0.42) 0%, rgba(36, 169, 224, 0) 65%); animation-delay: calc(var(--djd-t-glow, 0s) + 0.12s) !important; }
-.djd-hero__glow--c { left: 28%; bottom: -35%; width: 900px; height: 900px; background: radial-gradient(circle, rgba(52, 30, 160, 0.4) 0%, rgba(52, 30, 160, 0) 65%); animation-delay: calc(var(--djd-t-glow, 0s) + 0.24s) !important; }
-
-/* ---------------------------------------------------------------------
-   Large photo panel: the right 60%, full hero height, bleeding to the
-   right edge. Rotating photos share this one frame. Left edge moved from
-   42 to 44% down to a flat 40% in v1.7.0 (Mark's call, with the hero
-   content no longer capped at a centered 1600px box, see .djd-hero__inner
-   below): the name now deliberately overlaps the photo's own left edge a
-   little rather than sitting entirely beside it. The name stays legible
-   over that overlap on z-index alone (.djd-hero__inner is z-index: 10,
-   well above the photo panel's own z-index: 1 and its edge fade's
-   z-index: 2, below), same left/bottom fade overlay and glow as before.
-   ------------------------------------------------------------------ */
-.djd-hero__photos {
-	position: absolute;
-	inset: 0;
-	left: 40%;
-	z-index: 1;
-	overflow: hidden;
-	pointer-events: none;
-}
-/* The photo file itself is already a baked riso halftone JPEG (v1.6.0,
-   server side: Imagick assisted decode, GD for every pixel operation, see
-   djdigi-theme.php; a flat duotone tint through v1.5.4). No CSS filter and
-   no mix-blend-mode layer on top of it, and no mask-image on this element
-   either: all three force the browser to recompute color for the whole
-   layer on every frame something behind or on top of it changes, same
-   family of cost as backdrop-filter. The photo itself no longer moves at
-   all now either (v1.6.2, removing the Ken Burns zoom): scaling a fine
-   halftone dot screen caused shimmer and moire, Mark's call, and it was
-   cheap to composite but not free. It displays still, at scale 1, like a
-   print; see CLAUDE.md, "Smoothness".
-
-   The frame (not the img) carries the rotation's own visibility and
-   transition state; swapping which frame is active is what changes the
-   photo on screen now, not anything animating the img itself. */
-.djd-hero__photo-frame {
-	position: absolute;
-	inset: 0;
-	overflow: hidden;
-	opacity: 0;
-}
-.djd-hero__photo-frame.is-active { opacity: 1; z-index: 1; }
-.djd-hero__photo-frame.is-entering { z-index: 2; }
+.djd-hero__photos { position: absolute; inset: 0; z-index: 1; }
 .djd-hero__photo {
 	position: absolute;
 	inset: 0;
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
-}
-/* Edge fade into night, left and bottom, wide and eased (several stops,
-   not one linear ramp). A static overlay on the panel itself (v1.5.0:
-   moved back from being baked into the photo file, see djdigi-theme.php
-   and CLAUDE.md "Smoothness"): object-fit: cover plus the Ken Burns scale
-   crop or push a fade baked into the file itself outside the visible
-   panel depending on screen size and photo aspect ratio, so where it
-   physically sat in the file had no fixed relationship to where the
-   panel's own edge actually falls on screen. A CSS overlay always covers
-   the same edge of the panel regardless of what the photo underneath is
-   doing. Sits above every photo frame and below the glows, so it reads
-   as part of the panel, not any one photo. */
-.djd-hero__photos::after {
-	content: '';
-	position: absolute;
-	inset: -2px;
-	z-index: 2;
-	background:
-		linear-gradient(to right, var(--djd-night) 0%, rgba(11, 8, 32, 0.9) 10%, rgba(11, 8, 32, 0.6) 18%, rgba(11, 8, 32, 0.28) 27%, rgba(11, 8, 32, 0) 38%),
-		linear-gradient(to top, var(--djd-night) 0%, rgba(11, 8, 32, 0.85) 7%, rgba(11, 8, 32, 0.5) 13%, rgba(11, 8, 32, 0.2) 20%, rgba(11, 8, 32, 0) 30%);
-	pointer-events: none;
-}
-/* Phone: the photo goes full bleed behind everything, with a stronger wash
-   so the text over it stays readable. No left fade here, the photo
-   already runs edge to edge with nothing beside it to seam against. */
-@media (max-width: 800px) {
-	.djd-hero__photos { left: 0; z-index: 0; }
-	.djd-hero__photos::after {
-		background:
-			linear-gradient(to top, var(--djd-night) 0%, rgba(11, 8, 32, 0.85) 7%, rgba(11, 8, 32, 0.5) 13%, rgba(11, 8, 32, 0.2) 20%, rgba(11, 8, 32, 0) 30%),
-			rgba(11, 8, 32, 0.52);
-	}
-}
-
-/* ---------------------------------------------------------------------
-   Rotation transition: TV static (v1.6.0, replacing the shutter, Mark's
-   call). About 0.5s total: this layer fades in over the current photo,
-   hero.js swaps the active frame right at the peak (opacity 0.35, no
-   transition to watch), then it fades back out. Transform and opacity
-   only: the flicker is the sprite image's own layer moved sideways in
-   discrete steps() jumps, not a background-position animation (which
-   would repaint), and the fade is opacity alone.
-   ------------------------------------------------------------------ */
-.djd-hero__static {
-	position: absolute;
-	inset: 0;
-	z-index: 5;
-	overflow: hidden;
 	opacity: 0;
+}
+.djd-hero__photo.is-on { opacity: 1; }
+.djd-hero__photo.is-next { opacity: 1; z-index: 2; }
+
+/* Dark left to right (and a shorter bottom to top) wash, the reference's
+   own .shade: what actually keeps the inner block readable over the
+   photo now that it is full bleed, replacing the old right side panel's
+   edge fade and the fixed glows both. */
+.djd-hero__shade {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
 	pointer-events: none;
-}
-.djd-hero__static.is-static {
-	opacity: 0.35;
-	animation: djd-static-fade 500ms linear;
-}
-@keyframes djd-static-fade {
-	0% { opacity: 0; }
-	44% { opacity: 0.35; }
-	100% { opacity: 0; }
-}
-/* The sprite: 5 noise frames side by side (tv-static.jpg, 256px tiles),
-   laid out at 500% the layer's own width so each frame fills the layer
-   exactly once; stepping transform: translateX() through 5 positions via
-   steps(5) is the flicker, only while .is-static is on the parent. */
-.djd-hero__static-img {
-	position: absolute;
-	inset: 0;
-	width: 500%;
-	height: 100%;
-	background-image: url(../img/tv-static.jpg);
-	background-size: 100% 100%;
-	background-repeat: no-repeat;
-}
-.djd-hero__static.is-static .djd-hero__static-img {
-	animation: djd-static-flicker 250ms steps(5) infinite;
-}
-@keyframes djd-static-flicker {
-	from { transform: translateX(0); }
-	to { transform: translateX(-100%); }
-}
-/* Faint horizontal scanlines, only visible while the static is on
-   (inherits the parent's opacity), a static repeating gradient, not
-   animated on its own. */
-.djd-hero__static-scan {
-	position: absolute;
-	inset: 0;
-	background: repeating-linear-gradient(to bottom, rgba(11, 8, 32, 0.35) 0, rgba(11, 8, 32, 0.35) 1px, transparent 1px, transparent 3px);
-	mix-blend-mode: normal;
-}
-/* A 1 to 2px horizontal jitter on the incoming photo right at the static's
-   peak, transform only, a few short steps rather than a smooth tween, so
-   it reads as a glitch rather than a slide. */
-.djd-hero__photo-frame.is-jitter {
-	animation: djd-static-jitter 110ms steps(4);
-}
-@keyframes djd-static-jitter {
-	0% { transform: translateX(0); }
-	25% { transform: translateX(-2px); }
-	50% { transform: translateX(1px); }
-	75% { transform: translateX(-1px); }
-	100% { transform: translateX(0); }
+	background:
+		linear-gradient(90deg, rgba(11, 8, 32, 0.93) 0%, rgba(11, 8, 32, 0.72) 34%, rgba(11, 8, 32, 0.08) 72%),
+		linear-gradient(0deg, var(--djd-night) 0%, rgba(11, 8, 32, 0) 28%);
 }
 
-/* Fades the hero's own lower edge into the page (v1.6.0). A wide, full
-   width overlay, roughly the bottom 25 to 30% of the hero, washing the
-   photo panel into flat night: with the scroll shrink effect gone and
-   the glows now allowed to bleed past the hero's own box (see
-   .djd-hero__glows above), this is what guarantees no visible line
-   across the width regardless of what the photo is doing at the very
-   bottom. Extends a little past the hero's own bottom edge, harmless
-   since the player section and venues right after share the exact same
-   night background, see CLAUDE.md "Smoothness".
+/* Light specks, drawn every frame by mirrorball.js (cluster(), a soft glow
+   plus real halftone dots on the same 75 degree, 7px grid the baked
+   photos use, see CLAUDE.md "Smoothness"). mix-blend-mode: screen so they
+   only ever brighten the photo underneath, never darken it. */
+.djd-hero__fx { position: absolute; inset: 0; z-index: 3; pointer-events: none; mix-blend-mode: screen; }
 
-   z-index 2, found live (v1.10.1): above the photo panel (1), below the
-   glows (3). At 5, this sat above the glows too, fading them to solid
-   night inside its own band and ending about 40px below the hero, so
-   the glow reappeared at full strength right where the fade stopped, a
-   sharp horizontal line across the page. The glow needs to run
-   continuously past the hero's own bottom edge for its own fade to read
-   correctly; this now only ever fades the photo underneath it, never the
-   glow on top. */
+/* Black intro overlay: full opacity for the first 250ms (the ball still
+   hidden too), stays full through the drop, then fades out once the ball
+   has landed (mirrorball.js sets this inline every frame, not a CSS
+   transition, since it has to track the same `t` the drop and the wire
+   do). Hides the first frame's own flash of a bare photo before anything
+   else is ready to show. */
+.djd-hero__dark { position: absolute; inset: 0; z-index: 4; background: #000; pointer-events: none; }
+
+/* Fades the hero's own lower edge into the page, full width (v1.6.0,
+   unchanged by the mirror ball rebuild). See CLAUDE.md "Smoothness". Sits
+   above the photo, shade, specks and the dark overlay: nothing in the new
+   layer stack bleeds past the hero's own box any more (unlike the old
+   fixed glows), so there is no v1.10.1-style risk of this cutting
+   anything off mid bleed. */
 .djd-hero__bottom-fade {
 	position: absolute;
 	left: 0;
 	right: 0;
 	bottom: -40px;
 	height: 32%;
-	z-index: 2;
+	z-index: 5;
 	background: linear-gradient(to bottom, rgba(11, 8, 32, 0) 0%, rgba(11, 8, 32, 0.55) 45%, var(--djd-night) 100%);
 	pointer-events: none;
 }
@@ -298,132 +128,91 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	justify-content: center;
 }
 
-/* Left-anchored now, not a centered 1600px box (v1.7.0, Mark's call, found
-   live: at 2000px wide the centered box left about 400px of empty night
-   background on the left while the photo ran to the right edge, reading
-   lopsided). --djd-gutter (site.css, shared with the header row, see
-   site.css "Header over the hero") is the only thing controlling the left
-   edge now, at every width, so the content starts right where the photo
-   panel's own left fade and the logo above it do, with nothing capping
-   how far it can run right either. */
-.djd-hero__inner {
-	position: relative;
-	z-index: 10;
-	padding: 24px var(--djd-gutter) 0;
-}
-
 /* ---------------------------------------------------------------------
-   Name. DJ and DigiMark overlap the photo on the left side of the hero.
-   Echo and main are stacked with CSS Grid, both children of the same
-   grid cell: grid items never margin collapse with their container or
-   each other, so "identical box metrics" is true by construction instead
-   of by matching padding and negative margin by hand on two separate
-   elements, which is what actually drifted apart before.
+   Inner block: logo, slogan, both buttons, one column, vertically
+   centered at 54% of the hero's own height, left anchored at the shared
+   gutter (the reference's own numbers: left: var(--gutter); top: 54%;
+   transform: translateY(-50%)). Absolute, not flowed: with the name gone,
+   nothing here needs document flow height of its own to push later
+   sections down, the hero's own height (above) is a fixed, deliberate
+   number instead.
    ------------------------------------------------------------------ */
-.djd-hero__stage {
-	position: relative;
+.djd-hero__inner {
+	position: absolute;
 	z-index: 10;
-	margin-top: clamp(30px, 7vw, 90px);
-	max-width: 62%;
-}
-.djd-hero__name {
+	left: var(--djd-gutter);
+	top: 54%;
+	transform: translateY(-50%);
 	display: flex;
 	flex-direction: column;
-	gap: clamp(8px, 1.4vw, 20px);
-	margin: 0 0 0 var(--djd-name-edge, -8px) !important;
-	padding: 0 !important;
-	font-family: var(--djd-display) !important;
-	font-weight: 800 !important;
-	text-transform: uppercase;
-	line-height: 0.78 !important;
-	letter-spacing: 0.005em !important;
-	color: var(--djd-paper) !important;
+	gap: 20px;
 }
-.djd-hero__mask { display: block; overflow: hidden; padding-block: 0.2em; margin-block: -0.2em; }
-.djd-hero__dj {
-	display: block;
-	font-size: clamp(34px, 3vw, 70px);
-	color: var(--djd-paper);
-	transform: translate3d(0, 100%, 0);
-	opacity: 0;
-}
-.djd-in-dj { animation: djd-mask-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-dj, 0.35s) both; }
-
-.djd-hero__digimark {
-	position: relative;
-	display: grid;
-	/* v1.7.0, Mark's exact numbers: on a 2000px screen the name should fill
-	   roughly the left half. One fluid clamp now, down to phone width (the
-	   old clamp(52px, 19vw, 88px) override at 800px, below, is gone): at
-	   390px wide the vw term alone (9vw = 35px) is already under the 72px
-	   floor, so it simply holds at 72px, which happens to land almost
-	   exactly where the old phone-only override did (about 74px) anyway. */
-	font-size: clamp(72px, 9vw, 200px);
-	text-transform: none;
-}
-.djd-hero__digimark > .djd-hero__mask { grid-area: 1 / 1; }
-/* The echo is built from the same letter spans as the main word (shared
-   .djd-letter rule below), so it stays hidden behind its own mask and
-   reveals on the exact same stagger as the cyan letters, instead of
-   showing as plain text from the very first frame. The drift only starts
-   once the last letter (index 7) has landed, so it never jitters mid
-   reveal: 8 letters * 25ms stagger + the 0.5s rise itself. */
-.djd-hero__echo {
-	display: block;
-	color: #8a5cf0;
-	opacity: 0.6;
-	mix-blend-mode: screen;
-	/* The drift animation only reaches its own first keyframe once it
-	   starts, so the offset needs a static baseline of its own too
-	   (matching that keyframe's value), or the echo sits with zero offset,
-	   exactly on top of the cyan letters, until the animation begins. */
-	transform: translate3d(7px, 4px, 0);
-	animation: djd-drift 7s ease-in-out infinite;
-	animation-delay: calc(var(--djd-t-name, 0.45s) + 7 * 25ms + 0.5s);
-}
-.djd-hero__main { display: block; color: var(--djd-cyan); }
-.djd-letter {
-	display: inline-block;
-	transform: translate3d(0, 130%, 0);
-	opacity: 0;
-	animation: djd-letter-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
-	animation-delay: calc(var(--djd-t-name, 0.45s) + var(--i) * 25ms);
+/* Visually hidden: the real "DJ DigiMark" text for search engines and
+   screen readers, now that the name on screen is a logo image, not
+   typeset letters. Standard clip based pattern, not display: none (which
+   screen readers also skip). */
+.djd-hero__sr-name {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
 }
 
-/* Slogan, buttons, player */
-.djd-hero__row {
-	position: relative;
-	z-index: 10;
-	display: flex;
-	flex-wrap: wrap;
-	gap: 36px 56px;
-	align-items: center;
-	justify-content: space-between;
-	padding: 40px 0 56px;
-	max-width: 70%;
+/* The logo: fades in and scales up very slightly (the reference's own
+   numbers), left center transform origin so it grows from where its own
+   left edge already sits rather than from its own center. Height driven,
+   width auto, same reasoning the header's own logo sizing already uses
+   (site.css). */
+.djd-hero__logo {
+	display: block;
+	height: min(54vh, 500px);
+	width: auto;
+	overflow: visible;
+	opacity: 0;
+	transform: scale(0.97);
+	transform-origin: left center;
+	transition: opacity 0.6s, transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
-.djd-hero__copy { flex: 1 1 420px; min-width: 0; }
+body.djd-seq-1 .djd-hero__logo { opacity: 1; transform: none; }
+
+.djd-hero__slogan,
+.djd-hero__buttons {
+	opacity: 0;
+	transform: translate3d(0, 8px, 0);
+	transition: opacity 0.5s, transform 0.5s;
+}
+body.djd-seq-3 .djd-hero__slogan,
+body.djd-seq-3 .djd-hero__buttons { opacity: 1; transform: none; }
+/* A page already seen this session (mirrorball.js, play(true)) adds every
+   djd-seq-* class on the same frame instead of staggering them in; this
+   suppresses the transition above just long enough for that to land with
+   nothing visibly animating, then is removed again immediately. */
+body.djd-ball-noanim .djd-hero__logo,
+body.djd-ball-noanim .djd-hero__slogan,
+body.djd-ball-noanim .djd-hero__buttons { transition: none !important; }
+
 .djd-hero__slogan {
-	margin: 0 !important;
+	margin: 0;
 	max-width: 560px;
-	/* v1.7.0: scaled in proportion to the name's own new clamp (above),
-	   keeping the same min/max ratio to .djd-hero__digimark the old values
-	   had (about 0.26 at the floor, 0.11 at the ceiling), not an
-	   independent guess. */
-	font-size: clamp(19px, 1.1vw, 22px) !important;
-	line-height: 1.3 !important;
+	font-size: clamp(19px, 1.1vw, 22px);
+	line-height: 1.3;
 	font-weight: 600;
 	font-stretch: 92%;
-	color: var(--djd-paper) !important;
-	opacity: 0;
-	transform: translate3d(0, 16px, 0);
-	animation: djd-rise-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-slogan, 1.0s) both;
+	color: var(--djd-paper);
 }
 .djd-nowrap { white-space: nowrap; }
 
 /* Pride EQ: a traveling wave instead of a random bounce, like a flag
    rippling. Each bar follows the same sine curve on a shared clock,
-   offset per bar so the motion rolls left to right through the colors. */
+   offset per bar so the motion rolls left to right through the colors.
+   No entrance animation of its own (v1.11.0): it sits inside the slogan
+   paragraph, which already fades in as a whole, see above; the wave and
+   drift below are its only animations, both perpetual. */
 .djd-eq {
 	display: inline-flex;
 	gap: 3px;
@@ -431,8 +220,6 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	height: 24px;
 	vertical-align: -2px;
 	margin-left: 10px;
-	opacity: 0;
-	animation: djd-glow-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-eq, 1.15s) both;
 }
 .djd-eq span {
 	width: 4px;
@@ -440,16 +227,15 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	border-radius: 2px;
 	transform-origin: bottom;
 	animation: djd-eq-wave 1.6s ease-in-out infinite, djd-eq-drift 2.3s ease-in-out infinite;
-	animation-delay: var(--djd-t-eq, 1.15s);
 }
-.djd-eq span:nth-child(1) { background: #e40303; animation-delay: var(--djd-t-eq, 1.15s), calc(var(--djd-t-eq, 1.15s) + 0.1s); }
-.djd-eq span:nth-child(2) { background: #ff8c00; animation-delay: calc(var(--djd-t-eq, 1.15s) + 0.12s), calc(var(--djd-t-eq, 1.15s) + 0.3s); }
-.djd-eq span:nth-child(3) { background: #ffed00; animation-delay: calc(var(--djd-t-eq, 1.15s) + 0.24s), calc(var(--djd-t-eq, 1.15s) + 0.5s); }
-.djd-eq span:nth-child(4) { background: #00a64f; animation-delay: calc(var(--djd-t-eq, 1.15s) + 0.36s), calc(var(--djd-t-eq, 1.15s) + 0.7s); }
-.djd-eq span:nth-child(5) { background: #2f6bff; animation-delay: calc(var(--djd-t-eq, 1.15s) + 0.48s), calc(var(--djd-t-eq, 1.15s) + 0.9s); }
-.djd-eq span:nth-child(6) { background: #9b3cc9; animation-delay: calc(var(--djd-t-eq, 1.15s) + 0.6s), calc(var(--djd-t-eq, 1.15s) + 1.1s); }
+.djd-eq span:nth-child(1) { background: #e40303; animation-delay: 0s, 0.1s; }
+.djd-eq span:nth-child(2) { background: #ff8c00; animation-delay: 0.12s, 0.3s; }
+.djd-eq span:nth-child(3) { background: #ffed00; animation-delay: 0.24s, 0.5s; }
+.djd-eq span:nth-child(4) { background: #00a64f; animation-delay: 0.36s, 0.7s; }
+.djd-eq span:nth-child(5) { background: #2f6bff; animation-delay: 0.48s, 0.9s; }
+.djd-eq span:nth-child(6) { background: #9b3cc9; animation-delay: 0.6s, 1.1s; }
 
-.djd-hero__buttons { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 28px; }
+.djd-hero__buttons { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 0; }
 .djd-btn {
 	display: inline-flex;
 	align-items: center;
@@ -462,16 +248,40 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	text-transform: none;
 	border-radius: 999px;
 	text-decoration: none !important;
-	opacity: 0;
-	transform: translate3d(0, 14px, 0);
 	transition: background-color 0.2s ease, color 0.2s ease;
 }
-.djd-hero__buttons .djd-btn:nth-child(1) { animation: djd-rise-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-buttons, 1.1s) both; }
-.djd-hero__buttons .djd-btn:nth-child(2) { animation: djd-rise-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--djd-t-buttons, 1.1s) + 0.08s) both; }
 .djd-btn--solid { background: var(--djd-cyan); color: var(--djd-night) !important; }
 .djd-btn--solid:hover { background: var(--djd-paper); color: var(--djd-night) !important; }
 .djd-btn--line { border: 2px solid var(--djd-paper); color: var(--djd-paper) !important; }
 .djd-btn--line:hover { background: var(--djd-paper); color: var(--djd-night) !important; }
+
+/* ---------------------------------------------------------------------
+   The wire the ball drops in on, and the ball itself: fixed position,
+   output after the player section in djdigi-theme.php (not descendants of
+   .djd-hero, see the function doc comment there), positioned every frame
+   by mirrorball.js regardless of scroll. z-index above the header
+   (site.css, 50) for the ball specifically, so it is never hidden behind
+   any future header chrome; the wire only ever needs to clear the photo
+   and shade, not the header, since it has finished fading out well before
+   the ball could ever reach the header's own area on a normal scroll.
+   ------------------------------------------------------------------ */
+#djd-wire {
+	position: fixed;
+	top: 0;
+	width: 1px;
+	z-index: 40;
+	background: linear-gradient(rgba(241, 236, 226, 0.05), rgba(241, 236, 226, 0.75));
+	pointer-events: none;
+	opacity: 0;
+}
+#djd-ball-canvas {
+	position: fixed;
+	left: 0;
+	top: 0;
+	z-index: 60;
+	pointer-events: none;
+	opacity: 0;
+}
 
 /* ---------------------------------------------------------------------
    The "Latest live set" section (v1.6.0, moved out of the hero itself,
@@ -502,18 +312,9 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 .djd-player-section *::before,
 .djd-player-section *::after { box-sizing: border-box; }
 /* Gutter to gutter now, not a centered 1600px box (v1.7.0, Mark's call,
-   "uses the same edges" as the hero): --djd-gutter (site.css) is the same
-   value .djd-hero__inner and the header row use, so the player's own left
-   edge lines up with the hero content above it. */
+   "uses the same edges" as the hero content). */
 .djd-player-section__inner {
-	/* v1.8.0: explicit stacking, not left to rely on plain DOM paint order,
-	   now that .djd-player-section's own background can go transparent on
-	   a hero page (site.css) and the hero's own glow can show through
-	   underneath it (.djd-hero__glows, above, overflow: visible, reaches
-	   about 260px past the hero's own bottom edge). Keeps the player card
-	   fully readable regardless of how the glow and this section's stacking
-	   context happen to resolve.
-
+	/* v1.8.0: explicit stacking, not left to rely on plain DOM paint order.
 	   v1.10.0: padding-top is the one shared --djd-section-gap (site.css)
 	   now, padding-bottom 0, same change as events.css/venues.css, so the
 	   space before this section is the same number everywhere on the page
@@ -640,21 +441,6 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 .djd-player__links a:hover { color: var(--djd-cyan) !important; opacity: 1; }
 .djd-player__frame { position: absolute; width: 1px; height: 1px; left: -9999px; top: 0; border: 0; opacity: 0; pointer-events: none; }
 
-/* ---------------------------------------------------------------------
-   Opening sequence keyframes. Transform and opacity only, nothing that
-   forces layout or paint (no filter, no blur, no background-position):
-   see "Intro: fast, overlapping, transform and opacity only" in
-   CLAUDE.md for why, and the pause-until-ready gate further down for
-   how the whole thing waits on the photo and fonts before it starts.
-   ------------------------------------------------------------------ */
-@keyframes djd-glow-in { from { opacity: 0; transform: translate3d(0, 0, 0) scale(0.6); } to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } }
-@keyframes djd-mask-rise { from { transform: translate3d(0, 100%, 0); opacity: 0; } to { transform: translate3d(0, 0, 0); opacity: 1; } }
-@keyframes djd-letter-rise {
-	from { transform: translate3d(0, 130%, 0); opacity: 0; }
-	to { transform: translate3d(0, 0, 0); opacity: 1; }
-}
-@keyframes djd-rise-in { from { opacity: 0; transform: translate3d(0, 16px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
-@keyframes djd-drift { 0% { transform: translate3d(7px, 4px, 0); } 50% { transform: translate3d(12px, 1px, 0); } 100% { transform: translate3d(7px, 4px, 0); } }
 /* Shared sine wave: every bar uses this exact curve, only the animation
    delay differs per bar, which is what makes it read as one wave rolling
    through the row instead of six independent meters. */
@@ -667,79 +453,9 @@ body.djdigi-hero-strip .djd-hero { padding-top: calc(var(--djd-head-h) + 62px); 
 	50% { transform: translate3d(0, -2px, 0); }
 }
 
-.djd-hero__glow { animation: djd-glow-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-glow, 0s) both; }
-
-/* Photo pull-focus: a short fade with a slight scale in (1.04 to 1), not a
-   heavy zoom and blur: a blur animation forces a repaint every frame,
-   which is exactly what made the old version slow. Only the very first
-   photo on page load plays this (.is-first, set once in the markup and
-   never touched again, see djdigi-theme.php); every later photo arrives
-   with the shutter above instead, triggered by rotation (.is-entering).
-   Kept on the frame, not the img, which no longer animates at all once
-   this entrance ends (v1.6.2 removed the Ken Burns zoom, see the note
-   above .djd-hero__photo-frame), so the frame ends this animation at
-   scale(1) and nothing further ever scales or moves the photo. */
-.djd-hero__photo-frame.is-first {
-	animation: djd-photo-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) var(--djd-t-photo, 0.15s) both;
-}
-@keyframes djd-photo-in {
-	from { opacity: 0; transform: translate3d(0, 0, 0) scale(1.04); }
-	to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-}
-
-/* Entrance elements wait for the photo and fonts to be ready (hero.js, up
-   to a 1.2s cap) before they are allowed to animate at all, so nothing
-   plays against a blank photo or a fallback font. Paused freezes each one
-   at its own pre-animation state for as long as body is missing
-   djd-intro-ready; once hero.js adds that class, every delay above starts
-   counting from that moment, not from page paint. will-change hints the
-   browser to promote these to their own layer ahead of time; hero.js
-   clears it once the entrance is done, since leaving it on forever just
-   reserves GPU memory nothing is still animating. The glow is included in
-   that clear now too (v1.6.2): it used to drift forever, which is why it
-   was left out of hero.js's clear list before, but now it is a one-shot
-   entrance like the rest of this group. Only the echo and each EQ bar
-   still keep an infinite companion animation running (drift, the wave),
-   so only those two stay out of hero.js's clear list. */
-body:not(.djd-intro-ready) .djd-hero__glow,
-body:not(.djd-intro-ready) .djd-hero__photo-frame.is-first,
-body:not(.djd-intro-ready) .djd-in-dj,
-body:not(.djd-intro-ready) .djd-letter,
-body:not(.djd-intro-ready) .djd-hero__echo,
-body:not(.djd-intro-ready) .djd-hero__slogan,
-body:not(.djd-intro-ready) .djd-eq,
-body:not(.djd-intro-ready) .djd-eq span,
-body:not(.djd-intro-ready) .djd-btn {
-	animation-play-state: paused, paused !important;
-}
-.djd-hero__glow,
-.djd-hero__photo-frame.is-first,
-.djd-in-dj,
-.djd-letter,
-.djd-hero__echo,
-.djd-hero__slogan,
-.djd-eq,
-.djd-eq span,
-.djd-btn {
-	will-change: transform, opacity;
-}
-
 /* Tablet and phone */
-@media (max-width: 1100px) {
-	body.djdigi-theme { --djd-head-h: 90px; }
-	.djd-hero__stage,
-	.djd-hero__row { max-width: 100%; }
-}
 @media (max-width: 800px) {
-	body.djdigi-theme { --djd-head-h: 70px; }
-	/* v1.7.0: horizontal padding is --djd-gutter everywhere now, including
-	   here, the same value the header row uses, so the logo and the name
-	   still line up at phone width too; only the top value is phone
-	   specific. The old .djd-hero__digimark override is gone entirely
-	   (see the font-size comment on the base rule above): the one fluid
-	   clamp already lands close to the same size down here on its own. */
-	.djd-hero__inner { padding: 16px var(--djd-gutter) 0; }
-	.djd-hero__row { padding: 28px 0 40px; }
+	.djd-hero__logo { height: 40vh; }
 	/* v1.10.0: .djd-player-section__inner's own padding used to get a
 	   fixed 32px override here; the base rule's padding-top is
 	   var(--djd-section-gap) now (site.css, already 72px at this

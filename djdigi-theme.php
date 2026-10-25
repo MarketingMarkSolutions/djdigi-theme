@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_venues], and [djdigi_events] for djdigimark.com.
- * Version: 1.10.1
+ * Version: 1.11.0
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.10.1' );
+define( 'DJDT_VERSION', '1.11.0' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -43,6 +43,14 @@ if ( false === strpos( DJDT_GITHUB_REPO, 'GITHUB-USERNAME' ) && file_exists( DJD
 require_once DJDT_DIR . 'includes/djdt-events.php';
 
 /* -------------------------------------------------------------------------
+ * The mirror ball hero's own logo (baking, caching, Mark's override), its
+ * own self contained file for the same reason djdt-events.php is, see
+ * includes/djdt-logo.php.
+ * ---------------------------------------------------------------------- */
+
+require_once DJDT_DIR . 'includes/djdt-logo.php';
+
+/* -------------------------------------------------------------------------
  * Settings
  * ---------------------------------------------------------------------- */
 
@@ -62,6 +70,28 @@ function djdt_defaults() {
 		'ticker'         => "House\nEDM\nTop 40 Remixes\n70s · 80s · 90s · 00s Dance\nPride/Queer Pop & Dance\nLive Video DJ Sets",
 		'venues'         => array(),
 		'venues_heading' => "Where I've played",
+		// Mirror ball hero (v1.11.0). logo_override: an attachment id for a
+		// PNG or SVG Mark supplies himself, ball already removed; 0 means
+		// use the generated night logo instead (includes/djdt-logo.php).
+		// The three ball_* fields are percentages of the logo's own
+		// rendered width (both x and y, since the logo's aspect ratio is
+		// fixed, see djdt_logo_ball_settings() below); they describe where
+		// the spinning canvas ball sits on whichever logo image is
+		// actually in use, read fresh every frame by mirrorball.js, not a
+		// one time layout decision.
+		'logo_override'  => 0,
+		'logo_ball_x'    => 86.0,
+		'logo_ball_y'    => 13.6,
+		'logo_ball_r'    => 9.2,
+	);
+}
+
+/** The mirror ball's slot settings, each clamped to a sane 0 to 100 range. */
+function djdt_logo_ball_settings() {
+	return array(
+		'x' => max( 0, min( 100, (float) djdt_get( 'logo_ball_x' ) ) ),
+		'y' => max( 0, min( 100, (float) djdt_get( 'logo_ball_y' ) ) ),
+		'r' => max( 0.5, min( 50, (float) djdt_get( 'logo_ball_r' ) ) ),
 	);
 }
 
@@ -152,9 +182,14 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 	wp_enqueue_media();
 	wp_enqueue_style( 'djdt-admin', DJDT_URL . 'assets/css/admin.css', array(), djdt_ver( 'assets/css/admin.css' ) );
 	wp_enqueue_script( 'djdt-admin', DJDT_URL . 'assets/js/admin.js', array( 'jquery' ), djdt_ver( 'assets/js/admin.js' ), true );
+	$logo_id = (int) djdt_get( 'logo_override' );
 	wp_localize_script( 'djdt-admin', 'djdtAdmin', array(
-		'photos' => array_values( djdt_get( 'hero_photos' ) ),
-		'venues' => array_values( array_map( 'djdt_venue_admin_row', djdt_get( 'venues' ) ) ),
+		'photos'   => array_values( djdt_get( 'hero_photos' ) ),
+		'venues'   => array_values( array_map( 'djdt_venue_admin_row', djdt_get( 'venues' ) ) ),
+		'heroLogo' => array(
+			'id'  => $logo_id,
+			'url' => $logo_id ? (string) wp_get_attachment_thumb_url( $logo_id ) : '',
+		),
 	) );
 } );
 
@@ -327,6 +362,12 @@ function djdt_sanitize( $in ) {
 		$out['sets_url']      = sanitize_text_field( isset( $in['sets_url'] ) ? $in['sets_url'] : $d['sets_url'] );
 		$out['videos_url']    = sanitize_text_field( isset( $in['videos_url'] ) ? $in['videos_url'] : $d['videos_url'] );
 		$out['ticker']        = sanitize_textarea_field( isset( $in['ticker'] ) ? $in['ticker'] : $d['ticker'] );
+
+		$logo_id              = isset( $in['logo_override'] ) ? (int) $in['logo_override'] : 0;
+		$out['logo_override'] = ( $logo_id > 0 && wp_attachment_is_image( $logo_id ) ) ? $logo_id : 0;
+		$out['logo_ball_x']   = isset( $in['logo_ball_x'] ) ? max( 0, min( 100, (float) $in['logo_ball_x'] ) ) : $d['logo_ball_x'];
+		$out['logo_ball_y']   = isset( $in['logo_ball_y'] ) ? max( 0, min( 100, (float) $in['logo_ball_y'] ) ) : $d['logo_ball_y'];
+		$out['logo_ball_r']   = isset( $in['logo_ball_r'] ) ? max( 0.5, min( 50, (float) $in['logo_ball_r'] ) ) : $d['logo_ball_r'];
 	}
 
 	if ( 'photos' === $page ) {
@@ -470,6 +511,27 @@ function djdt_render_settings_theme() {
 			</td>
 		</tr>
 		<tr>
+			<th scope="row">Hero logo override</th>
+			<td>
+				<div id="djdt-hero-logo"></div>
+				<p>
+					<button type="button" class="button" id="djdt-hero-logo-pick">Select image</button>
+					<button type="button" class="button" id="djdt-hero-logo-remove">Remove</button>
+				</p>
+				<input type="hidden" id="djdt-hero-logo-id" name="<?php echo esc_attr( $n ); ?>[logo_override]" value="<?php echo esc_attr( (int) $s['logo_override'] ); ?>">
+				<p class="description">PNG or SVG, with the mirror ball already removed from the artwork. Leave empty to use the generated logo (the site's own mark, ball erased, recolored for the night hero and header).</p>
+			</td>
+		</tr>
+		<tr>
+			<th scope="row">Mirror ball position</th>
+			<td>
+				<label>Center X <input type="number" step="0.1" min="0" max="100" class="small-text" name="<?php echo esc_attr( $n ); ?>[logo_ball_x]" value="<?php echo esc_attr( $s['logo_ball_x'] ); ?>">%</label>
+				&nbsp; <label>Center Y <input type="number" step="0.1" min="0" max="100" class="small-text" name="<?php echo esc_attr( $n ); ?>[logo_ball_y]" value="<?php echo esc_attr( $s['logo_ball_y'] ); ?>">%</label>
+				&nbsp; <label>Radius <input type="number" step="0.1" min="0.5" max="50" class="small-text" name="<?php echo esc_attr( $n ); ?>[logo_ball_r]" value="<?php echo esc_attr( $s['logo_ball_r'] ); ?>">%</label>
+				<p class="description">Where the spinning mirror ball sits on the logo, each as a percent of the logo's own width. Defaults match the logo's own mirror ball: 86, 13.6, 9.2.</p>
+			</td>
+		</tr>
+		<tr>
 			<td colspan="2">
 				<p>Hero shortcode: <code>[djdigi_hero]</code>. Put it alone in a 100% width container with no padding, at the top of the page. It also outputs the "Latest live set" player section right after the hero; add <code>player="no"</code> (<code>[djdigi_hero player="no"]</code>) to leave that out. Add <code>?intro=1</code> to any hero page URL to force the full opening sequence while testing.</p>
 				<p>Venues shortcode: <code>[djdigi_venues]</code>. Put it right below the hero shortcode on Home v2.</p>
@@ -542,6 +604,7 @@ add_action( 'wp_enqueue_scripts', function () {
 
 	wp_register_style( 'djdt-hero', DJDT_URL . 'assets/css/hero.css', array( 'djdt-site' ), djdt_ver( 'assets/css/hero.css' ) );
 	wp_register_script( 'djdt-hero', DJDT_URL . 'assets/js/hero.js', array(), djdt_ver( 'assets/js/hero.js' ), true );
+	wp_register_script( 'djdt-mirrorball', DJDT_URL . 'assets/js/mirrorball.js', array(), djdt_ver( 'assets/js/mirrorball.js' ), true );
 
 	wp_register_style( 'djdt-venues', DJDT_URL . 'assets/css/venues.css', array( 'djdt-site' ), djdt_ver( 'assets/css/venues.css' ) );
 	wp_register_script( 'djdt-venues', DJDT_URL . 'assets/js/venues.js', array(), djdt_ver( 'assets/js/venues.js' ), true );
@@ -1492,6 +1555,20 @@ add_shortcode( 'djdigi_hero', 'djdt_hero_shortcode' );
  * moved out of the hero; see djdt_player_section() below). No separate
  * shortcode for it, by design, since the hero is the only place it is
  * ever meant to appear.
+ *
+ * v1.11.0: rebuilt as the mirror ball hero (reference/mirrorball-hero-
+ * reference.html, the approved demo, is the source of truth for the look;
+ * see mirrorball.js for the port of its drawBall()/cluster()/speck math).
+ * The name's own letter intro, the TV static crossfade and the three fixed
+ * glows are gone; the photo panel is full bleed now, not a right side
+ * panel, with a dark left side wash (`.djd-hero__shade`) doing the same
+ * readability job the old left/bottom edge fade and glow used to. The ball
+ * canvas and its wire (`#djd-ball-canvas`, `#djd-wire`) are fixed position,
+ * output after the player section below rather than inside the hero
+ * itself, same as the reference: fixed position elements do not care where
+ * they sit in the DOM, and keeping them out of `.djd-hero` means nothing
+ * about the hero's own stacking context (`isolation: isolate`) can ever
+ * end up between them and the header they dock into.
  */
 function djdt_hero_shortcode( $atts = array() ) {
 	if ( ! djdt_is_active() ) {
@@ -1501,10 +1578,20 @@ function djdt_hero_shortcode( $atts = array() ) {
 
 	wp_enqueue_style( 'djdt-hero' );
 	wp_enqueue_script( 'djdt-hero' );
+	wp_enqueue_script( 'djdt-mirrorball' );
 
-	$photos = djdt_hero_photos();
-	$sets   = djdt_get( 'sets_url' );
-	$videos = djdt_get( 'videos_url' );
+	$photos   = djdt_hero_photos();
+	$sets     = djdt_get( 'sets_url' );
+	$videos   = djdt_get( 'videos_url' );
+	$ball     = djdt_logo_ball_settings();
+	$logo_url = djdt_logo_url();
+
+	wp_add_inline_script( 'djdt-mirrorball', 'window.djdtMirrorBall = ' . wp_json_encode( array(
+		'logoUrl' => $logo_url,
+		'ballX'   => $ball['x'],
+		'ballY'   => $ball['y'],
+		'ballR'   => $ball['r'],
+	) ) . ';', 'before' );
 
 	$next_up = shortcode_exists( 'djdigi_next_up' ) ? do_shortcode( '[djdigi_next_up]' ) : '';
 
@@ -1513,71 +1600,63 @@ function djdt_hero_shortcode( $atts = array() ) {
 	<section class="djd-hero" aria-label="DJ DigiMark" data-photo-count="<?php echo (int) count( $photos ); ?>">
 		<div class="djd-hero__photos">
 			<?php foreach ( $photos as $i => $p ) : ?>
-				<div class="djd-hero__photo-frame<?php echo ( 0 === $i ) ? ' is-active is-first' : ''; ?>">
-					<img
-						class="djd-hero__photo"
-						src="<?php echo esc_url( $p['src'] ); ?>"
-						<?php if ( ! empty( $p['srcset'] ) ) : ?>srcset="<?php echo esc_attr( $p['srcset'] ); ?>" sizes="60vw"<?php endif; ?>
-						style="object-position: <?php echo esc_attr( $p['x'] ); ?>% <?php echo esc_attr( $p['y'] ); ?>%"
-						alt="DJ DigiMark mixing under club lights"
-						<?php echo ( 0 === $i ) ? 'fetchpriority="high"' : 'loading="lazy"'; ?>
-					>
-				</div>
+				<img
+					class="djd-hero__photo<?php echo ( 0 === $i ) ? ' is-on' : ''; ?>"
+					src="<?php echo esc_url( $p['src'] ); ?>"
+					<?php if ( ! empty( $p['srcset'] ) ) : ?>srcset="<?php echo esc_attr( $p['srcset'] ); ?>" sizes="100vw"<?php endif; ?>
+					style="object-position: <?php echo esc_attr( $p['x'] ); ?>% <?php echo esc_attr( $p['y'] ); ?>%"
+					alt="DJ DigiMark mixing under club lights"
+					<?php echo ( 0 === $i ) ? 'fetchpriority="high"' : 'loading="lazy"'; ?>
+				>
 			<?php endforeach; ?>
-			<!-- TV static transition (v1.6.0, replacing the shutter): a pre
-			rendered noise sprite, opacity and transform only, faded in over
-			the current photo right as hero.js swaps the active frame
-			underneath it, then faded back out. See CLAUDE.md "Smoothness". -->
-			<div class="djd-hero__static" aria-hidden="true">
-				<div class="djd-hero__static-scan"></div>
-				<div class="djd-hero__static-img"></div>
-			</div>
 		</div>
 
-		<!-- One fixed glow set, violet and cyan, above the photo panel (v1.6.0:
-		the room light's color cycling is gone, see CLAUDE.md "Smoothness"). -->
-		<div class="djd-hero__glows" aria-hidden="true">
-			<div class="djd-hero__glow djd-hero__glow--a djd-in-glow"></div>
-			<div class="djd-hero__glow djd-hero__glow--b djd-in-glow"></div>
-			<div class="djd-hero__glow djd-hero__glow--c djd-in-glow"></div>
-		</div>
+		<!-- Dark left to right wash, the reference's own .shade: readability
+		for the inner block over the photo, replacing the old right side
+		panel's own left/bottom edge fade (the photo is full bleed now). -->
+		<div class="djd-hero__shade" aria-hidden="true"></div>
+
+		<!-- Light specks: mirrorball.js draws these every frame, screen
+		blended so they only ever brighten, never darken, the photo. -->
+		<canvas class="djd-hero__fx" aria-hidden="true"></canvas>
+
+		<!-- Black intro overlay: hides the first frame's own flash of a bare
+		photo and ball drop, then fades out once the ball has landed. -->
+		<div class="djd-hero__dark" aria-hidden="true"></div>
 
 		<?php if ( $next_up ) : ?>
 			<div class="djd-hero__strip djd-in-ui"><?php echo $next_up; // phpcs:ignore WordPress.Security.EscapeOutput -- trusted shortcode output ?></div>
 		<?php endif; ?>
 
 		<div class="djd-hero__inner">
-			<div class="djd-hero__stage">
-				<h1 class="djd-hero__name" aria-label="DJ DigiMark">
-					<span class="djd-hero__mask djd-hero__mask--dj" aria-hidden="true"><span class="djd-hero__dj djd-in-dj">DJ</span></span>
-					<span class="djd-hero__digimark" aria-hidden="true">
-						<span class="djd-hero__mask djd-hero__mask--echo"><span class="djd-hero__echo"><?php echo djdt_split_letters( 'DigiMark' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></span></span>
-						<span class="djd-hero__mask djd-hero__mask--main"><span class="djd-hero__main"><?php echo djdt_split_letters( 'DigiMark' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></span></span>
-					</span>
-				</h1>
-			</div>
-
-			<div class="djd-hero__row">
-				<div class="djd-hero__copy">
-					<p class="djd-hero__slogan">Bringing positive vibes to the dance <span class="djd-nowrap">floor <span class="djd-eq" role="img" aria-label="Rainbow flag and music"><span></span><span></span><span></span><span></span><span></span><span></span></span></span></p>
-					<div class="djd-hero__buttons">
-						<a class="djd-btn djd-btn--solid" href="<?php echo esc_url( $sets ); ?>">Upcoming sets</a>
-						<a class="djd-btn djd-btn--line" href="<?php echo esc_url( $videos ); ?>">Remix videos</a>
-					</div>
-				</div>
+			<!-- Visually hidden: the real heading text for search engines and
+			screen readers now that the name is drawn as a logo image, not
+			typeset letters (v1.11.0). -->
+			<h1 class="djd-hero__sr-name">DJ DigiMark</h1>
+			<img class="djd-hero__logo" src="<?php echo esc_url( $logo_url ); ?>" alt="DJ DigiMark" width="500" height="593">
+			<p class="djd-hero__slogan">Bringing positive vibes to the dance <span class="djd-nowrap">floor <span class="djd-eq" role="img" aria-label="Rainbow flag and music"><span></span><span></span><span></span><span></span><span></span><span></span></span></span></p>
+			<div class="djd-hero__buttons">
+				<a class="djd-btn djd-btn--solid" href="<?php echo esc_url( $sets ); ?>">Upcoming sets</a>
+				<a class="djd-btn djd-btn--line" href="<?php echo esc_url( $videos ); ?>">Remix videos</a>
 			</div>
 		</div>
 
-		<!-- Fades the hero's own lower edge into the page, full width, so the
-		photo panel and the glows (now allowed to bleed past the hero's own
-		box, see hero.css) never end in a hard line regardless of what is
-		directly underneath. See CLAUDE.md "Smoothness". -->
+		<!-- Fades the hero's own lower edge into the page, full width (v1.6.0,
+		unchanged). See CLAUDE.md "Smoothness". -->
 		<div class="djd-hero__bottom-fade" aria-hidden="true"></div>
 	</section>
 	<?php
 	if ( 'no' !== $atts['player'] ) {
 		echo djdt_player_section(); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside
 	}
+	?>
+	<!-- Fixed position: the wire the ball drops in on, and the ball itself.
+	Kept outside the hero and player sections, see the function doc comment
+	above; mirrorball.js positions both every frame regardless of where
+	they sit in the DOM. -->
+	<div id="djd-wire" aria-hidden="true"></div>
+	<canvas id="djd-ball-canvas" aria-hidden="true"></canvas>
+	<?php
 	return ob_get_clean();
 }
 
@@ -1640,38 +1719,6 @@ function djdt_player_section() {
 function djdt_genre_item( $text ) {
 	$parts = array_map( 'esc_html', array_map( 'trim', explode( '·', $text ) ) );
 	return implode( '<span class="djd-genres__sub" aria-hidden="true">·</span>', $parts );
-}
-
-/**
- * Splits a word into one span per letter, each carrying its index in --i so
- * CSS can stagger something per letter (the hero name's own entrance).
- * aria-hidden: the parent heading already carries the readable text in its
- * own aria-label.
- *
- * @param string $word  Text to split. Spaces become their own (empty
- *                       looking but real) span, which is fine, inline-block
- *                       spans still lay out like normal inline text.
- * @param string $class Class on each letter span.
- */
-function djdt_split_letters( $word, $class = 'djd-letter' ) {
-	$out = '';
-	$i   = 0;
-	foreach ( preg_split( '//u', $word, -1, PREG_SPLIT_NO_EMPTY ) as $ch ) {
-		if ( '' === trim( $ch ) ) {
-			// A space rendered as its own inline-block span collapses to
-			// zero width (confirmed live, v1.4.1, "Wherel'veplayed"): an
-			// inline-block whose only content is whitespace trims that
-			// whitespace within its own formatting context, in every
-			// browser. Plain text has no such box to collapse, so a space
-			// is output as-is instead of wrapped. Not staggered (no --i),
-			// so the letter index below only counts actual letters.
-			$out .= esc_html( $ch );
-			continue;
-		}
-		$out .= '<span class="' . esc_attr( $class ) . '" style="--i:' . (int) $i . '">' . esc_html( $ch ) . '</span>';
-		$i++;
-	}
-	return $out;
 }
 
 /* -------------------------------------------------------------------------

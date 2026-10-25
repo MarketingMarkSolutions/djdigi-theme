@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mirror Ball Hero</title>
+<style>
+@font-face{font-family:"DJD Saira";src:url(/wp-content/plugins/djdigi-theme/assets/fonts/saira-extra-condensed-800.woff2) format("woff2");font-weight:800}
+@font-face{font-family:"DJD Archivo";src:url(/wp-content/plugins/djdigi-theme/assets/fonts/archivo-wdth.woff2) format("woff2");font-weight:100 900;font-stretch:62% 125%}
+:root{--night:#0b0820;--ink:#2a1450;--violet:#5a2e91;--cyan:#24a9e0;--paper:#f1ece2;--gutter:clamp(24px,5vw,120px)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--night);color:var(--paper);font-family:"DJD Archivo",system-ui,sans-serif;overflow-x:hidden}
+.hdr{position:fixed;top:0;left:0;right:0;height:104px;display:flex;align-items:center;justify-content:space-between;padding:0 var(--gutter);background:none;z-index:50;pointer-events:none}.hdr>*{pointer-events:auto}
+.mini{height:72px;width:auto;display:block;opacity:0}
+.hdr nav{display:flex;gap:4px;height:40px;align-items:center;padding:0 6px;border-radius:999px;background:rgba(14,10,36,.82);box-shadow:inset 0 0 0 1px rgba(241,236,226,.16);font-size:15px;font-weight:700}.hdr nav span{padding:0 16px}
+.hero{position:relative;height:max(640px,100vh);overflow:hidden;isolation:isolate;margin-top:0;background:#000}
+.ph{position:absolute;inset:0;z-index:1}
+.ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0}
+.ph img.on{opacity:1}
+.ph img.next{opacity:1;z-index:2}
+.shade{position:absolute;inset:0;z-index:2;background:linear-gradient(90deg,rgba(11,8,32,.93) 0%,rgba(11,8,32,.72) 34%,rgba(11,8,32,.08) 72%),linear-gradient(0deg,var(--night) 0%,rgba(11,8,32,0) 28%)}
+#fx{position:absolute;inset:0;z-index:3;pointer-events:none;mix-blend-mode:screen}
+.dark{position:absolute;inset:0;z-index:4;background:#000;pointer-events:none}
+.inner{position:absolute;z-index:10;left:var(--gutter);top:54%;transform:translateY(-50%);display:flex;flex-direction:column;gap:20px}
+.big{height:min(54vh,500px);width:auto;display:block;overflow:visible}
+.big{opacity:0;transform:scale(.97);transform-origin:left center;transition:opacity .6s,transform .9s cubic-bezier(.2,.7,.2,1)}
+.s1 .big{opacity:1;transform:none}
+.slogan{font-size:clamp(16px,1.35vw,20px);max-width:30ch;line-height:1.35}
+.btns{display:flex;gap:12px;flex-wrap:wrap}
+.btn{font-family:"DJD Saira",Impact,sans-serif;font-weight:800;text-transform:uppercase;font-size:18px;letter-spacing:.04em;padding:12px 20px;color:var(--night);background:var(--paper);text-decoration:none}
+.btn.alt{background:transparent;color:var(--paper);box-shadow:inset 0 0 0 2px var(--paper)}
+.slogan,.btns{opacity:0;transform:translateY(8px);transition:opacity .5s,transform .5s}
+.s3 .slogan,.s3 .btns{opacity:1;transform:none}
+#wire{position:fixed;top:0;width:1px;background:linear-gradient(rgba(241,236,226,.05),rgba(241,236,226,.75));z-index:40;pointer-events:none;opacity:0}
+#ball{position:fixed;left:0;top:0;z-index:45;pointer-events:none;opacity:0}
+.ticket{position:absolute;z-index:10;right:var(--gutter);bottom:56px;display:flex;color:var(--night);text-decoration:none;opacity:0;transform:translateY(14px);transition:opacity .5s,transform .5s}
+.s4 .ticket{opacity:1;transform:none}
+.s4 .ticket:hover{transform:translateY(-3px)}
+.stub{background:var(--violet);color:var(--paper);font-family:"DJD Saira",Impact,sans-serif;font-weight:800;font-size:15px;letter-spacing:.1em;text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);padding:14px 9px;text-align:center}
+.perf{width:6px;background:radial-gradient(circle at 3px 5px,var(--night) 2px,var(--paper) 2.6px) 0 0/6px 10px}
+.tmain{background:var(--paper);padding:14px 24px 14px 16px}
+.tmain .d{font-family:"DJD Saira",Impact,sans-serif;font-weight:800;font-size:38px;line-height:1;text-transform:uppercase}
+.tmain .v{font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.03em;margin-top:5px}
+.tmain .w{font-size:13px;font-weight:700;color:var(--violet);margin-top:6px}
+.below{padding:96px var(--gutter);min-height:140vh}
+.below h2{font-family:"DJD Saira",Impact,sans-serif;font-weight:800;font-size:clamp(40px,5vw,72px);text-transform:uppercase;line-height:1}
+.below p{margin-top:16px;max-width:52ch;opacity:.75}
+.demos{position:fixed;left:16px;bottom:16px;z-index:60;display:flex;gap:8px}.demo{z-index:60;font:700 13px system-ui,sans-serif;background:var(--cyan);color:var(--night);border:0;padding:10px 14px;cursor:pointer}
+.nt *{transition:none!important}
+@media(max-width:700px){.hdr nav{display:none}.big{height:40vh}.ticket{right:auto;left:var(--gutter);bottom:24px}.inner{top:44%}}
+</style></head>
+<body>
+<header class="hdr">
+  <img class="mini" width="500" height="593" alt="DJ DigiMark">
+  <nav><span>Home</span><span>Events</span><span>Music &amp; Video</span><span>About</span></nav>
+</header>
+
+<section class="hero">
+  <div class="ph">
+    <img class="on" src="https://djdigimark.com/wp-content/uploads/2026/08/djdt-halftone-64524-v3-d17763.jpg" style="object-position:50% 50%" alt="">
+    <img src="https://djdigimark.com/wp-content/uploads/2026/08/djdt-halftone-64526-v3-b38275.jpg" style="object-position:30% 23%" alt="">
+    <img src="https://djdigimark.com/wp-content/uploads/2026/10/djdt-halftone-64540-v3-f52ccb.jpg" style="object-position:66% 40%" alt="">
+  </div>
+  <div class="shade"></div>
+  <canvas id="fx"></canvas>
+  <div class="dark"></div>
+  <div class="inner">
+    <img class="big" width="500" height="593" alt="DJ DigiMark">
+    <p class="slogan">Bringing positive vibes to the dance floor</p>
+    <div class="btns"><a class="btn" href="#">Upcoming sets</a><a class="btn alt" href="#">Remix videos</a></div>
+  </div>
+</section>
+
+<section class="below"><h2>Upcoming sets</h2><p>The CD cases sit here. Scroll down and watch the logo fade into the header as the mirror ball docks into it. On every other page the small logo would just be there, with the ball spinning.</p></section>
+<div id="wire"></div>
+<canvas id="ball"></canvas>
+<div class="demos"><button class="demo" id="replay" type="button">Replay the drop</button><button class="demo" id="mode" type="button">Show original colors</button></div>
+
+<script>
+(function(){
+var hero=document.querySelector('.hero'),fx=document.getElementById('fx'),fc=fx.getContext('2d');
+var bc=document.getElementById('ball'),bx=bc.getContext('2d'),wire=document.getElementById('wire');
+var dark=document.querySelector('.dark'),big=document.querySelector('.big'),mini=document.querySelector('.mini');
+var imgs=[].slice.call(document.querySelectorAll('.ph img'));
+var DPR=Math.min(window.devicePixelRatio||1,2),W=0,H=0,cur=0;
+var mouse={x:-9999,y:-9999},start=0,rot=0,flash=0,last=performance.now(),landed=false;
+var specks=[],trans=null,nextAt=0,timers=[];
+var reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var ang=75*Math.PI/180,ca=Math.cos(ang),sa=Math.sin(ang),SP=7;
+
+function clamp(v){return v<0?0:v>1?1:v}
+function eOut(t){return 1-Math.pow(1-t,3)}
+function eIO(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2}
+function eBack(t){var c1=1.25,c3=c1+1;return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2)}
+function size(){var r=hero.getBoundingClientRect();W=r.width;H=r.height;fx.width=Math.round(W*DPR);fx.height=Math.round(H*DPR);fx.style.width=W+'px';fx.style.height=H+'px'}
+function slot(el){var r=el.getBoundingClientRect(),s=r.width/500;return{x:r.left+430*s,y:r.top+68*s,r:46*s}}
+function makeSpecks(){specks=[];var n=W<700?36:80;for(var i=0;i<n;i++){var q=Math.random();specks.push({lon:Math.random()*6.2832,lat:-.25+Math.random()*1.45,s:.6+Math.random()*1.1,h:Math.random()*6.283,c:q<.5?'241,236,226':(q<.8?'36,169,224':'170,130,240')})}}
+
+var PAL=[[0,[30,14,62]],[.35,[90,46,145]],[.62,[36,169,224]],[.85,[241,236,226]],[1.2,[255,255,255]]];
+function pal(v){if(v<=0)v=0;for(var i=1;i<PAL.length;i++){if(v<=PAL[i][0]||i===PAL.length-1){var a=PAL[i-1],b=PAL[i],t=clamp((v-a[0])/(b[0]-a[0]));return 'rgb('+Math.round(a[1][0]+(b[1][0]-a[1][0])*t)+','+Math.round(a[1][1]+(b[1][1]-a[1][1])*t)+','+Math.round(a[1][2]+(b[1][2]-a[1][2])*t)+')'}}}
+function hash(i,j){var x=Math.sin(i*12.9898+j*78.233)*43758.5453;return x-Math.floor(x)}
+
+function drawBall(r,lx,ly,now){
+  var pad=3,sz=Math.ceil(r*2+pad*2),px=Math.round(sz*DPR);
+  if(bc.width!==px){bc.width=px;bc.height=px;bc.style.width=sz+'px';bc.style.height=sz+'px'}
+  bx.setTransform(DPR,0,0,DPR,0,0);bx.clearRect(0,0,sz,sz);
+  var c=sz/2,g=bx.createRadialGradient(c-r*.3,c-r*.35,r*.1,c,c,r);
+  g.addColorStop(0,'#2e1760');g.addColorStop(1,'#05031a');
+  bx.fillStyle=g;bx.beginPath();bx.arc(c,c,r,0,6.2832);bx.fill();
+  bx.save();bx.beginPath();bx.arc(c,c,r,0,6.2832);bx.clip();
+  var rows=r>30?14:9,cols=rows*2,ll=Math.sqrt(lx*lx+ly*ly+.8),Lx=lx/ll,Ly=ly/ll,Lz=.9/ll;
+  for(var i=0;i<rows;i++){
+    var la0=-Math.PI/2+i*Math.PI/rows,la1=la0+Math.PI/rows,lac=(la0+la1)/2;
+    for(var j=0;j<cols;j++){
+      var lo0=j*6.2832/cols+rot,lo1=lo0+6.2832/cols,loc=(lo0+lo1)/2;
+      var nx=Math.cos(lac)*Math.sin(loc),ny=Math.sin(lac),nz=Math.cos(lac)*Math.cos(loc);
+      if(nz<.03)continue;
+      var pts=[[la0,lo0],[la0,lo1],[la1,lo1],[la1,lo0]],cx=c+r*nx,cy=c+r*ny;
+      var h=hash(i,j),lam=Math.max(0,nx*Lx+ny*Ly+nz*Lz);
+      var sp=.5*Math.pow(Math.max(0,Math.sin(now*.0028+h*60)),26);
+      var v=(.12+.6*Math.pow(lam,2.2)+sp*.9+flash*(.4+.6*h))*(.35+.65*nz);
+      bx.fillStyle=pal(v);bx.beginPath();
+      for(var k=0;k<4;k++){var la=pts[k][0],lo=pts[k][1],X=c+r*Math.cos(la)*Math.sin(lo),Y=c+r*Math.sin(la);X=cx+(X-cx)*.8;Y=cy+(Y-cy)*.8;if(k)bx.lineTo(X,Y);else bx.moveTo(X,Y)}
+      bx.fill();
+    }
+  }
+  bx.restore();
+  bx.strokeStyle='rgba(241,236,226,.22)';bx.lineWidth=1;bx.beginPath();bx.arc(c,c,r-.5,0,6.2832);bx.stroke();
+  return sz;
+}
+
+function cluster(x,y,R,al,col){
+  if(al<.02||R<1)return;
+  var g=fc.createRadialGradient(x*DPR,y*DPR,0,x*DPR,y*DPR,R*.9*DPR);
+  g.addColorStop(0,'rgba('+col+','+Math.min(1,al*.45)+')');g.addColorStop(1,'rgba('+col+',0)');
+  fc.fillStyle=g;fc.beginPath();fc.arc(x*DPR,y*DPR,R*.9*DPR,0,6.2832);fc.fill();
+  var u0=x*ca+y*sa,v0=-x*sa+y*ca,k=Math.ceil(R/SP),ub=Math.round(u0/SP),vb=Math.round(v0/SP);
+  fc.fillStyle='rgb('+col+')';
+  for(var i=-k;i<=k;i++)for(var j=-k;j<=k;j++){
+    var u=(ub+i)*SP,v=(vb+j)*SP,du=u-u0,dv=v-v0,d=Math.sqrt(du*du+dv*dv);
+    if(d>R)continue;var f=1-d/R,px=u*ca-v*sa,py=u*sa+v*ca;
+    fc.globalAlpha=Math.min(1,al*f*1.5);fc.beginPath();fc.arc(px*DPR,py*DPR,(.5+1.7*f)*DPR,0,6.2832);fc.fill();
+  }
+  fc.globalAlpha=1;
+}
+
+function frame(now){
+  var dt=Math.min(64,now-last);last=now;var t=reduce?99999:now-start;
+  rot+=dt*.0002;flash=Math.max(0,flash-dt/650);
+  var hr=hero.getBoundingClientRect(),sb=slot(big),sm=slot(mini);
+  var p=clamp(window.scrollY/(H*.55));p=p*p*(3-2*p);mini.style.opacity=clamp((p-.4)/.5);
+  var tx=sb.x+(sm.x-sb.x)*p,ty=sb.y+(sm.y-sb.y)*p,tr=sb.r+(sm.r-sb.r)*p,by=ty;
+  if(t<1100){var y0=-tr*2.2,dp=clamp((t-250)/850);by=y0+(ty-y0)*eBack(dp)}
+  else if(!landed){landed=true;flash=1}
+  bc.style.opacity=t<250?0:1;
+  var lx=(mouse.x-tx)/Math.max(W,1),ly=(mouse.y-by)/Math.max(H,1);if(mouse.x<-999){lx=-.4;ly=-.5}
+  var sz=drawBall(tr,lx*2,ly*2,now);
+  bc.style.transform='translate('+(tx-sz/2)+'px,'+(by-sz/2)+'px)';
+  var wa=t<250?0:t<1500?1:clamp(1-(t-1500)/450);
+  wire.style.opacity=wa;wire.style.left=tx+'px';wire.style.height=Math.max(0,by-tr)+'px';
+  dark.style.opacity=t<1050?1:clamp(1-(t-1050)/650);
+
+  fc.clearRect(0,0,fx.width,fx.height);
+  var ox=tx-hr.left,oy=by-hr.top,mx=mouse.x-hr.left,my=mouse.y-hr.top;
+  if(t>1100){
+    var bp=eOut(clamp((t-1100)/900));
+    for(var i=0;i<specks.length;i++){
+      var s=specks[i],ph=s.lon+rot,z=Math.cos(ph),zf=(z+1)/2,Rx=Math.max(ox,W-ox)*1.05;
+      var dxp=ox+Rx*Math.sin(ph),dyp=oy+H*1.05*Math.sin(s.lat);
+      var x=ox+(dxp-ox)*bp,y=oy+(dyp-oy)*bp;
+      var al=(.3+.5*Math.pow(.5+.5*Math.sin(now*.0014+s.h),3))*bp*(.25+.75*zf);
+      var dx=x-mx,dy=y-my,b=Math.exp(-(dx*dx+dy*dy)/(180*180));
+      al+=b*.8+flash*.5;
+      s.zs=.65+.55*zf;
+      cluster(x,y,s.s*13*s.zs*(1+b*.7),al,s.c);
+    }
+  }
+  if(!trans&&t>2600&&now>nextAt&&imgs.length>1){
+    var to=(cur+1)%imgs.length;trans={t0:now,from:cur,to:to};
+    imgs[to].classList.add('next');imgs[to].style.clipPath='circle(0px at '+ox+'px '+oy+'px)';flash=1;
+  }
+  if(trans){
+    var k=clamp((now-trans.t0)/1300),R=eIO(k)*Math.hypot(W+Math.abs(ox),H+Math.abs(oy));
+    imgs[trans.to].style.clipPath='circle('+R+'px at '+ox+'px '+oy+'px)';
+    var n=Math.min(220,Math.floor(6.2832*R/24));
+    for(var q=0;q<n;q++){var a=q/n*6.2832+rot,qx=ox+Math.cos(a)*R,qy=oy+Math.sin(a)*R;if(qx>-20&&qx<W+20&&qy>-20&&qy<H+20)cluster(qx,qy,9,.85*(1-k),q%3?'241,236,226':'36,169,224')}
+    if(k>=1){imgs[trans.from].classList.remove('on');imgs[trans.to].classList.add('on');imgs[trans.to].classList.remove('next');imgs[trans.to].style.clipPath='';cur=trans.to;trans=null;nextAt=now+6000}
+  }
+  requestAnimationFrame(frame);
+}
+
+var mode='night';
+function buildLogo(m,cb){var im=new Image();im.onload=function(){var c=document.createElement('canvas');c.width=500;c.height=593;var x=c.getContext('2d');x.drawImage(im,0,0);var D=x.getImageData(0,0,500,593),d=D.data;for(var i=0;i<d.length;i+=4){var q=i/4,X=q%500,Y=(q-X)/500,ex=X-430,ey=Y-68;if(ex*ex+ey*ey<52*52){if(m==='night'){d[i+3]=0}else if(d[i+3]>0){d[i]=d[i+1]=d[i+2]=255}continue}if(m==='night'&&d[i+3]>0){var r=d[i],g=d[i+1],b=d[i+2],a=Math.max(255-r,255-g,255-b)/255;if(a<.03){d[i+3]=0;continue}var R=(r-255*(1-a))/a,G=(g-255*(1-a))/a,B=(b-255*(1-a))/a;if(Math.max(R,G,B)-Math.min(R,G,B)<60&&(R+G+B)/3<120){R=241;G=236;B=226}d[i]=R;d[i+1]=G;d[i+2]=B;d[i+3]=Math.round(d[i+3]*a)}}x.putImageData(D,0,0);cb(c.toDataURL())};im.src='/wp-content/uploads/2014/08/VideoLogoBlueTr.fw_.png'}
+function setLogo(cb){buildLogo(mode,function(u){big.src=u;mini.src=u;if(cb)cb()})}
+function play(){
+  timers.forEach(clearTimeout);timers=[];
+  window.scrollTo(0,0);
+  document.body.classList.add('nt');document.body.classList.remove('s1','s2','s3','s4');
+  void document.body.offsetWidth;document.body.classList.remove('nt');
+  imgs.forEach(function(im,i){im.classList.toggle('on',i===0);im.classList.remove('next');im.style.clipPath=''});
+  cur=0;trans=null;landed=false;flash=0;size();makeSpecks();
+  start=performance.now();nextAt=start+5200;
+  var steps=reduce?[0,0,0,0]:[1150,1400,1650,1950];
+  ['s1','s2','s3','s4'].forEach(function(c,i){timers.push(setTimeout(function(){document.body.classList.add(c)},steps[i]))});
+}
+window.addEventListener('mousemove',function(e){mouse.x=e.clientX;mouse.y=e.clientY});
+window.addEventListener('mouseleave',function(){mouse.x=-9999});
+window.addEventListener('resize',size);
+document.getElementById('replay').addEventListener('click',play);
+document.getElementById('mode').addEventListener('click',function(){mode=mode==='night'?'orig':'night';this.textContent=mode==='night'?'Show original colors':'Show night colors';setLogo()});
+setLogo(function(){play();requestAnimationFrame(frame)});
+})();
+</script>
+</body></html>

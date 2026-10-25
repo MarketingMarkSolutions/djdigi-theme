@@ -11,12 +11,12 @@ body.djdigi-theme {
 	--djd-orange: #f04e23;
 	--djd-sans: 'DJD Archivo', 'Archivo', system-ui, sans-serif;
 	--djd-display: 'DJD Saira', 'Saira Extra Condensed', Impact, sans-serif;
-	--djd-head-h: 92px; /* fallback for the instant before hero.js measures the real header */
-	/* The hero name's own left offset (hero.css, .djd-hero__name), shared
-	   here so the header logo (below, "Header: over the hero") can line
-	   its own left edge up against the name's by reading the exact same
-	   value, not an independent guess kept in sync by hand (v1.6.2, found
-	   live: the logo and the name's visual left edges did not match). */
+	/* The small negative left nudge every display-font heading in the hero
+	   page shares (the header logo below, "Header over the hero", and
+	   .djd-section-heading further down): one value read in several
+	   places, not an independent guess kept in sync by hand per element
+	   (v1.6.2, found live: two elements using their own hand-picked offset
+	   did not actually line up). */
 	--djd-name-edge: -8px;
 	/* v1.7.0: the one side gutter the header row and every full width hero
 	   page section (hero, player section) start and end at, replacing the
@@ -111,15 +111,13 @@ body.djdigi-theme h3 {
    at 2000px wide (3vw hits the 48px cap at 1600px and holds from there),
    scaling down to 28px on a narrow phone.
 
-   margin-left reuses --djd-name-edge, the same small negative nudge
-   .djd-hero__name already carries (hero.css): both are set in the same
-   display font at a heavy weight, and that font's own left side bearing
-   reads as a few pixels of dead space the plain gutter alone does not
-   account for. Section CONTENT below a heading (the player card, the
-   events grid, the venues logo row) does not get this nudge, only ever
-   the plain gutter, the same split the hero itself already has between
-   the name and the slogan/buttons under it (.djd-hero__row, no side
-   padding of its own, gutter only). */
+   margin-left reuses --djd-name-edge, the same small negative nudge the
+   header logo's own left edge carries (site.css, "Header over the hero"):
+   both are set in the same display font at a heavy weight, and that
+   font's own left side bearing reads as a few pixels of dead space the
+   plain gutter alone does not account for. Section CONTENT below a
+   heading (the player card, the events grid, the venues logo row) does
+   not get this nudge, only ever the plain gutter. */
 .djd-section-heading {
 	margin: 0 0 28px var(--djd-name-edge, -8px);
 	font-family: var(--djd-display);
@@ -427,62 +425,29 @@ body.djdigi-theme .fusion-footer-widget-area.djdt-is-empty { display: none !impo
    Pages with the [djdigi_hero]: header floats over the dark hero
    ====================================================================== */
 
-/* The opening sequence's timing lives here, on body, rather than on .djd-hero,
-   because the header (the menu's drop-in) is a sibling of the hero section,
-   not a descendant of it. A custom property only cascades to descendants, so
-   anything both the header and the hero need to read has to start at least
-   this high. hero.js toggles djd-quick-intro for repeat views in the session,
-   and holds the whole entrance paused (see hero.css) until the hero photo and
-   the fonts are ready, so these delays count from that moment, not raw page
-   load; a 1.2s cap means a slow load never blocks it for long.
-
-   Schedule (about 1.6 to 1.8s total once ready; steps overlap rather than
-   running one after another). The header carries no animation of its own
-   (v1.4.0: removed, see below), the logo and menu are simply always there
-   from the first frame. No --djd-t-player here any more (v1.6.0): the
-   player moved to its own section below the hero and is no longer part
-   of this gated entrance at all, see hero.css and djdigi-theme.php
-   djdt_player_section().
-   0s            glow begins
-   0.15s         photo begins (fade plus a slight scale in), overlapping the glow
-   0.35s         DJ sweeps up, overlapping the photo
-   0.45s         DigiMark sweeps up letter by letter, overlapping DJ
-   0.9s to 1.15s slogan, buttons and EQ land together, overlapping the
-                 end of the name */
-body.djdigi-has-hero {
-	--djd-t-glow: 0s;
-	--djd-t-photo: 0.15s;
-	--djd-t-dj: 0.35s;
-	--djd-t-name: 0.45s;
-	--djd-t-slogan: 1.0s;
-	--djd-t-buttons: 1.1s;
-	--djd-t-eq: 1.15s;
-}
-body.djdigi-has-hero.djd-quick-intro {
-	--djd-t-glow: 0s;
-	--djd-t-photo: 0s;
-	--djd-t-dj: 0.1s;
-	--djd-t-name: 0.2s;
-	--djd-t-slogan: 0.35s;
-	--djd-t-buttons: 0.4s;
-	--djd-t-eq: 0.5s;
-}
-
 /* The header does not animate in at all (v1.4.0: removed the drop-in
    animation and the will-change/opacity-0 starting state that went with
-   it). The logo and menu are in place from the very first frame, no
-   gating on djd-intro-ready, no final-state safety net needed either,
-   since there is no entrance state for a script failure to leave it
-   stuck in. Its background image is killed by a late wp_head <style>
-   block instead of JS now, see djdigi-theme.php and CLAUDE.md, "Header
-   over the hero". No admin bar offset here either (removed in v1.3.0,
-   it was wrong, see CLAUDE.md): WP already pushes the whole page down
-   with its own margin when logged in, and Avada's #wrapper is position:
-   relative, which is what this header floats absolute against, not the
-   raw viewport, so top: 0 already lands correctly below the admin bar on
-   its own. */
+   it). The logo and menu are in place from the very first frame; the
+   mirror ball hero's own entrance timing (v1.11.0) lives entirely in
+   mirrorball.js as body.djd-seq-1 through djd-seq-4, not as custom
+   properties here, since nothing about the header itself needs to read
+   them any more. Its background image is killed by a late wp_head
+   <style> block instead of JS, see djdigi-theme.php and CLAUDE.md,
+   "Header over the hero".
+
+   v1.11.0: position: fixed now, not absolute, so the header (and the
+   mirror ball docked into its own logo) stays on screen for the whole
+   page, not just floating over the hero itself. A fixed element DOES need
+   its own admin bar offset, unlike the old absolute version (CLAUDE.md
+   has the full story on why that one never needed one): position: fixed
+   is relative to the viewport, which WP's own margin-top on html does not
+   shift, so without this the header would sit 32px (or 46px, the admin
+   bar's own responsive breakpoint at 782px) too high for a logged in
+   admin. Not verified against the real Avada markup, same caveat as
+   every other header bullet in CLAUDE.md: confirm live that Avada's own
+   sticky header JS does not fight this once it toggles its own classes. */
 body.djdigi-has-hero .fusion-header-wrapper {
-	position: absolute !important;
+	position: fixed !important;
 	top: 0;
 	left: 0;
 	right: 0;
@@ -490,6 +455,10 @@ body.djdigi-has-hero .fusion-header-wrapper {
 	width: 100% !important;
 	background-color: transparent !important;
 	background-image: none !important;
+}
+body.djdigi-has-hero.admin-bar .fusion-header-wrapper { top: 32px; }
+@media (max-width: 782px) {
+	body.djdigi-has-hero.admin-bar .fusion-header-wrapper { top: 46px; }
 }
 
 body.djdigi-has-hero.djdigi-hero-strip .fusion-header-wrapper { top: 46px; }
@@ -607,6 +576,14 @@ body.djdigi-has-hero .fusion-logo img {
 	height: 72px !important;
 	width: auto !important;
 	max-height: none !important;
+	/* Starts hidden (v1.11.0): mirrorball.js swaps this image's own src to
+	   the generated night logo and then drives its opacity every frame
+	   from scroll position (0 at the top of the page, 1 once the ball has
+	   docked into it), the same reference numbers as the hero's own logo
+	   fade. Starting hidden here means there is nothing to flash, whatever
+	   image Avada itself would otherwise show here first, before that
+	   script runs; a plain inline style from JS always overrides this. */
+	opacity: 0;
 }
 @media (max-width: 800px) {
 	body.djdigi-has-hero .fusion-logo img {
@@ -618,16 +595,16 @@ body.djdigi-has-hero .fusion-secondary-header {
 	background-color: transparent !important;
 	background-image: none !important;
 }
-/* Transparent by default, not gated behind :not(.fusion-is-sticky)
-   anymore. Also covers Avada's separate clone of the header it renders
-   for the sticky state (.fusion-sticky-header-wrapper), which v1.2.1
-   never targeted at all, the likely source of the solid band Mark saw
-   live: whichever wrapper actually carries the markup at a given moment,
-   this now matches both. .fusion-row is deliberately scoped to inside
-   one of these two wrappers, not bare, since Avada reuses that class as
-   a generic content width row all over the page, well beyond the
-   header. The more specific .fusion-is-sticky rule further down still
-   wins once genuinely scrolled. */
+/* Always transparent now, not state dependent (v1.11.0, the brief's own
+   words: "no background, no bar, no shadow" at any scroll position, not
+   just while floating over the hero). Covers Avada's separate clone of
+   the header it renders for the sticky state (.fusion-sticky-header-
+   wrapper) too, whichever wrapper actually carries the markup at a given
+   moment. Previously this read as transparent only until Avada's own
+   .fusion-is-sticky class appeared, at which point a separate rule
+   further down switched it to a solid dark glass bar; that rule is gone
+   entirely now; the header itself never paints anything of its own
+   regardless of .fusion-is-sticky, on any scroll position. */
 body.djdigi-has-hero .fusion-header-wrapper .fusion-header,
 body.djdigi-has-hero .fusion-header-wrapper .fusion-row,
 body.djdigi-has-hero .fusion-sticky-header-wrapper .fusion-header,
@@ -635,29 +612,26 @@ body.djdigi-has-hero .fusion-sticky-header-wrapper .fusion-row {
 	background-color: transparent !important;
 	background-image: none !important;
 	border-bottom-color: transparent;
+	box-shadow: none !important;
 }
-/* Solid, not glass: a backdrop-filter here forces a repaint of whatever
-   is behind it (the hero photo) on every frame, which is what was
-   making the ticker look like a low frame rate video (v1.2.3). A
-   darker, more opaque solid reads the same at a glance without it. */
-body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu {
+/* The pill menu's own background is one constant style now too (v1.11.0,
+   matching the reference's single .hdr nav style, no sticky variant):
+   solid, not glass, a backdrop-filter here forces a repaint of whatever
+   is behind it (the hero photo) on every frame, which is what was making
+   the ticker look like a low frame rate video (v1.2.3). */
+body.djdigi-has-hero .fusion-main-menu {
 	background: rgba(14, 10, 36, 0.82);
 	border: 1px solid rgba(241, 236, 226, 0.16);
 }
-body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu > ul > li > a,
-body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu > ul > li.current-menu-item > a,
-body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu-icon:after {
+body.djdigi-has-hero .fusion-main-menu > ul > li > a,
+body.djdigi-has-hero .fusion-main-menu > ul > li.current-menu-item > a,
+body.djdigi-has-hero .fusion-main-menu-icon:after {
 	color: var(--djd-paper) !important;
 }
-body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-main-menu > ul > li > a:hover {
+body.djdigi-has-hero .fusion-main-menu > ul > li > a:hover {
 	color: var(--djd-cyan) !important;
 }
-/* Dropdown panels on the hero are always dark (night with paper text), not
-   just while the header floats non-sticky: unlike the menu bar's own
-   background and link color above, which only make sense over the photo,
-   a dropdown panel has its own solid background regardless, so there is
-   no reason for it to revert to the cream/violet default once the header
-   goes sticky. */
+/* Dropdown panels on the hero are always dark (night with paper text). */
 body.djdigi-has-hero .fusion-main-menu .sub-menu {
 	background-color: #140f33 !important;
 	border-color: rgba(241, 236, 226, 0.18) !important;
@@ -671,22 +645,10 @@ body.djdigi-has-hero .fusion-main-menu .sub-menu li:hover > a {
 	background-color: rgba(36, 169, 224, 0.2) !important;
 	color: var(--djd-paper) !important;
 }
-body.djdigi-has-hero .fusion-header-wrapper:not(.fusion-is-sticky) .fusion-mobile-selector {
+body.djdigi-has-hero .fusion-mobile-selector {
 	background-color: transparent !important;
 	border-color: rgba(241, 236, 226, 0.5) !important;
 	color: var(--djd-paper) !important;
-}
-
-/* Sticky header over the hero switches to night, and stays dark glass */
-body.djdigi-has-hero .fusion-is-sticky .fusion-header {
-	background-color: rgba(11, 8, 32, 0.94) !important;
-	background-image: none !important;
-	border-bottom-color: transparent;
-}
-body.djdigi-has-hero .fusion-is-sticky .fusion-main-menu > ul > li > a { color: var(--djd-paper) !important; }
-body.djdigi-has-hero .fusion-is-sticky .fusion-main-menu {
-	background: rgba(20, 15, 51, 0.55);
-	border: 1px solid rgba(241, 236, 226, 0.16);
 }
 
 /* Remove gaps Avada leaves above the first container on hero pages, and
@@ -705,29 +667,29 @@ body.djdigi-has-hero .fusion-is-sticky .fusion-main-menu {
    sections.
 
    background-color (v1.8.0): #main now carries the night background
-   directly on hero pages, not just transparent padding. See the "glow
-   shows through" rule further down (the hero's own glow, which already
-   bleeds past the hero's own bottom edge by design, hero.css
-   .djd-hero__glows) for why this box needs to actually be night colored
-   itself now, not just the paper color body.djdigi-theme #main carries
-   everywhere else. */
+   directly on hero pages, not just transparent padding. See the note
+   further down (.djd-hero__bottom-fade, hero.css, which still
+   deliberately extends about 40px past the hero's own bottom edge in
+   the v1.11.0 mirror ball rebuild) for why this box needs to actually be
+   night colored itself now, not just the paper color body.djdigi-theme
+   #main carries everywhere else. */
 body.djdigi-has-hero #main {
 	padding-top: 0 !important;
 	padding-left: 0 !important;
 	padding-right: 0 !important;
 	background-color: var(--djd-night);
 }
-/* v1.8.0, found live: the hero's own glow (.djd-hero__glows, hero.css)
-   genuinely does extend about 260px past the hero's own bottom edge
-   (overflow: visible is deliberate, see hero.css), but .djd-player-section
-   painted its own solid night background right on top of it, which cut
-   the glow off in a straight horizontal line instead of letting it fade
-   out. The fix is not in the glow at all: #main now carries the same
-   night color underneath everything (above), and every full width
+/* v1.8.0, found live: the hero's own bottom fade (hero.css) genuinely
+   does extend a little past the hero's own bottom edge on purpose, but
+   .djd-player-section painted its own solid night background right on
+   top of it, which cut the fade off in a straight horizontal line
+   instead of letting it finish reaching true night. The fix is not in
+   the fade at all: #main now carries the same night color underneath
+   everything (above), and every full width
    section that follows the hero on a hero page goes transparent here
    instead of painting its own second, separately colored night box, so
-   the glow (and #main's own flat night beneath it, once the glow's own
-   alpha has faded to nothing) show through with no seam. Each of these
+   the fade (and #main's own flat night beneath it, once the fade's own
+   gradient has reached full night) shows through with no seam. Each of these
    sections still paints its own solid night background by default
    (hero.css, events.css, venues.css) for when it is used on its own,
    away from the hero, for example [djdigi_events] on a plain Events

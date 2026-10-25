@@ -46,18 +46,164 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 "Live for everyone" is checked. Keep every new feature behind this check.
 
 ## Files
-- `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo halftone baking (Imagick assisted decode, GD for every pixel operation, see "Smoothness" below), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]` (`djdt_hero_shortcode()`) and the "Latest live set" player section it outputs right after itself (`djdt_player_section()`, v1.6.0, no separate shortcode), `[djdigi_venues]`. `require_once`s `includes/djdt-events.php` near the top, see below.
+- `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo halftone baking (Imagick assisted decode, GD for every pixel operation, see "Smoothness" below), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]` (`djdt_hero_shortcode()`) and the "Latest live set" player section it outputs right after itself (`djdt_player_section()`, v1.6.0, no separate shortcode), `[djdigi_venues]`. `require_once`s `includes/djdt-events.php` and (v1.11.0) `includes/djdt-logo.php` near the top, see below.
 - `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
-- `assets/css/site.css`: site-wide, scoped to `body.djdigi-theme`. Avada header and menu selectors: `.fusion-header-wrapper`, `.fusion-secondary-header` (no social icons at all now, see "Dock scoping"), `.fusion-header`, `.fusion-sticky-header-wrapper`, `.fusion-header-sticky-height` (Avada's own spacer, hidden on hero pages, see "Header over the hero" below), `.fusion-main-menu` (the pill bar) `> ul.fusion-menu`, `.sub-menu` (including explicit dropdown/flyout positioning and the `djd-flip-right` class menu.js adds near the viewport edge), `.fusion-mobile-selector` (classic mobile menu), `.fusion-is-sticky` (sticky state). Also owns the footer dock's styling, the opening sequence's shared timing custom properties (on `body.djdigi-has-hero`, see below), the hero-page override of `html`'s own background color (see "Header over the hero" below, the cream strip fix), and (v1.8.0) the hero page background/transparency rules that let the hero's own glow show through the sections below it, see "Soft bottom edge" below.
-- `assets/css/hero.css`: hero, the "Latest live set" player section, and both, loaded only when the shortcode renders. The large right side photo panel and its CSS edge fade, the TV static transition and the fixed glow between rotating photos (v1.6.0, replacing the shutter and the room light), the grid-stacked name layers, the player section (its own full width night background by default, no outlined box, see "Smoothness" below), the Pride EQ wave, the intro's pause-until-ready gate (see "Intro: fast, overlapping, waits for the photo and fonts" below). No scroll shrink any more (v1.6.0, removed entirely). No filter, mix-blend-mode or mask-image on the photo itself, see "Smoothness" below. No ticker here, see "Venues" below.
+- `includes/djdt-logo.php` (v1.11.0): the mirror ball hero's own "night" logo, baked once with GD from the site's own `/wp-content/uploads/2014/08/VideoLogoBlueTr.fw_.png` (ball erased, white removed, same unique-filename-per-recipe caching pattern as the hero photo halftone bakes), or Mark's own override from Theme Settings. See "Mirror ball hero" below.
+- `assets/css/site.css`: site-wide, scoped to `body.djdigi-theme`. Avada header and menu selectors: `.fusion-header-wrapper` (v1.11.0: `position: fixed` on hero pages now, not `absolute`, see "Mirror ball hero" below), `.fusion-secondary-header` (no social icons at all now, see "Dock scoping"), `.fusion-header`, `.fusion-sticky-header-wrapper`, `.fusion-header-sticky-height` (Avada's own spacer, hidden on hero pages, see "Header over the hero" below), `.fusion-main-menu` (the pill bar, one constant style now, not a sticky/non-sticky variant, v1.11.0) `> ul.fusion-menu`, `.sub-menu` (including explicit dropdown/flyout positioning and the `djd-flip-right` class menu.js adds near the viewport edge), `.fusion-mobile-selector` (classic mobile menu). Also owns the footer dock's styling, the hero-page override of `html`'s own background color (see "Header over the hero" below, the cream strip fix), and (v1.8.0) the hero page background/transparency rules that let the hero's own bottom fade show through the sections below it.
+- `assets/css/hero.css`: hero, the "Latest live set" player section, and both, loaded only when the shortcode renders. v1.11.0, the mirror ball hero (see "Mirror ball hero" below): the full bleed rotating photo panel, the dark `.djd-hero__shade` wash, the inner block (logo, slogan, both buttons) absolutely centered at 54%, the fixed `#djd-wire`/`#djd-ball-canvas`, the `djd-seq-1` through `djd-seq-4` entrance classes mirrorball.js adds to `body`. The player section is otherwise unchanged (its own full width night background by default, no outlined box, see "Smoothness" below), as is the Pride EQ wave. No filter, mix-blend-mode or mask-image on the photo itself, see "Smoothness" below. No ticker here, see "Venues" below.
+- `assets/js/mirrorball.js` (v1.11.0): the mirror ball itself. drawBall(), cluster(), the speck math and every entrance timing/easing function are a direct port of reference/mirrorball-hero-reference.html; see "Mirror ball hero" below for what is genuinely new here versus ported as-is.
 - `assets/css/events.css`, `assets/js/events.js` (v1.8.0): `[djdigi_events]`'s cards and the CD tray, loaded only when that shortcode renders, same pattern as hero.css/hero.js. See "Events: moved here from djdigi-library" below.
 - `assets/css/venues.css`, `assets/js/venues.js`: the `[djdigi_venues]` card, loaded only when that shortcode renders, same pattern as hero.css/hero.js. See "Venues" below.
-- `assets/css/admin.css`, `assets/js/admin.js`: the Hero Photos and Venues admin screens only, the hero photo picker and the venues picker (wp.media, drag to reorder; hero photos also set a focal point, venues also have a name, details, a link, a logo color, and an on/off switch).
-- `assets/js/hero.js`: opening sequence timing (session quick-intro, `?intro=1` override, the ready gate), header height measurement (the taller of the header wrapper and the mobile nav holder, so the hero always starts below whichever actually extends further down), the TV static transition's class handoff between rotating photos (v1.6.0), the Mixcloud Widget API player (iframe at player-widget.mixcloud.com, see below; looked up from `document`, not from the hero element, since the player is its own section now, not a descendant). No scroll shrink driver any more (v1.6.0, removed entirely, the whole function is gone). The header's background image fix is no longer here, see "Header over the hero" below.
+- `assets/css/admin.css`, `assets/js/admin.js`: the Hero Photos, Venues and (v1.11.0) the hero logo override field on Theme Settings, all wp.media pickers (drag to reorder for photos/venues; hero photos also set a focal point, venues also have a name, details, a link, a logo color, and an on/off switch; the hero logo override is a single image, PNG or SVG).
+- `assets/js/hero.js`: the Mixcloud Widget API player (iframe at player-widget.mixcloud.com, see below; looked up from `document`, not from the hero element, since the player is its own section now, not a descendant) and the Avada breakout host class fallback. v1.11.0: the opening sequence, the photo rotation and the header height measurement all moved out of this file into mirrorball.js, which now owns the hero's own `requestAnimationFrame` loop end to end; see "Mirror ball hero" below.
 - `assets/js/menu.js`: the sliding pill behind the current menu item (the only highlight in the menu now), carried across page loads via `sessionStorage`. Also keeps dropdown panels inside the viewport near the right edge.
-- `assets/js/dock.js`: the magnetic social dock, footer only (Mark's call: v1.2.1 tried a small one in the header too, v1.2.2 reverted that to Avada's plain icons, v1.2.3 hid those outright, social links live in the footer only now). Reads Avada's own rendered social link hrefs rather than owning them, hides the footer widget area when it has no widgets, and hides the secondary header entirely if that leaves it with nothing else in it.
-- `assets/img/hero-photo.jpg`: the original bundled fallback photo (kept as the source for rebaking). `hero-photo-halftone.jpg`: its pre-baked halftone copy (v1.6.0, was `hero-photo-duotone.jpg` through v1.5.4), what actually gets served when no photos are picked in Settings, built the same way `djdt_bake_halftone()` bakes an uploaded photo, just done once ahead of time rather than at upload. `tv-static.jpg`: the TV static transition's noise sprite, 5 frames side by side (v1.6.0, procedurally generated, not a photo). `wave.svg`: player waveform, inlined by PHP rather than loaded as an image, see below.
+- `assets/js/dock.js`: the magnetic social dock, footer only (Mark's call: v1.2.1 tried a small one in the header too, v1.2.2 reverted that to Avada's plain icons, v1.2.3 hid those outright, social links live in the footer only now). Reads Avada's own rendered social link hrefs rather than owning them, hides the footer widget area when it has no widgets, and hides the secondary header entirely if that leaves it with nothing else in it. The Mixcloud icon is the official Simple Icons mark (v1.11.0, the old shape read as SoundCloud); hover growth is capped at scale 1.08 so neighbors never overlap (was 1.46).
+- `assets/img/hero-photo.jpg`: the original bundled fallback photo (kept as the source for rebaking). `hero-photo-halftone.jpg`: its pre-baked halftone copy (v1.6.0, was `hero-photo-duotone.jpg` through v1.5.4), what actually gets served when no photos are picked in Settings, built the same way `djdt_bake_halftone()` bakes an uploaded photo, just done once ahead of time rather than at upload. `wave.svg`: player waveform, inlined by PHP rather than loaded as an image, see below. `tv-static.jpg` (the TV static crossfade's own noise sprite) was deleted in v1.11.0 along with the transition it was for, see "Mirror ball hero" below.
 - `assets/fonts/`: Archivo (variable, wdth + wght) and Saira Extra Condensed (700, 800), self-hosted, OFL.
+- `reference/mirrorball-hero-reference.html` (v1.11.0): the approved mirror ball demo, source of truth for the look (see "Mirror ball hero" below). Excluded from the release zip (`.github/workflows/release.yml`), same as `reference/events-cd-reference.html`.
+
+## Mirror ball hero (v1.11.0)
+Full rebuild of the hero's own look, replacing the name's letter by letter intro, the TV static
+crossfade, and the three fixed glows. `reference/mirrorball-hero-reference.html`, the demo Mark
+approved live, is the source of truth for the look: `drawBall()`, `cluster()`, the speck math, and
+every entrance timing and easing function in `mirrorball.js` are a direct port of it, classes
+renamed to this plugin's own `djd-` prefix, same pattern as the CD events cards' own reference port
+(v1.9.1). If a number here ever looks wrong, check the reference file itself before changing it;
+this is not a case where the reference and the brief disagree.
+
+**What actually changed, end to end:**
+- The hero's photo panel is full bleed now (`.djd-hero__photos`, hero.css), not the old right side
+  panel: with the typeset name gone, nothing needs the left side of the photo kept clear any more.
+  Readability over it comes from `.djd-hero__shade` (the reference's own `.shade`, a left to right
+  plus a short bottom wash) instead of the old edge fade plus fixed glows.
+- The inner block (logo, slogan, both buttons) is one absolutely positioned column
+  (`.djd-hero__inner`), vertically centered at 54% of the hero's own height (`height: max(640px,
+  100vh)`, a new, deliberate number; the hero used to get its height from its own content in normal
+  flow, which no longer makes sense once that content is absolutely positioned). The name is a logo
+  image now (`.djd-hero__logo`), not typeset text; a visually hidden `<h1>` (`.djd-hero__sr-name`)
+  carries the real "DJ DigiMark" text for search engines and screen readers.
+- Light specks (`.djd-hero__fx`, a canvas, `mix-blend-mode: screen`) and a black intro overlay
+  (`.djd-hero__dark`) sit between the shade and the inner block; see the reference for the exact
+  layer order, ported as `z-index: 1` through `5` in hero.css (photos, shade, specks, dark overlay,
+  bottom fade, in that order; the inner block is `z-index: 10`).
+- The spinning mirror ball itself (`#djd-ball-canvas`) and the wire it drops in on (`#djd-wire`) are
+  both `position: fixed`, output by `djdt_hero_shortcode()` after the player section, not as
+  descendants of `.djd-hero` (fixed position elements do not care where they sit in the DOM, and
+  keeping them out avoids `.djd-hero`'s own `isolation: isolate` ever landing between them and the
+  header they dock into). The ball's `z-index` (60) is deliberately set ABOVE the header's (50),
+  not the reference's own smaller value (45, below its demo header's 50): the brief asked for this
+  explicitly, as a robustness margin regardless of how the header's own transparency happens to
+  resolve pixel by pixel (the reference's own 45/50 ordering still happens to work, since the header
+  logo's own mirror ball area is erased to full transparency, letting the canvas underneath show
+  through regardless of paint order; this just does not rely on that).
+
+**The logo**: `includes/djdt-logo.php`, `djdt_logo_url()`. Mark's own override from Theme Settings
+(a PNG or SVG with the ball already removed) wins if one is picked; otherwise a baked "night" copy
+of the site's own existing logo source
+(`/wp-content/uploads/2014/08/VideoLogoBlueTr.fw_.png`, 500x593) is generated with GD and cached in
+uploads, same unique-hashed-filename-per-recipe pattern as the hero photo halftone bakes (see
+"Smoothness" below): `DJDT_LOGO_RECIPE`, bump it if `djdt_logo_bake_night()` ever changes in a way
+that means an already baked file needs regenerating. The bake itself (`djdt_logo_bake_night()`) is a
+direct PHP/GD port of the reference's own `buildLogo(m='night')`: erase every pixel within a fixed
+52px of (430, 68), the source file's own known mirror ball geometry at its native size (not a
+setting, this is specific to that one file), then "remove the white" everywhere else, recovering
+each pixel's true ink color by unpremultiplying it against an assumed white backing, and pushing a
+pixel that comes out near black to paper (`#f1ece2`) instead, exactly as the reference's own
+canvas-based version does. GD's own alpha channel is 7 bit (0 opaque to 127 transparent, the
+opposite convention from the reference's 0 to 255, 255-opaque canvas alpha); converted at the read
+and write ends of the per-pixel loop only, so the math in between matches the reference exactly, see
+the function's own doc comment for the full detail.
+
+**Settings** (Theme Settings screen, `djdt_render_settings_theme()`): "Hero logo override" (a single
+`wp.media` image field, `admin.js`, its own small IIFE alongside the existing hero photo and venue
+pickers) plus three number fields, the mirror ball's own center X, center Y and radius, each a
+percent of the logo's OWN RENDERED WIDTH (not height, even for Y: the logo's aspect ratio is fixed,
+so one scale factor, read from the element's own width, is enough for both axes, exactly the
+reference's own `slot()`). Defaults 86, 13.6, 9.2, matching the reference's own slot values (430,
+68, 46 out of a 500 wide source) exactly. These three numbers are NOT the same as the 52px erase
+radius above: the erase step is specific to the one known default source file's own fixed geometry,
+while these settings describe where the spinning ball sits on WHICHEVER logo image ends up in use
+(the generated one or Mark's own override), read fresh by `mirrorball.js` every frame via
+`window.djdtMirrorBall` (`wp_add_inline_script()`, `djdt_hero_shortcode()`).
+
+**Entrance timing**: `mirrorball.js`'s own `play()` adds `body.djd-seq-1` through `djd-seq-4` on a
+schedule (1150/1400/1650/1950ms, the reference's own numbers; `djd-seq-2` and `djd-seq-4` currently
+drive nothing in CSS, same as the reference's own unused `s2`/`s4`, kept for parity in case a future
+element needs one of those two steps). `djd-seq-1` reveals the logo, `djd-seq-3` reveals the slogan
+and buttons; see hero.css for both. Session repeat behavior (sessionStorage `djdHeroSeen`, `?intro=1`
+forces the full sequence, same contract the old `hero.js` `introTiming()` used to have) now lives in
+`mirrorball.js` itself: on a repeat view, `play(true)` sets `start` far enough in the past that every
+`t < ...` threshold in the frame loop resolves to its own finished state on the very first frame
+(reusing the reference's own math at a large `t`, not a new branch of its own), with a one-frame
+`djd-ball-noanim` class (hero.css, forces `transition: none` on the logo/slogan/buttons) so nothing
+visibly animates in. This is deliberately NOT the reference's own `prefers-reduced-motion` branch:
+see "No reduced motion branch" below.
+
+**Header docking**: the Avada header itself (`.fusion-header-wrapper`, site.css, "Header over the
+hero") switched from `position: absolute` to `position: fixed` on hero pages, so it (and the ball
+docked into its own logo) stays on screen for the whole page, not just floating over the hero. A
+fixed header DOES need its own admin bar offset, unlike the old absolute version (the admin bar's
+own `margin-top` on `html` does not shift a fixed element the way it shifts the whole, already-
+pushed-down page an absolutely positioned header sits inside); `body.admin-bar` top offsets (32px
+desktop, 46px under WP core's own 782px breakpoint) were added for exactly this reason, something
+the absolute version never needed, see the CLAUDE.md bullet on that from v1.2.3/v1.3.0, still
+correct for what it was. The header's own background, and the pill menu's, are now ONE constant
+style regardless of Avada's own `.fusion-is-sticky` class (previously there were two variants, a
+transparent header while floating and a solid dark glass bar once "stuck"); the brief's own words,
+"no background, no bar, no shadow" at any scroll position, read as a hard requirement to drop the
+sticky variant entirely, not soften it.
+
+`mirrorball.js` reuses the Avada header's own logo `<img>` (`.fusion-logo img`) as the reference's
+"mini": it swaps that image's own `src` to the generated/override logo URL at startup, then drives
+its `opacity` every frame from scroll position (`p = smoothstep(scrollY / (0.55 * heroHeight))`, the
+reference's own formula, `opacity = clamp((p - 0.4) / 0.5)`), the ball's own center and radius
+interpolating between the hero logo's slot and the header logo's slot by that same `p`. Site.css
+sets that image's baseline CSS `opacity: 0` so there is nothing to flash before the script runs, an
+inline style from JS always overrides a plain stylesheet rule for the same property regardless of
+specificity, so this is purely a "before JS runs" safety net, not a fight with the per-frame opacity
+JS sets afterward.
+
+**Performance** (CLAUDE.md "Performance" item in the brief, new work, not in the reference demo,
+which is never actually scrolled away from or backgrounded): the whole loop pauses on
+`document.hidden` (`visibilitychange`); the specks canvas (not the ball) skips its own per-frame
+work while the hero itself is off screen (`IntersectionObserver`, `threshold: 0`), since the ball
+still needs to keep drawing for the docked header all the way down the page; the specks canvas
+resizes with the hero on window resize, the ball canvas resizes itself per frame inside `drawBall()`
+based on the ball's own current radius, same as the reference.
+
+**No reduced motion branch.** The reference demo's own `reduce` variable
+(`prefers-reduced-motion`) was deliberately not ported: this plugin has a standing, explicit policy
+against checking that media feature anywhere (see "Motion: always on, by design" below), reaffirmed
+for this feature specifically rather than carved out as an exception. `mirrorball.js` has no
+`matchMedia('(prefers-reduced-motion: reduce)')` check anywhere in it. The session-repeat "quick"
+path above looks similar to the reference's own reduced-motion end state (no drop, no wire, no
+overlay) but is a different trigger entirely (`sessionStorage`, not an OS setting) kept for a
+different, separately specified reason (section 5 of the brief, not section 9), and unlike the
+reference's own reduced-motion branch, it does not dim or freeze the specks: they run at full motion
+immediately rather than being static.
+
+**The footer dock** (`assets/js/dock.js`, `assets/css/site.css`): the Mixcloud icon is the official
+Simple Icons mark now (`simple-icons/simple-icons`, `icons/mixcloud.svg`, CC0), not the old
+stroke-drawn cloud shape, which read as SoundCloud to anyone who actually knows either logo. Hover
+growth is capped at scale 1.08 (was 1 + 0.46 = 1.46), which never overlaps a neighbor at the dock's
+own 14px gap (site.css, already correct, not changed); 1.46 visibly did.
+
+**Self-check before tagging** (the brief's own list, at 2000px, 1280px and 390px wide): verified with
+a Playwright harness against the real CSS/JS files (a stand in `.fusion-header-wrapper`/`.fusion-
+logo`/`.fusion-main-menu` and a marker SVG drawing the exact (430, 68, r46) circle in place of the
+real logo, not the live site itself, no WordPress/GD available from this tool set to bake the real
+logo). Confirmed at all three widths: the ball's own rendered center lands within a fraction of a
+pixel of that marker circle's center; the ball canvas genuinely redraws frame to frame (`toDataURL()`
+sampled twice, 300ms apart, differs); the header wrapper is `position: fixed` with a fully
+transparent row background both at the top of the page and after scrolling two thirds of the hero's
+own height; the header logo's opacity reaches `1` once docked; zero console or page errors. Facets
+and specks sharing one `rot` variable and the `[djdigi_hero]`-only scoping of every new rule were
+confirmed by reading the code rather than a separate visual test (both are structural: `rot` is a
+single module level variable with exactly two readers, and every new selector is scoped under `.djd-
+hero`/`body.djdigi-has-hero`/an element only this shortcode ever outputs). **Not verified against the
+real Avada markup or the real baked logo** (same standing caveat as every other header bullet in this
+file): confirm live, the same standing review workflow as every other release (see "Working rules"
+above: Mark reviews every round live, not from a screenshot gallery).
 
 ## Dock scoping
 Avada reuses the exact same `.fusion-social-networks-wrapper` class for the header's small icon
@@ -90,6 +236,12 @@ every progress update. hero.js now loads the new domain directly. If Mixcloud mo
 quick `curl -sI` on the old URL shows where it currently redirects.
 
 ## Header over the hero: what actually beat it
+**v1.11.0 changed two things this whole section still assumes: the header is `position: fixed` now,
+not `absolute` (so it needed its own admin bar offset for the first time), and the sticky/non-sticky
+background split is gone (one constant transparent style now, any scroll position). See "Mirror ball
+hero" above for both; everything else below, the background image kill, the sticky height spacer,
+the logo/menu alignment numbers, is unaffected and still correct.**
+
 Getting the header to truly float transparent over the hero, with no animation and no flash on
 refresh, took five rounds. What finally worked:
 - **No entrance animation at all (v1.4.0).** The header used to drop in with its own `opacity`/
@@ -377,6 +529,10 @@ the genres themselves. The genres now carry the whole statement on their own: la
 old orange one. Wraps to two lines on narrow screens without issue, still centered.
 
 ## Smoothness: baked halftone photos, the TV static transition, and a fixed glow
+**v1.11.0 retired the TV static transition and the fixed glow entirely (the mirror ball's own circle
+reveal and light specks replace both, see "Mirror ball hero" above); the halftone photo bake itself
+is unchanged and everything below about it is still accurate.** Kept for history.
+
 The hero photo panel and the venue strip were both choppy (v1.4.0 report: "like the old ticker").
 The likely cause this time was never backdrop-filter (that lesson already shaped venues.css from the
 start, see "Venues" above); it was the hero photo itself carrying three repaint-forcing layers at
@@ -1112,6 +1268,11 @@ shortcode lines is a real, genuinely empty element on its own, already caught by
 selector, no special casing needed there.
 
 ## Motion: always on, by design
+**Reaffirmed, not revisited, for the mirror ball hero (v1.11.0): the brief for that release asked
+for a `prefers-reduced-motion` branch (no drop, static dim specks, a plain crossfade instead of the
+circle reveal) and it was deliberately left out, Mark's call, to keep this policy intact rather than
+carve out an exception. See "Mirror ball hero" above, "No reduced motion branch".**
+
 Nothing on this site checks `prefers-reduced-motion`, anywhere: not in CSS, not in JS, no setting
 or toggle. This was removed entirely in v1.2.1 (it previously froze the intro, photo rotation,
 ticker, EQ wave, scroll shrink, sliding pill, and the dock for any visitor with that OS setting on,
@@ -1132,6 +1293,9 @@ is correct whether or not the animation happens to be running at that instant.
 - `djdigi-hero-strip`: `[djdigi_next_up]` exists (from djdigi-library), so the Next Up strip shows above the header and the header shifts down 46px.
 
 ## Design tokens
+**The hero layout, name and photo bullets below describe the pre-v1.11.0 design (right side photo
+panel, typeset name, fixed glows). See "Mirror ball hero" above for the current layout; colors,
+fonts and the venues/genre bullets below are unaffected and still current.**
 - Paper `#f1ece2`, violet `#5a2e91`, ink `#2a1450`, night `#0b0820`, logo cyan `#24a9e0`, International Orange `#f04e23` (sparingly).
 - "DigiMark" in the hero uses logo cyan and is mixed case, not all caps, matching the logo. "DJ" is off-white on the dark hero.
 - Display font: Saira Extra Condensed, 700/800. Text font: Archivo. Buttons and the player status tag are sentence case now, not wide-tracked uppercase, except the venues heading and the name, which stay uppercase display type.

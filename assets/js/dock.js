@@ -15,7 +15,13 @@
 		bluesky: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 10.8C10.86 8.2 8.2 5.1 5.7 3.7 4.3 2.9 3 3.4 3 5.1c0 .5.3 4.4.5 5.1.6 2.3 2.9 2.9 5 2.6-3.6.5-6.8 2-2.6 4.5 4.6 2.7 6.3-1 6.1-3 -.2 2 1.5 5.7 6.1 3 4.2-2.5 1-4-2.6-4.5 2.1.3 4.4-.3 5-2.6.2-.7.5-4.6.5-5.1 0-1.7-1.3-2.2-2.7-1.4-2.5 1.4-5.16 4.5-6.3 7.1Z"/></svg>',
 		tiktok: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.6 5.82A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 1 1-1.83-2.48V9.8a5.65 5.65 0 0 0-1.4-.18A5.61 5.61 0 1 0 14.9 15.4a5.6 5.6 0 0 0 .21-1.53v-6.2a7.17 7.17 0 0 0 4.2 1.35V5.95a4.2 4.2 0 0 1-2.71-.13Z"/></svg>',
 		snapchat: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.4c3.2 0 5 2.3 5.1 4.9l.05 1.9c.02.4.1.5.4.6.3.1 1 .3 1.3.4.3.1.5.5.2.9-.2.3-.6.5-.9.7.2.5.1 1-.2 1.3-.2.2-.2.3-.1.6.1.4.3.8.1 1.1-.2.3-.7.4-1.1.5-.3.1-.4.2-.5.5-.1.4-.3.9-1 1-.5.1-1.1-.1-1.7-.1-.7 0-1.2.6-2.6 1.6-.3.2-.7.4-1 .4s-.7-.2-1-.4c-1.4-1-1.9-1.6-2.6-1.6-.6 0-1.2.2-1.7.1-.7-.1-.9-.6-1-1-.1-.3-.2-.4-.5-.5-.4-.1-.9-.2-1.1-.5-.2-.3 0-.7.1-1.1.1-.3.1-.4-.1-.6-.3-.3-.4-.8-.2-1.3-.3-.2-.7-.4-.9-.7-.3-.4-.1-.8.2-.9.3-.1 1-.3 1.3-.4.3-.1.38-.2.4-.6l.05-1.9C7 4.7 8.8 2.4 12 2.4Z"/></svg>',
-		mixcloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M6.5 16a3.5 3.5 0 0 1-.4-6.98A5 5 0 0 1 15.9 8a4 4 0 0 1 1.6 7.9v.1H6.5Z"/><path d="M8.5 11.8v2.2M9.8 10.4v4.8M12 9.2v6.4M14.2 10.8v3.2M16.4 11.6v1.6"/></svg>'
+		// The official Mixcloud mark (Simple Icons, CC0), not a generic cloud:
+		// the old path here (a cloud outline with four sound bars under it)
+		// read as SoundCloud to anyone who actually knows either logo, found
+		// live (v1.11.0). Sourced directly from simple-icons/simple-icons,
+		// icons/mixcloud.svg, fill="currentColor" like every other icon in
+		// this file rather than the stroke-based shape it replaces.
+		mixcloud: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.462 8.596l1.372 6.49h.319l1.372-6.49h2.462v6.808H6.742v-5.68l.232-.81h-.402l-1.43 6.49H2.854l-1.44-6.49h-.391l.222.81v5.68H0V8.596zM24 8.63v1.429L21.257 12 24 13.941v1.43l-3.235-2.329h-.348l-3.226 2.329v-1.43l2.734-1.94-2.733-1.942V8.63l3.225 2.338h.348zm-7.869 2.75v1.24H9.304v-1.24z"/></svg>'
 	};
 
 	function labelFor(key) {
@@ -75,6 +81,11 @@
 		var buttons = Array.prototype.slice.call(dock.children);
 		var FALLOFF = 120;
 		var NEAR = 80;
+		// v1.11.0, found live: 0.46 let the nearest button grow to scale
+		// 1.46, big enough that it visibly overlapped its neighbors (the
+		// row has no extra spacing budget for that). Capped to 1.08, which
+		// never does, matching the actual gap between buttons (site.css).
+		var MAX_GROW = 0.08;
 		document.addEventListener('pointermove', function (e) {
 			var nearest = null;
 			var nearestDist = Infinity;
@@ -82,7 +93,7 @@
 				var r = btn.getBoundingClientRect();
 				var cx = r.left + r.width / 2;
 				var dist = Math.abs(e.clientX - cx);
-				var scale = 1 + 0.46 * Math.max(0, 1 - dist / FALLOFF);
+				var scale = 1 + MAX_GROW * Math.max(0, 1 - dist / FALLOFF);
 				btn.style.setProperty('--djd-dock-scale', scale.toFixed(3));
 				if (dist < nearestDist) { nearestDist = dist; nearest = btn; }
 			});

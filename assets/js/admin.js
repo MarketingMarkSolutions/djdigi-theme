@@ -325,4 +325,56 @@
 
 	})();
 
+	(function heroLogo() {
+
+	var wrap = document.getElementById('djdt-hero-logo');
+	var hidden = document.getElementById('djdt-hero-logo-id');
+	var pickBtn = document.getElementById('djdt-hero-logo-pick');
+	var removeBtn = document.getElementById('djdt-hero-logo-remove');
+	if (!wrap || !hidden || !pickBtn || !removeBtn) return;
+
+	var current = (window.djdtAdmin && window.djdtAdmin.heroLogo) || { id: 0, url: '' };
+
+	function render() {
+		wrap.innerHTML = '';
+		if (!current.id) {
+			var hint = document.createElement('p');
+			hint.className = 'description';
+			hint.textContent = 'No override picked, using the generated logo.';
+			wrap.appendChild(hint);
+			return;
+		}
+		var img = document.createElement('img');
+		img.src = current.url;
+		img.alt = '';
+		img.style.maxHeight = '120px';
+		img.style.display = 'block';
+		wrap.appendChild(img);
+	}
+
+	pickBtn.addEventListener('click', function (e) {
+		e.preventDefault();
+		var frame = wp.media({ title: 'Choose a hero logo', multiple: false, library: { type: 'image' } });
+		frame.on('select', function () {
+			var attachment = frame.state().get('selection').first();
+			current.id = attachment.get('id');
+			var sizes = attachment.get('sizes');
+			current.url = (sizes && sizes.thumbnail && sizes.thumbnail.url) || attachment.get('url') || '';
+			hidden.value = current.id;
+			render();
+		});
+		frame.open();
+	});
+
+	removeBtn.addEventListener('click', function (e) {
+		e.preventDefault();
+		current = { id: 0, url: '' };
+		hidden.value = '0';
+		render();
+	});
+
+	render();
+
+	})();
+
 })(jQuery);

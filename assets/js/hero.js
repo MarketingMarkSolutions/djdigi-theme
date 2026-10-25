@@ -1,12 +1,12 @@
-/* [djdigi_hero] behavior: opening sequence timing, photo rotation (a TV
-   static transition, v1.6.0), header height measurement, and the Mixcloud
-   player (now its own section right after the hero, still found and
-   driven from here). The header's background image is killed by a late
-   wp_head <style> block now (djdigi-theme.php), not from here, and it
-   carries no entrance animation to gate on readiness either (v1.4.0, see
-   CLAUDE.md). The scroll shrink effect is gone entirely (v1.6.0, Mark's
-   call: the hero flows into the page now instead of shrinking into a
-   card), so there is no scroll handling left in this file at all. */
+/* [djdigi_hero] behavior: the Mixcloud player (its own section right after
+   the hero, found and driven from here) and the Avada breakout host class
+   fallback. The header's background image is killed by a late wp_head
+   <style> block (djdigi-theme.php), not from here. The opening sequence,
+   the photo rotation and the header docking all moved to mirrorball.js in
+   v1.11.0, see CLAUDE.md, "Mirror ball hero": the ball needs its own
+   requestAnimationFrame loop regardless of whether this hero shortcode's
+   player section exists on a given page, so it owns all of that now,
+   leaving this file with only the player and the breakout host fallback. */
 (function () {
 	'use strict';
 
@@ -32,162 +32,6 @@
 		});
 	}
 	djdAddBreakoutHostClass('.djd-hero, .djd-player-section');
-
-	/* -----------------------------------------------------------------------
-	 * Full intro once per session, quick after that. ?intro=1 forces the full
-	 * sequence for testing, but still marks the session as seen afterward, so
-	 * normal navigation right after a forced preview goes back to quick.
-	 * -------------------------------------------------------------------- */
-	(function introTiming() {
-		var forceFull = /(^|[?&])intro=1(&|$)/.test(location.search);
-		var seen = false;
-		try { seen = !!sessionStorage.getItem('djdHeroSeen'); } catch (e) { /* storage blocked */ }
-		if (!forceFull && seen) {
-			document.body.classList.add('djd-quick-intro');
-		}
-		try { sessionStorage.setItem('djdHeroSeen', '1'); } catch (e) { /* ignore */ }
-	})();
-
-	/* -----------------------------------------------------------------------
-	 * Real header height, since Avada's header is not a fixed size across
-	 * browsers or zoom levels. The CSS value is only the fallback for the
-	 * instant before this runs. On phones this also has to clear the mobile
-	 * nav holder (the "Go to..." selector), not just the wrapper itself: the
-	 * wrapper's own box does not always already include it, which is what
-	 * let the mobile menu button sit on top of the hero content.
-	 * -------------------------------------------------------------------- */
-	(function headerHeight() {
-		var wrapper = document.querySelector('.fusion-header-wrapper');
-		if (!wrapper) return;
-		var mobileNav = document.querySelector('.fusion-mobile-nav-holder');
-		function measure() {
-			var h = wrapper.getBoundingClientRect().bottom;
-			if (mobileNav) {
-				var mr = mobileNav.getBoundingClientRect();
-				if (mr.height > 0) h = Math.max(h, mr.bottom);
-			}
-			if (h > 0) document.body.style.setProperty('--djd-head-h', h + 'px');
-		}
-		measure();
-		var resizeTimer;
-		window.addEventListener('resize', function () {
-			clearTimeout(resizeTimer);
-			resizeTimer = setTimeout(measure, 150);
-		});
-		// The header can change height after fonts/images load or the sticky
-		// state kicks in; one more pass once everything has settled.
-		window.addEventListener('load', measure);
-	})();
-
-	/* -----------------------------------------------------------------------
-	 * Rotating hero photos: a TV static transition (hero.css, v1.6.0,
-	 * replacing the shutter and the room light both), pause when the tab
-	 * is hidden, and only ever warm the one photo coming up next. No Ken
-	 * Burns zoom any more (v1.6.2, Mark's call: scaling a fine halftone dot
-	 * screen caused shimmer and moire against it): each photo just
-	 * displays still, at scale 1, like a print, while it is active. The
-	 * static layer fades in, the active photo swaps underneath it right at
-	 * the peak (with a brief jitter), then it fades back out: see
-	 * PEAK_MS/TOTAL_MS below, matched to hero.css's own djd-static-fade
-	 * timing (0 to 44% to 100% over 500ms).
-	 * -------------------------------------------------------------------- */
-	(function photoRotation() {
-		var wrap = hero.querySelector('.djd-hero__photos');
-		if (!wrap) return;
-		var frames = Array.prototype.slice.call(wrap.querySelectorAll('.djd-hero__photo-frame'));
-		if (!frames.length) return;
-		var staticLayer = wrap.querySelector('.djd-hero__static');
-
-		var active = frames.filter(function (f) { return f.classList.contains('is-active'); })[0] || frames[0];
-
-		if (frames.length < 2) return;
-
-		var index = frames.indexOf(active);
-		var timer = null;
-		var SLOT = 6000;
-		var PEAK_MS = 220; // matches hero.css's djd-static-fade 44% point (0.35 opacity)
-		var TOTAL_MS = 500; // matches hero.css's djd-static-fade full duration
-		var JITTER_MS = 120; // just past hero.css's 110ms djd-static-jitter
-
-		function warm(i) {
-			var img = frames[i].querySelector('.djd-hero__photo');
-			if (!img) return;
-			var src = img.getAttribute('srcset') ? img.currentSrc : img.src;
-			if (src) { var preload = new Image(); preload.src = src; }
-		}
-
-		function advance() {
-			var prevFrame = frames[index];
-			var next = (index + 1) % frames.length;
-			var nextFrame = frames[next];
-			if (staticLayer) staticLayer.classList.add('is-static');
-			setTimeout(function () {
-				prevFrame.classList.remove('is-active');
-				nextFrame.classList.add('is-active');
-				nextFrame.classList.add('is-jitter');
-				setTimeout(function () {
-					nextFrame.classList.remove('is-jitter');
-				}, JITTER_MS);
-			}, PEAK_MS);
-			setTimeout(function () {
-				if (staticLayer) staticLayer.classList.remove('is-static');
-			}, TOTAL_MS);
-			index = next;
-			warm((index + 1) % frames.length);
-		}
-
-		function start() {
-			if (timer) return;
-			timer = setInterval(advance, SLOT);
-		}
-		function stop() {
-			clearInterval(timer);
-			timer = null;
-		}
-
-		warm((index + 1) % frames.length);
-		start();
-		document.addEventListener('visibilitychange', function () {
-			if (document.hidden) stop(); else start();
-		});
-	})();
-
-	/* -----------------------------------------------------------------------
-	 * Intro: waits for the hero photo and the fonts to be ready (capped at
-	 * 1.2s so a slow load never blocks it) before letting the entrance
-	 * animations start, so nothing plays against a blank photo or a
-	 * fallback font. hero.css pauses every entrance animation until body
-	 * carries djd-intro-ready; adding it here is what starts each one's
-	 * own delay counting. Once the whole entrance is done, will-change
-	 * comes back off those elements, since leaving it on forever just
-	 * reserves GPU memory nothing is still animating.
-	 * -------------------------------------------------------------------- */
-	(function introReady() {
-		// The first photo frame in DOM order is always the one marked
-		// is-first/is-active on page load (djdigi-theme.php); its own img
-		// is what the intro actually waits on.
-		var activePhoto = hero.querySelector('.djd-hero__photo-frame.is-first .djd-hero__photo') || hero.querySelector('.djd-hero__photo');
-		var photoReady = (activePhoto && activePhoto.decode) ? activePhoto.decode().catch(function () {}) : Promise.resolve();
-		var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready.catch(function () {}) : Promise.resolve();
-		var timeout = new Promise(function (resolve) { setTimeout(resolve, 1200); });
-
-		Promise.race([Promise.all([photoReady, fontsReady]), timeout]).then(function () {
-			document.body.classList.add('djd-intro-ready');
-			var introDone = document.body.classList.contains('djd-quick-intro') ? 900 : 1800;
-			setTimeout(function () {
-				// Only the echo and each EQ bar keep an infinite companion
-				// animation running forever (drift, the wave), so
-				// will-change stays on those rather than coming off right
-				// as they are still actively animating. The glow (v1.6.2:
-				// its own drift is gone, one-shot entrance like the rest
-				// of this group now) and the photo are included here too.
-				var animated = hero.querySelectorAll(
-					'.djd-in-dj, .djd-letter, .djd-hero__slogan, .djd-eq, .djd-btn, .djd-hero__photo-frame.is-first, .djd-hero__glow'
-				);
-				animated.forEach(function (el) { el.style.willChange = 'auto'; });
-			}, introDone);
-		});
-	})();
 
 	/* -----------------------------------------------------------------------
 	 * Mixcloud player. Its own section now, right after the hero, not a
