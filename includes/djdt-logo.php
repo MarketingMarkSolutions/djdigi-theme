@@ -1,22 +1,22 @@
 <?php
 /**
- * The "night" DJ DigiMark mark used by the mirror ball hero (v1.11.0): the
- * same source PNG the site has always used for its logo
- * (/wp-content/uploads/2014/08/VideoLogoBlueTr.fw_.png, 500x593, transparent),
- * baked once into a copy with its own mirror ball erased (the spinning
- * canvas ball takes its place) and every white pixel removed so it reads
- * correctly against the night background, rather than a flat white box.
- * Generated with GD and cached in uploads, the same pattern as the hero
- * photo halftone bakes in djdigi-theme.php (a unique, hashed filename per
- * recipe so nothing stale can ever be served under an old URL).
+ * The "night" DJ DigiMark mark used by the mirror ball hero. v1.12.1: the
+ * real default is now a bundled vector trace, assets/img/logo-night.svg
+ * (Mark's 2000px master, mirror ball already removed, colors baked in),
+ * crisp at any zoom unlike the old raster bake. The original recipe (v1.11.0:
+ * bake a "night" copy of the site's own raster logo source,
+ * /wp-content/uploads/2014/08/VideoLogoBlueTr.fw_.png, 500x593, with GD,
+ * its own mirror ball erased and every white pixel removed so it reads
+ * correctly against the night background rather than a flat white box, see
+ * djdt_logo_bake_night() below) only still runs as a fallback now, if the
+ * bundled SVG file is ever missing.
  *
- * Mark can also override this entirely from Theme Settings with his own
- * PNG or SVG (ball already removed in that file), in which case this bake
- * is never used; either way, the ball's own center/radius (as a percent of
- * the logo's own rendered width, read by mirrorball.js every frame) are
- * separate settings fields, since they describe where the spinning ball
- * sits on whichever logo image is actually in use, not how the default
- * source file itself gets erased.
+ * Mark can also override either one entirely from Theme Settings with his
+ * own PNG or SVG (ball already removed in that file); either way, the
+ * ball's own center/radius (as a percent of the logo's own rendered width,
+ * read by mirrorball.js every frame) are separate settings fields, since
+ * they describe where the spinning ball sits on whichever logo image is
+ * actually in use, not how any particular source file gets erased.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -42,21 +42,35 @@ function djdt_logo_filename( $src_path ) {
 
 /**
  * Returns the logo URL to actually use: Mark's own override from Theme
- * Settings if one is picked, otherwise the baked night copy of the default
- * source file (generating it first if it does not exist yet, so a fresh
- * install or a recipe bump self heals on the next page load that needs it,
- * same contract as djdt_halftone_url()). '' if neither is possible.
+ * Settings if one is picked, otherwise the bundled vector trace
+ * (assets/img/logo-night.svg, v1.12.1), otherwise the baked night copy of
+ * the old raster source as a last resort fallback (generating it first if
+ * it does not exist yet, so that fallback self heals on the next page load
+ * that needs it, same contract as djdt_halftone_url()). '' if none of the
+ * three is possible.
  */
 function djdt_logo_url() {
 	$override_id = (int) djdt_get( 'logo_override' );
-	if ( $override_id > 0 && wp_attachment_is_image( $override_id ) ) {
-		$mime = get_post_mime_type( $override_id );
-		$url  = ( 'image/svg+xml' === $mime )
-			? wp_get_attachment_url( $override_id )
-			: wp_get_attachment_image_url( $override_id, 'full' );
-		if ( $url ) {
-			return $url;
+	if ( $override_id > 0 ) {
+		// v1.12.1, found live: wp_attachment_is_image() returns false for
+		// an SVG attachment (it is not in the fixed list of mime types
+		// that function checks against), which silently dropped any SVG
+		// Mark picked here, always falling through to the default logo
+		// instead. Checked for explicitly now, ahead of and instead of
+		// that function, not in addition to it.
+		$mime   = get_post_mime_type( $override_id );
+		$is_svg = ( 'image/svg+xml' === $mime );
+		if ( $is_svg || wp_attachment_is_image( $override_id ) ) {
+			$url = $is_svg ? wp_get_attachment_url( $override_id ) : wp_get_attachment_image_url( $override_id, 'full' );
+			if ( $url ) {
+				return $url;
+			}
 		}
+	}
+
+	$bundled_svg = DJDT_DIR . 'assets/img/logo-night.svg';
+	if ( file_exists( $bundled_svg ) ) {
+		return DJDT_URL . 'assets/img/logo-night.svg';
 	}
 
 	$upload_dir = wp_upload_dir();

@@ -202,9 +202,18 @@
    it directly every frame, combining this same entrance fade with the
    header docking crossfade (one driver owning the property, not two
    fighting over it, see mirrorball.js, frame()). Only the transform
-   (the scale-in) is still class driven here. */
+   (the scale-in) is still class driven here.
+
+   align-self: flex-start (v1.12.1, found live): .djd-hero__inner is a
+   flex column with no align-items of its own, which defaults to stretch;
+   that was stretching this image to the width of the slogan/buttons row
+   below it (confirmed live, about 392x316 instead of its real aspect
+   ratio), width: auto alone was never enough to stop a flex item from
+   being stretched on the cross axis. One declaration here covers every
+   breakpoint, nothing below overrides align-self, only height. */
 .djd-hero__logo {
 	display: block;
+	align-self: flex-start;
 	height: min(34vh, 330px);
 	width: auto;
 	overflow: visible;

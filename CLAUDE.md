@@ -97,6 +97,10 @@ this is not a case where the reference and the brief disagree.
   logo's own mirror ball area is erased to full transparency, letting the canvas underneath show
   through regardless of paint order; this just does not rely on that).
 
+**Superseded by "Logo fixes (v1.12.1)" below**: the bundled vector trace is the real default now,
+not the GD bake (that is a fallback only), and the ball slot defaults changed. The GD bake recipe
+itself, described here, is unchanged.
+
 **The logo**: `includes/djdt-logo.php`, `djdt_logo_url()`. Mark's own override from Theme Settings
 (a PNG or SVG with the ball already removed) wins if one is picked; otherwise a baked "night" copy
 of the site's own existing logo source
@@ -291,6 +295,48 @@ transparent text, see site.css. `.djd-hw-solid` is `var(--djd-cyan)`. No `aria-l
 two spans sit in normal reading order with a plain space between them (`implode(' ', $words)` then
 a literal space before the solid span), so the visible and accessible text are the same thing. A
 one-word heading (none currently exist, but the function handles it) is all solid.
+
+## Logo fixes (v1.12.1)
+Three fixes, confirmed live and built as specified.
+
+**The hero logo was stretched.** `.djd-hero__inner` is a flex column with no `align-items` of its
+own, which defaults to `stretch`; `.djd-hero__logo`'s own `width: auto` was never enough on its own
+to stop a flex item being stretched on the cross axis, confirmed live (about 392x316 instead of its
+real aspect ratio). Fixed with `align-self: flex-start` on `.djd-hero__logo` (hero.css), one
+declaration, covers every breakpoint since nothing below it ever touches `align-self`, only
+`height`.
+
+**The logo is a bundled vector now, not a GD bake of a raster source.** `assets/img/logo-night.svg`
+(Mark's own 2000px master, traced to a vector, `viewBox="240 104 1517 1798"`, aspect ratio
+1517:1798, mirror ball already removed, colors baked into the file itself: outline `#00aeef`,
+lettering `#24a9e0`, "DJ" `#f1ece2`) is the real default now for both the hero's own logo and the
+header's docked logo, crisp at any zoom unlike the old raster bake. `djdt_logo_url()`
+(`includes/djdt-logo.php`) checks it first, after Mark's own override and before the old GD bake
+(`djdt_logo_ensure_baked()`, unchanged, the v1.11.0 recipe described above), which now only ever
+runs as a fallback if that bundled file is somehow missing. The hero's own `<img>` carries
+`width="1517" height="1798"` now (was `500`/`593`) for layout stability before it loads; nothing in
+`mirrorball.js` needed to change for this, `slot()` was already resolution independent (every
+number is a percent of the element's own rendered width, read fresh every frame, never the image's
+intrinsic pixel size).
+
+**New ball slot defaults, because the vector's geometry is not identical to the old raster's.**
+85.5 / 14.2 / 9.6 (were 86 / 13.6 / 9.2), `djdt_defaults()`. A value saved before this version (the
+Theme Settings form pre-filled the old defaults into those three number fields, so a site that ever
+saved that screen has them sitting in the database as real, explicit values) is migrated once if it
+still exactly equals the old default: `djdt_migrate_ball_defaults()`, `admin_init`, gated on
+`get_option('djdt_ball_defaults_v112')` so it only ever runs once, same pattern as
+`DJDT_LOGO_COLOR_RECIPE`'s own versioned migration. A value Mark deliberately changed to something
+else is left alone; a value that was never saved at all already resolves to the new default on its
+own, through `djdt_settings()`'s normal `wp_parse_args()` fallback, no migration needed for that
+case.
+
+**Bug: an SVG override was silently ignored.** `wp_attachment_is_image()` (WordPress core) checks
+an attachment's mime type against a fixed list that does not include `image/svg+xml`, so it returns
+`false` for any SVG, which is what made the "Hero logo override" field quietly do nothing whenever
+Mark picked an SVG there: `djdt_logo_url()` would see `wp_attachment_is_image()` return false and
+fall straight through to the default logo. Fixed by checking the mime type directly first
+(`'image/svg+xml' === get_post_mime_type($id)`) and treating that case as valid on its own, ahead of
+and instead of calling `wp_attachment_is_image()`, not in addition to it.
 
 ## Dock scoping
 Avada reuses the exact same `.fusion-social-networks-wrapper` class for the header's small icon

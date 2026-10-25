@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_venues], and [djdigi_events] for djdigimark.com.
- * Version: 1.12.0
+ * Version: 1.12.1
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.12.0' );
+define( 'DJDT_VERSION', '1.12.1' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -72,19 +72,61 @@ function djdt_defaults() {
 		'venues_heading' => "Where I've played",
 		// Mirror ball hero (v1.11.0). logo_override: an attachment id for a
 		// PNG or SVG Mark supplies himself, ball already removed; 0 means
-		// use the generated night logo instead (includes/djdt-logo.php).
+		// use the bundled night logo instead (includes/djdt-logo.php,
+		// assets/img/logo-night.svg since v1.12.1, a GD bake of the old
+		// raster source only as a fallback if that file is ever missing).
 		// The three ball_* fields are percentages of the logo's own
 		// rendered width (both x and y, since the logo's aspect ratio is
 		// fixed, see djdt_logo_ball_settings() below); they describe where
 		// the spinning canvas ball sits on whichever logo image is
 		// actually in use, read fresh every frame by mirrorball.js, not a
 		// one time layout decision.
+		//
+		// v1.12.1: these three numbers changed (were 86, 13.6, 9.2) when
+		// the hero logo switched to the vector trace, which has slightly
+		// different geometry than the old raster source; any saved value
+		// still sitting at the old default is migrated once, see
+		// djdt_migrate_ball_defaults() below.
 		'logo_override'  => 0,
-		'logo_ball_x'    => 86.0,
-		'logo_ball_y'    => 13.6,
-		'logo_ball_r'    => 9.2,
+		'logo_ball_x'    => 85.5,
+		'logo_ball_y'    => 14.2,
+		'logo_ball_r'    => 9.6,
 	);
 }
+
+/**
+ * One time migration (v1.12.1): the ball slot defaults changed (86/13.6/9.2
+ * to 85.5/14.2/9.6, see djdt_defaults() above) when the hero logo switched
+ * to a vector trace with slightly different geometry than the old raster
+ * source. djdt_defaults() alone only ever fills in a value that was never
+ * saved at all (wp_parse_args); a site that saved the option at any point
+ * before this version has the OLD numbers sitting in the database as real,
+ * explicit values, which would otherwise keep reading back forever
+ * regardless of this version bump. This runs once, only touches a saved
+ * value that still exactly matches the old default (Mark's own deliberate
+ * custom value, if he ever set one, is left alone), and never runs again
+ * once done.
+ */
+function djdt_migrate_ball_defaults() {
+	if ( get_option( 'djdt_ball_defaults_v112', 0 ) ) {
+		return;
+	}
+	$settings = djdt_settings();
+	$old      = array( 'logo_ball_x' => 86.0, 'logo_ball_y' => 13.6, 'logo_ball_r' => 9.2 );
+	$new      = array( 'logo_ball_x' => 85.5, 'logo_ball_y' => 14.2, 'logo_ball_r' => 9.6 );
+	$changed  = false;
+	foreach ( $old as $key => $old_value ) {
+		if ( isset( $settings[ $key ] ) && abs( (float) $settings[ $key ] - $old_value ) < 0.001 ) {
+			$settings[ $key ] = $new[ $key ];
+			$changed          = true;
+		}
+	}
+	if ( $changed ) {
+		update_option( DJDT_OPTION, $settings );
+	}
+	update_option( 'djdt_ball_defaults_v112', 1 );
+}
+add_action( 'admin_init', 'djdt_migrate_ball_defaults' );
 
 /** The mirror ball's slot settings, each clamped to a sane 0 to 100 range. */
 function djdt_logo_ball_settings() {
@@ -519,7 +561,7 @@ function djdt_render_settings_theme() {
 					<button type="button" class="button" id="djdt-hero-logo-remove">Remove</button>
 				</p>
 				<input type="hidden" id="djdt-hero-logo-id" name="<?php echo esc_attr( $n ); ?>[logo_override]" value="<?php echo esc_attr( (int) $s['logo_override'] ); ?>">
-				<p class="description">PNG or SVG, with the mirror ball already removed from the artwork. Leave empty to use the generated logo (the site's own mark, ball erased, recolored for the night hero and header).</p>
+				<p class="description">PNG or SVG, with the mirror ball already removed from the artwork. Leave empty to use the bundled logo (the site's own mark, ball erased, for the night hero and header).</p>
 			</td>
 		</tr>
 		<tr>
@@ -528,7 +570,7 @@ function djdt_render_settings_theme() {
 				<label>Center X <input type="number" step="0.1" min="0" max="100" class="small-text" name="<?php echo esc_attr( $n ); ?>[logo_ball_x]" value="<?php echo esc_attr( $s['logo_ball_x'] ); ?>">%</label>
 				&nbsp; <label>Center Y <input type="number" step="0.1" min="0" max="100" class="small-text" name="<?php echo esc_attr( $n ); ?>[logo_ball_y]" value="<?php echo esc_attr( $s['logo_ball_y'] ); ?>">%</label>
 				&nbsp; <label>Radius <input type="number" step="0.1" min="0.5" max="50" class="small-text" name="<?php echo esc_attr( $n ); ?>[logo_ball_r]" value="<?php echo esc_attr( $s['logo_ball_r'] ); ?>">%</label>
-				<p class="description">Where the spinning mirror ball sits on the logo, each as a percent of the logo's own width. Defaults match the logo's own mirror ball: 86, 13.6, 9.2.</p>
+				<p class="description">Where the spinning mirror ball sits on the logo, each as a percent of the logo's own width. Defaults match the logo's own mirror ball: 85.5, 14.2, 9.6.</p>
 			</td>
 		</tr>
 		<tr>
@@ -1640,7 +1682,7 @@ function djdt_hero_shortcode( $atts = array() ) {
 			screen readers now that the name is drawn as a logo image, not
 			typeset letters (v1.11.0). -->
 			<h1 class="djd-hero__sr-name">DJ DigiMark</h1>
-			<img class="djd-hero__logo" src="<?php echo esc_url( $logo_url ); ?>" alt="DJ DigiMark" width="500" height="593">
+			<img class="djd-hero__logo" src="<?php echo esc_url( $logo_url ); ?>" alt="DJ DigiMark" width="1517" height="1798">
 			<p class="djd-hero__slogan">Bringing positive vibes to the dance <span class="djd-nowrap">floor <span class="djd-eq" role="img" aria-label="Rainbow flag and music"><span></span><span></span><span></span><span></span><span></span><span></span></span></span></p>
 			<div class="djd-hero__buttons">
 				<a class="djd-btn djd-btn--solid" href="<?php echo esc_url( $sets ); ?>">Upcoming sets</a>
