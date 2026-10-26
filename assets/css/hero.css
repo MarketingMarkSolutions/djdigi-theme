@@ -272,25 +272,9 @@ body.djd-seq-3 .djd-hero__buttons { opacity: 1; transform: none; }
 .djd-eq span:nth-child(5) { background: #2f6bff; animation-delay: 0.48s, 0.9s; }
 .djd-eq span:nth-child(6) { background: #9b3cc9; animation-delay: 0.6s, 1.1s; }
 
+/* The button itself is the shared mini record button (v1.14.2), styled in
+   site.css since the footer uses it too. The old .djd-btn pills are gone. */
 .djd-hero__buttons { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 0; }
-.djd-btn {
-	display: inline-flex;
-	align-items: center;
-	min-height: 48px;
-	padding: 0 26px;
-	font-family: var(--djd-sans);
-	font-weight: 600;
-	font-size: 15px;
-	letter-spacing: normal;
-	text-transform: none;
-	border-radius: 999px;
-	text-decoration: none !important;
-	transition: background-color 0.2s ease, color 0.2s ease;
-}
-.djd-btn--solid { background: var(--djd-cyan); color: var(--djd-night) !important; }
-.djd-btn--solid:hover { background: var(--djd-paper); color: var(--djd-night) !important; }
-.djd-btn--line { border: 2px solid var(--djd-paper); color: var(--djd-paper) !important; }
-.djd-btn--line:hover { background: var(--djd-paper); color: var(--djd-night) !important; }
 
 /* ---------------------------------------------------------------------
    The wire the ball drops in on, and the ball itself: fixed position,

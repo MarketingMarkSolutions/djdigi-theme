@@ -421,6 +421,46 @@ old logo never requested. The PHP string functions (autop strip, logo swap, titl
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
 
+## v1.14.2: the "mini record" button (hero and footer)
+Confirmed by Mark and built as specified. Replaces v1.14.1's plain cyan hero pill and v1.14.0's footer
+"Book me" pill with one shared component, `.djd-rec-btn`, reading "Contact / Book me".
+- **Markup:** `djdt_record_button_html( $url )` in djdigi-theme.php (the hero), and dock.js
+  `buildFooterLinks()` builds the identical markup for the footer (class `djd-rec-btn
+  djd-footer-links__book`). Change both together: `a.djd-rec-btn > span.djd-rec[aria-hidden] >
+  (span.djd-rec__disc + span.djd-rec__sheen)`, then `span.djd-rec-btn__text`. Link = the shared
+  `book_url` setting; empty: no button in either place (the hero prints no `.djd-hero__buttons` wrapper
+  either). The hero button still reveals with `djd-seq-3` at 3050ms through that wrapper.
+- **Styles** in site.css ("Mini record button"), not hero.css, since the footer is on every themed
+  page. The pill is paper #f1ece2, 52px high, padding 6px 22px 6px 6px, gap 12px, DJD Saira 800, 18px,
+  uppercase, .05em, text #0b0820 `!important` (over the site's violet link color). Hover/focus-visible:
+  cyan #24a9e0, `translateY(-2px)`, 0 0 0 4px rgba(36,169,224,.25) ring, text stays dark;
+  focus-visible also gets a 3px cyan outline, offset 3px. The colors are literal hex on purpose: the
+  button should look the same wherever it is placed.
+- **The record:** 40px. `.djd-rec__disc` is a stack of background layers (spindle, a paper mark 4.5px
+  above center on the label, a cyan label 14.4px = 36% of the diameter, then
+  `repeating-radial-gradient` grooves #0b0910 / #141019), spinning via CSS `djd-rec-spin` once every
+  4s, linear, infinite. `.djd-rec__sheen` is a static conic-gradient highlight layered above, masked
+  off the label, and never rotates, so it reads as light on the vinyl.
+- **Speed ramp:** dock.js `recordButtons()`. On hover/focus it ramps the disc's own running CSS
+  animation (`getAnimations()[0]`) to `playbackRate` 4 over 300ms (smoothstep); when both hover and
+  focus end it ramps back to 1 over 400ms. Changing playbackRate keeps the current angle. Never swap
+  `animation-duration`: that recomputes the angle and makes the record jump. If `getAnimations` is
+  missing, the record just spins at the steady speed. There is no reduced-motion branch (the
+  motion-always-on policy).
+- The old `.djd-btn` / `--solid` / `--line` rules were removed from hero.css; nothing used them any
+  more. (The "See all dates" button only matched `.djd-btn--line` by eye and has its own CSS, see
+  v1.8.x below.)
+- **Verified** in the harness (test14.js) at 2000, 1280 and 390, logged in and out, with and without
+  WebGL:
+  - The disc angle, sampled every frame, turned at 90°/s at rest, 360°/s on hover and back to 90°/s
+    after the mouse left.
+  - The fastest single frame never went above 360°/s, so there was no jump.
+  - Text was rgb(11,8,32) on paper, and on cyan on hover. The disc is 40px, 6px from the pill's left
+    edge. The sheen has no animation.
+  - The footer button's computed styles match the hero button's exactly.
+  - Font check: the harness snapshot points `@font-face` at the live site, so the close-up
+    screenshots were taken with the plugin's own woff2 files routed in (`recshot.js`).
+
 ## v1.14.1: one "Book me" button in the hero
 Confirmed by Mark, built as specified.
 - The hero's "Upcoming events" and "Remix videos" buttons are gone; one solid cyan "Book me"

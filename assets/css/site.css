@@ -443,9 +443,8 @@ body.djdigi-theme .fusion-button:hover {
 .djd-dock.is-static .djd-dock__btn { transform: none !important; }
 
 /* Footer "Book me" button and "Join the newsletter" link (v1.14.0), built
-   by dock.js right after the dock from two Theme Settings URLs. Same pill
-   shape as the hero's .djd-btn, but defined here since hero.css only loads
-   on hero pages and the footer is on every themed page. */
+   by dock.js right after the dock from two Theme Settings URLs. The button
+   is the mini record button below (v1.14.2), same as the hero's. */
 .djd-footer-links {
 	display: flex;
 	align-items: center;
@@ -453,21 +452,6 @@ body.djdigi-theme .fusion-button:hover {
 	gap: 12px 24px;
 	margin-top: 20px;
 }
-body.djdigi-theme .djd-footer-links__book {
-	display: inline-flex;
-	align-items: center;
-	min-height: 48px;
-	padding: 0 26px;
-	border-radius: 999px;
-	background: var(--djd-cyan);
-	color: var(--djd-night) !important;
-	font-family: var(--djd-sans);
-	font-weight: 600;
-	font-size: 15px;
-	text-decoration: none !important;
-	transition: background-color 0.2s ease;
-}
-body.djdigi-theme .djd-footer-links__book:hover { background: var(--djd-paper); }
 body.djdigi-theme .djd-footer-links__news {
 	color: var(--djd-paper) !important;
 	font-family: var(--djd-sans);
@@ -479,6 +463,77 @@ body.djdigi-theme .djd-footer-links__news {
 }
 body.djdigi-theme .djd-footer-links__news:hover { color: var(--djd-cyan) !important; }
 .djd-footer-links a:focus-visible { outline: 3px solid var(--djd-cyan); outline-offset: 3px; }
+
+/* Mini record button (v1.14.2): the hero's and the footer's "Contact / Book
+   me". Markup from djdt_record_button_html() (PHP, hero) and dock.js
+   (footer), kept identical. Here, not in hero.css, since the footer is on
+   every themed page. A paper pill with a 40px vinyl at its left end: the
+   disc layer (grooves, cyan label at 36% of the diameter, a paper mark off
+   center so the turn is visible, a dark spindle) spins once every 4s; the
+   sheen above it does not turn, so it reads as light on the vinyl. dock.js
+   ramps the spin to 4x on hover/focus through the Web Animations API
+   playbackRate (no jump, unlike swapping animation-duration). Always
+   spinning, no reduced motion branch (the motion-always-on policy).
+   Colors are literal: the button must look the same wherever it lands. */
+body.djdigi-theme a.djd-rec-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 12px;
+	box-sizing: border-box;
+	height: 52px;
+	padding: 6px 22px 6px 6px;
+	border-radius: 999px;
+	background: #f1ece2;
+	color: #0b0820 !important;
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: 18px;
+	line-height: 1;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	text-decoration: none !important;
+	white-space: nowrap;
+	transition: background-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+}
+body.djdigi-theme a.djd-rec-btn:hover,
+body.djdigi-theme a.djd-rec-btn:focus-visible {
+	background: #24a9e0;
+	color: #0b0820 !important;
+	transform: translateY(-2px);
+	box-shadow: 0 0 0 4px rgba(36, 169, 224, 0.25);
+}
+body.djdigi-theme a.djd-rec-btn:focus-visible { outline: 3px solid #24a9e0; outline-offset: 3px; }
+.djd-rec {
+	position: relative;
+	flex: 0 0 40px;
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+}
+.djd-rec__disc,
+.djd-rec__sheen {
+	position: absolute;
+	inset: 0;
+	border-radius: 50%;
+}
+/* Layers, top first: spindle, paper mark (4.5px above center, on the
+   label), cyan label (14.4px = 36% of 40), grooves. */
+.djd-rec__disc {
+	background:
+		radial-gradient(circle at 50% 50%, #0b0910 0 1.5px, transparent 2px),
+		radial-gradient(circle at 50% 38.75%, #f1ece2 0 1.4px, transparent 1.9px),
+		radial-gradient(circle at 50% 50%, #24a9e0 0 7.2px, transparent 7.6px),
+		repeating-radial-gradient(circle at 50% 50%, #0b0910 0 1px, #141019 1px 2px);
+	animation: djd-rec-spin 4s linear infinite;
+}
+/* Two highlights across from each other, kept off the label. */
+.djd-rec__sheen {
+	background: conic-gradient(from 0deg, transparent 0deg 20deg, rgba(255, 255, 255, 0.24) 45deg, transparent 75deg 200deg, rgba(255, 255, 255, 0.16) 225deg, transparent 255deg);
+	-webkit-mask: radial-gradient(circle, transparent 0 7.6px, #000 8px);
+	mask: radial-gradient(circle, transparent 0 7.6px, #000 8px);
+	pointer-events: none;
+}
+@keyframes djd-rec-spin { to { transform: rotate(360deg); } }
 
 body.djdigi-theme .fusion-footer-widget-area.djdt-is-empty { display: none !important; }
 

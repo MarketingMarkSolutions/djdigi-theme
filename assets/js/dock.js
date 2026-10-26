@@ -115,10 +115,13 @@
 		var box = document.createElement('div');
 		box.className = 'djd-footer-links';
 		if (cfg.bookUrl) {
+			// The mini record button (v1.14.2), same markup as the hero's
+			// djdt_record_button_html() in djdigi-theme.php.
 			var book = document.createElement('a');
-			book.className = 'djd-footer-links__book';
+			book.className = 'djd-rec-btn djd-footer-links__book';
 			book.href = cfg.bookUrl;
-			book.textContent = 'Book me';
+			book.innerHTML = '<span class="djd-rec" aria-hidden="true"><span class="djd-rec__disc"></span><span class="djd-rec__sheen"></span></span><span class="djd-rec-btn__text"></span>';
+			book.lastChild.textContent = 'Contact / Book me';
 			box.appendChild(book);
 		}
 		if (cfg.newsletterUrl) {
@@ -129,6 +132,40 @@
 			box.appendChild(news);
 		}
 		anchor.insertAdjacentElement('afterend', box);
+	})();
+
+	// Mini record buttons (v1.14.2, hero and footer): the disc's CSS spin
+	// (one turn per 4s) ramps to 4x over 300ms on hover/focus and back to 1x
+	// over 400ms when both end. Ramped through the running animation's own
+	// playbackRate, which keeps its current angle, so the speed changes and
+	// the record never jumps (swapping animation-duration would). Browsers
+	// without getAnimations() keep the steady spin.
+	(function recordButtons() {
+		var FAST = 4, UP = 300, DOWN = 400;
+		document.querySelectorAll('.djd-rec-btn').forEach(function (btn) {
+			var disc = btn.querySelector('.djd-rec__disc');
+			if (!disc || !disc.getAnimations) return;
+			var hover = false, focus = false, raf = 0;
+			function ramp() {
+				var anim = disc.getAnimations()[0];
+				if (!anim) return;
+				var to = hover || focus ? FAST : 1;
+				var from = anim.playbackRate;
+				if (from === to) return;
+				var ms = to > from ? UP : DOWN, t0 = performance.now();
+				cancelAnimationFrame(raf);
+				(function step(now) {
+					var k = Math.min(1, Math.max(0, (now - t0) / ms));
+					k = k * k * (3 - 2 * k);
+					anim.playbackRate = from + (to - from) * k;
+					if (k < 1) raf = requestAnimationFrame(step);
+				})(t0);
+			}
+			btn.addEventListener('mouseenter', function () { hover = true; ramp(); });
+			btn.addEventListener('mouseleave', function () { hover = false; ramp(); });
+			btn.addEventListener('focus', function () { focus = true; ramp(); });
+			btn.addEventListener('blur', function () { focus = false; ramp(); });
+		});
 	})();
 
 	(function hideEmptyWidgetArea() {

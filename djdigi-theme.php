@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_player], [djdigi_events], [djdigi_videos] and [djdigi_venues] for djdigimark.com.
- * Version: 1.14.1
+ * Version: 1.14.2
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.14.1' );
+define( 'DJDT_VERSION', '1.14.2' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -582,7 +582,7 @@ function djdt_render_settings_theme() {
 			<th scope="row"><label for="djdt-book">"Book me" link</label></th>
 			<td>
 				<input id="djdt-book" class="regular-text" name="<?php echo esc_attr( $n ); ?>[book_url]" value="<?php echo esc_attr( $s['book_url'] ); ?>">
-				<p class="description">The solid "Book me" button in the hero and in the footer, one link for both. Leave empty to hide both.
+				<p class="description">The "Contact / Book me" button in the hero and in the footer, one link for both. Leave empty to hide both.
 			</td>
 		</tr>
 		<tr>
@@ -713,6 +713,18 @@ add_action( 'wp_enqueue_scripts', function () {
 		'newsletterUrl' => '' !== trim( (string) djdt_get( 'newsletter_url' ) ) ? esc_url_raw( djdt_get( 'newsletter_url' ) ) : '',
 	) ) . ';', 'before' );
 }, 20 );
+
+/**
+ * The "mini record" call to action (v1.14.2): a paper pill with a small
+ * spinning vinyl at its left end. The hero prints it here; dock.js builds
+ * the same markup for the footer, so keep the two in step. Styles in
+ * site.css ("Mini record button"), the hover speed ramp in dock.js.
+ */
+function djdt_record_button_html( $url, $text = 'Contact / Book me', $extra_class = '' ) {
+	return '<a class="djd-rec-btn' . ( $extra_class ? ' ' . esc_attr( $extra_class ) : '' ) . '" href="' . esc_url( $url ) . '">'
+		. '<span class="djd-rec" aria-hidden="true"><span class="djd-rec__disc"></span><span class="djd-rec__sheen"></span></span>'
+		. '<span class="djd-rec-btn__text">' . esc_html( $text ) . '</span></a>';
+}
 
 function djdt_font_face_css() {
 	$f = DJDT_URL . 'assets/fonts/';
@@ -1880,10 +1892,10 @@ function djdt_hero_shortcode( $atts = array() ) {
 			<h1 class="djd-hero__sr-name">DJ DigiMark</h1>
 			<img class="djd-hero__logo" src="<?php echo esc_url( $logo_url ); ?>" alt="DJ DigiMark" width="1517" height="1798">
 			<p class="djd-hero__slogan">Bringing positive vibes to the dance <span class="djd-nowrap">floor <span class="djd-eq" role="img" aria-label="Rainbow flag and music"><span></span><span></span><span></span><span></span><span></span><span></span></span></span></p>
-			<?php // v1.14.1: one "Book me" button (the shared book_url setting, also the footer's), none if empty. ?>
+			<?php // v1.14.2: the mini record button (the shared book_url setting, also the footer's), none if empty. ?>
 			<?php if ( '' !== $book ) : ?>
 				<div class="djd-hero__buttons">
-					<a class="djd-btn djd-btn--solid" href="<?php echo esc_url( $book ); ?>">Book me</a>
+					<?php echo djdt_record_button_html( $book ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?>
 				</div>
 			<?php endif; ?>
 		</div>
