@@ -421,6 +421,60 @@ old logo never requested. The PHP string functions (autop strip, logo swap, titl
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
 
+## v1.14.3: CD "put back" button, outside click, one "See all" pill
+Both items confirmed by Mark and built as specified.
+
+**CD put back button.** `button.djd-cd__putback` (aria-label "Put the CD back") is the last child
+of each `.djd-cd` (djdt_events_render_card()).
+- **Not inside `.djd-cd__disc`:** the disc spins and scales, and the button must not.
+- **Position:** centered on the landed disc's rim at 1:30, `left: 87.08%; top: 12.92%` of the case.
+  The math is in the events.css comment: disc radius 0.46 × 1.14 = 52.44% of the case, times cos 45°.
+  If the disc's size or landing scale ever changes, recompute these two numbers.
+- **Look:** 36px, #0b0820 with a 2px paper ring, and an inline SVG cross in `currentColor`. A
+  `::before` gives the 44px hit area. The `::after` tooltip is `content: attr(aria-label)`.
+  Hover/focus-visible: cyan with a dark cross. Every colour, border and padding is `!important`, so
+  Avada's and the site's button and link styles can't recolour it.
+- **Timing:** hidden with `transition: none`, so it disappears the moment `is-open` is removed (close
+  starts). In `.is-open` it fades in over 150ms after a 1.15s delay, which is the `djd-cd-open` eject
+  length. `visibility` keeps it out of the tab order while hidden.
+- **events.js:**
+  - A click on `.djd-cd__putback` calls `close(el)`.
+  - A document click outside the open card calls `close(card, true)`. The `keepFocus` flag leaves
+    focus on whatever was clicked, for example the player, instead of jumping back to the case.
+  - A click on another case still swaps cases: it bubbles through that case first, so by the time
+    the document handler runs, the open card contains the target.
+  - Clicking the case and Escape are unchanged. Disc links and the Share pill still never close it.
+
+**See all links.** Found live: "See all dates" was violet on night, because `body.djdigi-theme a`
+outranked events.css's bare-class rule.
+- Both links now carry the shared `djd-seeall` class (plus `djd-events__seeall` /
+  `djd-videos__seeall`). They are styled once, in site.css, as `body.djdigi-theme a.djd-seeall`:
+  - Paper text (`!important`), a 2px paper border, a 999px radius, padding 12px 20px.
+  - DJD Saira 800, 16px, uppercase, .05em.
+  - Hover/focus: cyan fill and border, dark text.
+- The per-file rules in events.css and videos.css were removed.
+- The markup now reads "See all dates" / "See all videos" followed by `<span class="djd-seeall__arrow"
+  aria-hidden="true">→</span>`. The old ↗ is gone (both pages are internal), and the arrow nudges 3px
+  right on hover/focus.
+
+**Verified** in the harness. `build_harness14.py` now has 5 real CD cards, matching the PHP markup,
+with a long venue name and address as the worst case, plus events.js. `test143.js` ran at 2000, 1280
+and 390, logged in and out:
+- **Each CD:** the ✕ is hidden during the eject and shown afterwards. It is 36px, within 3px of the
+  rim and 45° ±4. It overlaps none of the label's text. That check uses the text's actual line boxes
+  (a Range per element) plus the address and pill boxes, not whole blocks; the nearest gap was 9.5px,
+  on the long venue name.
+- **Closing:** the ✕, an outside click (focus not moved), a plain spot on the case and Escape each
+  put it back, and the ✕ goes the moment closing starts. Clicking another case swaps.
+- **Disc links:** both links open, Share works, and the CD stays open.
+- **See all:** both pills are identical, paper on night, and fill cyan with the arrow at
+  translateX(3px) on hover.
+- **Console:** no errors from plugin files.
+
+test14.js was also rerun with and without WebGL. Its fixed 4.5s entrance sleep was replaced by
+waiting for `djd-seq-3`: the entrance starts when the first photo decodes, and on a cold harness
+browser at 2000px that came seconds late.
+
 ## v1.14.2: the "mini record" button (hero and footer)
 Confirmed by Mark and built as specified. Replaces v1.14.1's plain cyan hero pill and v1.14.0's footer
 "Book me" pill with one shared component, `.djd-rec-btn`, reading "Contact / Book me".

@@ -464,6 +464,42 @@ body.djdigi-theme .djd-footer-links__news {
 body.djdigi-theme .djd-footer-links__news:hover { color: var(--djd-cyan) !important; }
 .djd-footer-links a:focus-visible { outline: 3px solid var(--djd-cyan); outline-offset: 3px; }
 
+/* "See all dates" / "See all videos" (v1.14.3): one outlined pill for
+   both, here since the two live in different stylesheets (events.css,
+   videos.css). Found live: "See all dates" was violet on night, the
+   global link color (body.djdigi-theme a) outranking events.css's bare
+   class; the a.djd-seeall selector plus !important keeps that from
+   happening again. The arrow nudges 3px right on hover/focus. */
+body.djdigi-theme a.djd-seeall {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 28px;
+	padding: 12px 20px;
+	border: 2px solid #f1ece2;
+	border-radius: 999px;
+	background: transparent;
+	color: #f1ece2 !important;
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: 16px;
+	line-height: 1;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	text-decoration: none !important;
+	transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+body.djdigi-theme a.djd-seeall:hover,
+body.djdigi-theme a.djd-seeall:focus-visible {
+	background: #24a9e0;
+	border-color: #24a9e0;
+	color: #0b0820 !important;
+}
+body.djdigi-theme a.djd-seeall:focus-visible { outline: 3px solid #24a9e0; outline-offset: 3px; }
+.djd-seeall__arrow { display: inline-block; transition: transform 0.2s ease; }
+a.djd-seeall:hover .djd-seeall__arrow,
+a.djd-seeall:focus-visible .djd-seeall__arrow { transform: translateX(3px); }
+
 /* Mini record button (v1.14.2): the hero's and the footer's "Contact / Book
    me". Markup from djdt_record_button_html() (PHP, hero) and dock.js
    (footer), kept identical. Here, not in hero.css, since the footer is on

@@ -73,7 +73,7 @@ function djdt_videos_shortcode() {
 		<div class="djd-videos__cards">
 			<?php echo $cards; // phpcs:ignore WordPress.Security.EscapeOutput -- djdigi-library's own escaped renderer output ?>
 		</div>
-		<a class="djd-videos__seeall" href="<?php echo esc_url( djdt_get( 'videos_url' ) ); ?>">See all videos ↗</a>
+		<a class="djd-seeall djd-videos__seeall" href="<?php echo esc_url( djdt_get( 'videos_url' ) ); ?>">See all videos <span class="djd-seeall__arrow" aria-hidden="true">→</span></a>
 	</section>
 	<?php
 	echo $overlays; // phpcs:ignore WordPress.Security.EscapeOutput -- djdigi-library's own escaped renderer output

@@ -4,14 +4,21 @@
    prefix (open/closing/hint -> is-open/is-closing/is-hint). All of the
    actual motion is CSS (events.css); this only toggles state: which card
    is open (one at a time), focus, Escape, the Share pill, and the one
-   time peek when the section first scrolls into view. */
+   time peek when the section first scrolls into view.
+
+   v1.14.3: an open CD also goes back from its "put back" button
+   (.djd-cd__putback, on the disc's rim) and from a click anywhere outside
+   it, besides the case click and Escape. Links and pills on the disc still
+   never close it. */
 (function () {
 	'use strict';
 
 	document.querySelectorAll( '.djd-events__track' ).forEach( function ( grid ) {
 		var cards = [].slice.call( grid.querySelectorAll( '.djd-cd' ) );
 
-		function close( el ) {
+		// keepFocus: closed by a click elsewhere on the page, so focus stays
+		// on whatever was clicked instead of jumping back to the case.
+		function close( el, keepFocus ) {
 			if ( ! el.classList.contains( 'is-open' ) ) {
 				return;
 			}
@@ -22,7 +29,9 @@
 			setTimeout( function () {
 				el.classList.remove( 'is-closing' );
 			}, 850 );
-			play.focus( { preventScroll: true } );
+			if ( ! keepFocus ) {
+				play.focus( { preventScroll: true } );
+			}
 		}
 
 		function open( el ) {
@@ -43,6 +52,10 @@
 
 		cards.forEach( function ( el ) {
 			el.addEventListener( 'click', function ( e ) {
+				if ( e.target.closest && e.target.closest( '.djd-cd__putback' ) ) {
+					close( el );
+					return;
+				}
 				var share = e.target.closest ? e.target.closest( '.djd-cd__disc-share' ) : null;
 				if ( share ) {
 					e.preventDefault();
@@ -66,6 +79,17 @@
 					open( el );
 				}
 			} );
+		} );
+
+		// A click outside the open CD puts it back. A click on another case
+		// has already opened that one by the time this runs (it bubbles up
+		// through that case first), so the open card then contains the
+		// target and nothing happens here.
+		document.addEventListener( 'click', function ( e ) {
+			var openCard = grid.querySelector( '.djd-cd.is-open' );
+			if ( openCard && ! openCard.contains( e.target ) ) {
+				close( openCard, true );
+			}
 		} );
 
 		document.addEventListener( 'keydown', function ( e ) {

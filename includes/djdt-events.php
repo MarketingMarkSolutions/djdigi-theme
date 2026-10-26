@@ -692,7 +692,7 @@ function djdt_events_render_grid( $occurrences, $is_row ) {
 			<?php endforeach; ?>
 		</div>
 		<?php if ( $is_row ) : ?>
-			<a class="djd-events__seeall" href="<?php echo esc_url( djdt_events_page_url() ); ?>">See all dates ↗</a>
+			<a class="djd-seeall djd-events__seeall" href="<?php echo esc_url( djdt_events_page_url() ); ?>">See all dates <span class="djd-seeall__arrow" aria-hidden="true">→</span></a>
 		<?php endif; ?>
 	</div>
 	<?php
@@ -832,6 +832,8 @@ function djdt_events_render_card( $occ, $i ) {
 				</div>
 			</div>
 		</div>
+		<?php // v1.14.3: the "put back" button on the open disc's rim (events.css), not inside the disc so it never spins or scales with it. ?>
+		<button type="button" class="djd-cd__putback" aria-label="Put the CD back"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5 L19 19 M19 5 L5 19" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/></svg></button>
 	</div>
 	<?php
 }

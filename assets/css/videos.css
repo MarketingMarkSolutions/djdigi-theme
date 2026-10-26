@@ -74,28 +74,7 @@
 .djd-videos .djdigi-video-card:hover .djdigi-video-card-title { color: var(--djd-cyan); }
 .djd-videos .djdigi-empty { color: rgba(241, 236, 226, 0.7); }
 
-/* Same pill as events.css's .djd-events__seeall ("See all dates"). */
-.djd-videos__seeall {
-	display: inline-flex;
-	align-items: center;
-	margin-top: 28px;
-	min-height: 48px;
-	padding: 0 26px;
-	border: 2px solid var(--djd-paper);
-	border-radius: 999px;
-	color: var(--djd-paper) !important;
-	font-family: var(--djd-sans);
-	font-weight: 600;
-	font-size: 15px;
-	text-decoration: none !important;
-	transition: background-color 0.2s ease, color 0.2s ease;
-}
-.djd-videos__seeall:hover,
-.djd-videos__seeall:focus-visible {
-	background: var(--djd-paper);
-	color: var(--djd-night) !important;
-}
-.djd-videos__seeall:focus-visible { outline: 3px solid var(--djd-cyan); outline-offset: 3px; }
+/* "See all videos": the shared .djd-seeall pill in site.css (v1.14.3). */
 
 @media (max-width: 800px) {
 	.djd-videos .djdigi-video-card-artist { font-size: 13px; }

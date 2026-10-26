@@ -95,27 +95,7 @@
 	padding-top: 34px;
 }
 
-.djd-events__seeall {
-	display: inline-flex;
-	align-items: center;
-	margin-top: 28px;
-	min-height: 48px;
-	padding: 0 26px;
-	border: 2px solid var(--djd-paper);
-	border-radius: 999px;
-	color: var(--djd-paper);
-	font-family: var(--djd-sans);
-	font-weight: 600;
-	font-size: 15px;
-	text-decoration: none;
-	transition: background-color 0.2s ease, color 0.2s ease;
-}
-.djd-events__seeall:hover,
-.djd-events__seeall:focus-visible {
-	background: var(--djd-paper);
-	color: var(--djd-night);
-}
-.djd-events__seeall:focus-visible { outline: 3px solid var(--djd-cyan); outline-offset: 3px; }
+/* "See all dates": the shared .djd-seeall pill in site.css (v1.14.3). */
 
 /* =======================================================================
    The CD case (reference/events-cd-reference.html; .cs -> .djd-cd,
@@ -452,6 +432,85 @@
 	51% { z-index: 1; }
 	100% { transform: translateY(-16%) scale(0.9) rotate(-360deg); z-index: 1; }
 }
+
+/* ----- The "put back" button (v1.14.3) ---------------------------------
+   A sibling of the disc, not inside it, so it never spins or scales with
+   it. Centered on the landed disc's rim at about 1:30: the disc's box is
+   92% of the case, centered, and lands at scale(1.14), so its radius is
+   0.46 x 1.14 = 52.44% of the case; 45 degrees up and right of center is
+   50% +/- 52.44% x 0.7071 = 37.08%, so left 87.08%, top 12.92%. That spot
+   is outside the label's text blocks (top and bottom blocks span the
+   middle 56% / 52% of the disc), so it covers nothing on the label.
+   Hidden with no transition, so it goes the moment closing starts; shown
+   150ms fade after the 1.15s eject (djd-cd-open) has finished. Every
+   color, border and padding is !important: Avada's and the site's own
+   button and link styles must not recolor it. The ::before is the 44px
+   hit area, the ::after the tooltip (its text is the aria-label). */
+.djd-cd button.djd-cd__putback {
+	position: absolute;
+	left: 87.08%;
+	top: 12.92%;
+	z-index: 7;
+	box-sizing: border-box;
+	width: 36px;
+	height: 36px;
+	min-width: 0;
+	min-height: 0;
+	margin: -18px 0 0 -18px;
+	padding: 0 !important;
+	border: 2px solid #f1ece2 !important;
+	border-radius: 50% !important;
+	background: #0b0820 !important;
+	color: #f1ece2 !important;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45) !important;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0;
+	line-height: 0;
+	cursor: pointer;
+	opacity: 0;
+	visibility: hidden;
+	transition: none;
+}
+.djd-cd.is-open button.djd-cd__putback {
+	opacity: 1;
+	visibility: visible;
+	transition: opacity 0.15s ease 1.15s, visibility 0s linear 1.15s, background-color 0.2s ease, color 0.2s ease;
+}
+.djd-cd.is-open button.djd-cd__putback:hover,
+.djd-cd.is-open button.djd-cd__putback:focus-visible {
+	background: #24a9e0 !important;
+	color: #0b0820 !important;
+}
+.djd-cd button.djd-cd__putback:focus-visible { outline: 3px solid #24a9e0; outline-offset: 3px; }
+.djd-cd__putback svg { display: block; pointer-events: none; }
+.djd-cd__putback::before {
+	content: "";
+	position: absolute;
+	inset: -6px;
+	border-radius: 50%;
+}
+.djd-cd__putback::after {
+	content: attr(aria-label);
+	position: absolute;
+	right: -8px;
+	bottom: calc(100% + 10px);
+	padding: 6px 10px;
+	border-radius: 6px;
+	background: #f1ece2;
+	color: #0b0820;
+	font: 700 12px/1 var(--djd-sans);
+	letter-spacing: normal;
+	text-transform: none;
+	white-space: nowrap;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+	opacity: 0;
+	transition: opacity 0.15s ease;
+	pointer-events: none;
+}
+.djd-cd.is-open .djd-cd__putback:hover::after,
+.djd-cd.is-open .djd-cd__putback:focus-visible::after { opacity: 1; }
 
 /* One time peek, staggered per case, when the grid first scrolls into
    view (events.js adds/removes .is-hint once, never loops). */
