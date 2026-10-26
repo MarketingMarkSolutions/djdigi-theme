@@ -225,13 +225,62 @@
 body.djd-seq-1 .djd-hero__logo { transform: none; }
 
 .djd-hero__slogan,
+.djd-hero__styles,
 .djd-hero__buttons {
 	opacity: 0;
 	transform: translate3d(0, 8px, 0);
 	transition: opacity 0.5s, transform 0.5s;
 }
 body.djd-seq-3 .djd-hero__slogan,
+body.djd-seq-3 .djd-hero__styles,
 body.djd-seq-3 .djd-hero__buttons { opacity: 1; transform: none; }
+
+/* Music styles line (v1.14.4): the "ticker" setting, one <li> per saved
+   line, between the slogan and the button. Reveals with the slogan
+   (above). margin is the brief's literal 10px 0 18px, as Mark previewed
+   it live. These add to the inner block's 20px flex gap and to the 20px
+   bottom margin Avada's .post-content p gives the slogan (it outranks
+   .djd-hero__slogan's margin: 0), so on the page the line sits 50px
+   under the slogan and 38px above the button. Colors, list style and spacing are !important
+   so Avada's and the site's list and link styles cannot reach it. One
+   line from 700px up (no wrap); below that it may wrap. The slashes are
+   ::before content with empty alt text ("/" / ""), so screen readers
+   read only the styles themselves. Under 700px, see the max-width: 700px
+   block below for how a wrapped line avoids starting with a slash. */
+body.djdigi-theme .djd-hero ul.djd-hero__styles {
+	display: flex;
+	flex-wrap: nowrap;
+	align-items: baseline;
+	margin: 10px 0 18px !important;
+	padding: 0 !important;
+	list-style: none !important;
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: clamp(18px, 1.75vw, 24px);
+	line-height: 1.15;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+body.djdigi-theme .djd-hero ul.djd-hero__styles li {
+	margin: 0 !important;
+	padding: 0 !important;
+	list-style: none !important;
+	background: none !important;
+	color: #24a9e0 !important;
+	white-space: nowrap;
+}
+body.djdigi-theme .djd-hero ul.djd-hero__styles li::marker { content: none; }
+body.djdigi-theme .djd-hero ul.djd-hero__styles li + li::before {
+	content: "/";
+	content: "/" / "";
+	display: inline-block;
+	width: 0.4em;
+	text-align: center;
+	margin: 0 10px;
+	color: rgba(241, 236, 226, 0.35) !important;
+	font-weight: 400;
+}
 
 .djd-hero__slogan {
 	margin: 0;
@@ -594,6 +643,33 @@ body.djd-seq-3 .djd-hero__buttons { opacity: 1; transform: none; }
    logo gets smaller again below this width. */
 @media (max-width: 700px) {
 	.djd-hero__logo { height: min(30vh, 260px); }
+}
+
+/* v1.14.4: the music styles line may wrap only below 700px (the brief: one
+   line at 700px and wider, so 700 itself stays on one line). */
+@media (max-width: 699.98px) {
+	/* Wrapped, a line must not start with a slash: every item gets its
+	   slash (same fixed 0.4em box + 10px each side as above), the list
+	   moves left by exactly one slash and overflow clips it, so the slash
+	   at the start of each line falls outside and the text still lines up
+	   with the slogan. */
+	body.djdigi-theme .djd-hero ul.djd-hero__styles {
+		flex-wrap: wrap;
+		white-space: normal;
+		row-gap: 4px;
+		margin-left: calc(-0.4em - 20px) !important;
+		overflow: hidden;
+	}
+	body.djdigi-theme .djd-hero ul.djd-hero__styles li::before {
+		content: "/";
+		content: "/" / "";
+		display: inline-block;
+		width: 0.4em;
+		text-align: center;
+		margin: 0 10px;
+		color: rgba(241, 236, 226, 0.35) !important;
+		font-weight: 400;
+	}
 }
 
 /* Tablet and phone */

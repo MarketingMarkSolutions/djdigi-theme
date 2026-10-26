@@ -1,5 +1,6 @@
 /* [djdigi_venues]: a slow-moving row of venue logos on the night
-   background, with a static genre list underneath. Loaded only when the
+   background (the genre list underneath moved to the hero in v1.14.4,
+   see .djd-hero__styles in hero.css). Loaded only when the
    shortcode renders, same pattern as hero.css. Transform and opacity only
    throughout, same lightness rules as the hero (see CLAUDE.md, "Intro"
    and "Ticker" sections, v1.2.2 and v1.2.3): no filter or backdrop-filter
@@ -147,31 +148,10 @@
 }
 
 /* ---------------------------------------------------------------------
-   Genres: static, no motion at all, plain brand-colored type. Left
-   aligned at the gutter now (v1.10.0), not centered in its own
-   max-width box; still the same type style otherwise.
+   The genre list that sat here until v1.14.4 is now the hero's music
+   styles line (hero.css, .djd-hero__styles).
    ------------------------------------------------------------------ */
-.djd-genres {
-	margin-top: 40px;
-	display: flex;
-	flex-wrap: wrap;
-	align-items: baseline;
-	justify-content: flex-start;
-	gap: 14px 28px;
-}
-.djd-genres__item {
-	font-family: var(--djd-display);
-	font-weight: 800;
-	text-transform: uppercase;
-	letter-spacing: 0.01em;
-	font-size: clamp(28px, 3vw, 36px);
-	color: var(--djd-paper);
-}
-.djd-genres__dot { color: rgba(241, 236, 226, 0.35); font-size: 0.4em; }
-.djd-genres__sub { opacity: 0.5; padding: 0 0.2em; }
 
 @media (max-width: 800px) {
 	.djd-venues__set { gap: 36px; padding-right: 36px; }
-	.djd-genres { gap: 10px 20px; }
-	.djd-genres__item { font-size: clamp(20px, 6vw, 24px); }
 }

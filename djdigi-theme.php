@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_player], [djdigi_events], [djdigi_videos] and [djdigi_venues] for djdigimark.com.
- * Version: 1.14.3
+ * Version: 1.14.4
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.14.3' );
+define( 'DJDT_VERSION', '1.14.4' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -82,10 +82,11 @@ function djdt_defaults() {
 		// its link stays hidden until a URL is saved.
 		'book_url'       => '/about/',
 		'newsletter_url' => '',
-		// Reused for the static genre list below the venues card (v1.3.0);
-		// the key is still called "ticker" since it is the same setting,
-		// just no longer a scrolling marquee. Do not rename the key, that
-		// would silently drop whatever Mark already has saved.
+		// The music styles line under the hero slogan (v1.14.4; the static
+		// genre list below the venues card from v1.3.0 until then). The key
+		// is still called "ticker", the old scrolling marquee's setting. Do
+		// not rename the key, that would silently drop whatever Mark already
+		// has saved.
 		'ticker'         => "House\nEDM\nTop 40 Remixes\n70s · 80s · 90s · 00s Dance\nPride/Queer Pop & Dance\nLive Video DJ Sets",
 		'venues'         => array(),
 		'venues_heading' => "Where I've played",
@@ -593,10 +594,10 @@ function djdt_render_settings_theme() {
 			</td>
 		</tr>
 		<tr>
-			<th scope="row"><label for="djdt-ticker">Genres ("What I play")</label></th>
+			<th scope="row"><label for="djdt-ticker">Music styles (hero line), one per line, in display order</label></th>
 			<td>
 				<textarea id="djdt-ticker" class="large-text" rows="7" name="<?php echo esc_attr( $n ); ?>[ticker]"><?php echo esc_textarea( $s['ticker'] ); ?></textarea>
-				<p class="description">Shown as a static list below the venues card. One item per line. Use " · " inside a line to group things into one item (like the decades).</p>
+				<p class="description">Shown under the slogan in the hero, with slashes between them. Each line is one item, exactly as typed. Keep them short: on screens 700px and wider the line never wraps. Leave empty to hide the line.</p>
 			</td>
 		</tr>
 		<tr>
@@ -1837,6 +1838,8 @@ function djdt_hero_shortcode( $atts = array() ) {
 
 	$photos   = djdt_hero_photos();
 	$book     = trim( (string) djdt_get( 'book_url' ) );
+	// v1.14.4: the music styles line, one item per saved line, as typed.
+	$styles   = array_values( array_filter( array_map( 'trim', explode( "\n", (string) djdt_get( 'ticker' ) ) ), 'strlen' ) );
 	$ball     = djdt_logo_ball_settings();
 	$logo_url = djdt_logo_url();
 
@@ -1892,6 +1895,13 @@ function djdt_hero_shortcode( $atts = array() ) {
 			<h1 class="djd-hero__sr-name">DJ DigiMark</h1>
 			<img class="djd-hero__logo" src="<?php echo esc_url( $logo_url ); ?>" alt="DJ DigiMark" width="1517" height="1798">
 			<p class="djd-hero__slogan">Bringing positive vibes to the dance <span class="djd-nowrap">floor <span class="djd-eq" role="img" aria-label="Rainbow flag and music"><span></span><span></span><span></span><span></span><span></span><span></span></span></span></p>
+			<?php if ( $styles ) : ?>
+				<ul class="djd-hero__styles" aria-label="Music I play">
+					<?php foreach ( $styles as $style ) : ?>
+						<li><?php echo esc_html( $style ); ?></li>
+					<?php endforeach; ?>
+				</ul>
+			<?php endif; ?>
 			<?php // v1.14.2: the mini record button (the shared book_url setting, also the footer's), none if empty. ?>
 			<?php if ( '' !== $book ) : ?>
 				<div class="djd-hero__buttons">
@@ -2108,16 +2118,10 @@ function djdt_heading_html( $text ) {
 	return '<span class="djd-hw-outline">' . esc_html( implode( ' ', $words ) ) . '</span> <span class="djd-hw-solid">' . esc_html( $last ) . '</span>';
 }
 
-/** Escapes a genre line and softens any " · " grouping dots inside it. */
-function djdt_genre_item( $text ) {
-	$parts = array_map( 'esc_html', array_map( 'trim', explode( '·', $text ) ) );
-	return implode( '<span class="djd-genres__sub" aria-hidden="true">·</span>', $parts );
-}
-
 /* -------------------------------------------------------------------------
- * [djdigi_venues]: clubs and events Mark has played, plus the static
- * genre list underneath (reusing the old ticker's settings and sanitizing,
- * just rendered as plain static text now, not a scrolling marquee).
+ * [djdigi_venues]: clubs and events Mark has played. The genre list that
+ * sat underneath until v1.14.4 is now the hero's music styles line (same
+ * "ticker" setting).
  * ---------------------------------------------------------------------- */
 
 /**
@@ -2210,7 +2214,6 @@ function djdt_venues_shortcode() {
 	wp_enqueue_script( 'djdt-venues' );
 
 	$heading = (string) djdt_get( 'venues_heading' );
-	$genres  = array_filter( array_map( 'trim', explode( "\n", (string) djdt_get( 'ticker' ) ) ) );
 
 	// A handful of venues would make a thin, obviously-looping row; repeat
 	// the set until it is wide enough to feel intentional, same idea as
@@ -2234,14 +2237,6 @@ function djdt_venues_shortcode() {
 				<?php endfor; ?>
 			</div>
 		</div>
-		<?php if ( $genres ) : ?>
-			<div class="djd-genres">
-				<?php foreach ( array_values( $genres ) as $i => $item ) : ?>
-					<?php if ( $i > 0 ) : ?><span class="djd-genres__dot" aria-hidden="true">●</span><?php endif; ?>
-					<span class="djd-genres__item"><?php echo djdt_genre_item( $item ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></span>
-				<?php endforeach; ?>
-			</div>
-		<?php endif; ?>
 	</section>
 	<?php
 	return ob_get_clean();

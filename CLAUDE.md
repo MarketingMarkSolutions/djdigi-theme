@@ -421,6 +421,50 @@ old logo never requested. The PHP string functions (autop strip, logo swap, titl
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
 
+## v1.14.4: music styles line in the hero
+Confirmed by Mark (previewed live) and built as specified.
+- **Markup:** in `[djdigi_hero]`, `ul.djd-hero__styles` (aria-label "Music I play") sits between the
+  slogan and `.djd-hero__buttons`. It has one `<li>` per non-empty line of the `ticker` setting, in
+  saved order, escaped and exactly as typed (no splitting on "·"). If the list is empty, nothing is
+  printed.
+- **Removed from the venues section:** the old `.djd-genres` line under `[djdigi_venues]`, the
+  `djdt_genre_item()` helper and the `.djd-genres` CSS in venues.css. The `ticker` key and its saved
+  value are unchanged. The setting's label is now "Music styles (hero line), one per line, in display
+  order".
+- **Style:** hero.css, under "Music styles line".
+  - DJD Saira 800, uppercase, clamp(18px, 1.75vw, 24px), .04em, li colour #24a9e0 `!important`.
+  - No bullets and no padding (`!important`, plus `::marker` none).
+  - Separators are `li + li::before`, `content: "/" / ""`. The empty alt text keeps the slashes out
+    of the accessibility tree, which the test checked. They are 35% paper, weight 400, in a fixed
+    0.4em box with 10px each side.
+- **Margin:** `margin: 10px 0 18px`, the brief's literal values, as Mark previewed them live.
+  - On the page that adds up to **50px** under the slogan and **38px** above the button. The inner
+    block's flex gap adds 20px to each side.
+  - The slogan also gets a 20px bottom margin from Avada's `.post-content p { margin: 0 0 20px }`.
+    That rule outranks hero.css's `.djd-hero__slogan { margin: 0 }`, and has done since before this
+    release; the slogan-to-button gap was 40px.
+  - To tighten it, beat that Avada rule rather than shrinking the list's margins.
+- **Wrapping:** one line from 700px up (`nowrap`). Below 700px (`max-width: 699.98px`, so 700 itself
+  stays on one line) it wraps. A wrapped line never starts with a slash: below 700px every item gets
+  the slash box, the list moves left by exactly one box (`margin-left: calc(-0.4em - 20px)`) and
+  `overflow: hidden` clips it. Each line's text then starts exactly at the slogan's left edge.
+- **Long lists:** labels are not shortened automatically. With the long default list (the decades
+  line and "Pride/Queer Pop & Dance") the line is 748px wide at 18px. It fits from about 790px up,
+  but between 700px and about 790px it runs past the right edge (83px at 700px). The short labels Mark
+  is moving to fit at every width tested. The admin help text says to keep labels short.
+- **Entrance:** reveals with `djd-seq-3`, in the same rule as the slogan and the button (same
+  opacity and transform transition).
+- **Verified:** `test144.js` ran in the harness with the six test labels at 2000, 1280, 1024, 700 and
+  390, logged in and out:
+  - The line's opacity and transform matched the slogan's on every frame of the entrance.
+  - Each line's text starts at the slogan's left edge, ±1px.
+  - Gaps were 50 / 38.
+  - Exact font, size, letter spacing and colours; the separators are right and kept out of the
+    accessibility tree.
+  - One line at 700px and up; on the phone it wraps to 2 lines with no leading slash.
+  - No horizontal scroll, and no errors from plugin files.
+  - test14.js and test143.js still pass.
+
 ## v1.14.3: CD "put back" button, outside click, one "See all" pill
 Both items confirmed by Mark and built as specified.
 
