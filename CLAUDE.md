@@ -421,6 +421,21 @@ old logo never requested. The PHP string functions (autop strip, logo swap, titl
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
 
+## v1.14.1: one "Book me" button in the hero
+Confirmed by Mark, built as specified.
+- The hero's "Upcoming events" and "Remix videos" buttons are gone; one solid cyan "Book me"
+  (`djd-btn--solid`) takes their place, linking to the same `book_url` setting the footer's Book me
+  uses (one setting for both). Empty setting: no button, and no `.djd-hero__buttons` wrapper either.
+  It still reveals with `djd-seq-3` at 3050ms (hero.css), unchanged.
+- Settings, checked before touching anything: `sets_url` is still read by `djdt_events_page_url()`
+  ("See all dates", `includes/djdt-events.php`) and `videos_url` by `[djdigi_videos]` ("See all
+  videos"), so neither was removed. Both keep their keys and saved values and are relabeled "Events
+  page link" and "Video gallery link", each with a line saying where it is used. The Book me field is
+  now just "Book me" link (hero and footer). No setting was orphaned, so none was removed.
+- Verified in the v1.14.0 harness at 2000, 1280 and 390, logged in and out: logo, slogan and exactly one
+  visible solid Book me linking to `/about/`; See all dates and See all videos still point at
+  `/upcoming-events/` and `/video-gallery/`; every v1.14.0 check still passes; no plugin errors.
+
 ## v1.14.0: 3D mirror ball, live sets playlist, remix videos, pill size, footer links
 Nine items, confirmed by Mark (the 3D ball approved live in a demo on Home v2) and built as specified.
 Supersedes "Homepage cleanup (v1.13.0)" on the pill's size and the hide on scroll.

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_player], [djdigi_events], [djdigi_videos] and [djdigi_venues] for djdigimark.com.
- * Version: 1.14.0
+ * Version: 1.14.1
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.14.0' );
+define( 'DJDT_VERSION', '1.14.1' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -68,9 +68,14 @@ function djdt_defaults() {
 		'mix_mode'       => 'latest',
 		'mix_url'        => '',
 		'hero_photos'    => array(),
+		// v1.14.1: the hero no longer has buttons for these two, but both
+		// are still read: sets_url is the events page ("See all dates",
+		// djdt_events_page_url()) and videos_url the video gallery ("See all
+		// videos", [djdigi_videos]). Keys unchanged so saved values survive.
 		'sets_url'       => '/upcoming-events/',
 		'videos_url'     => '/video-gallery/',
-		// Footer links beside the dock (v1.14.0). The site has no separate
+		// Footer links beside the dock (v1.14.0); book_url is also the
+		// hero's one "Book me" button since v1.14.1. The site has no separate
 		// contact page; the contact form lives on About. There is no
 		// newsletter page either (the "Email Updates" form is a section of
 		// the old homepage with no anchor), so that one starts empty and
@@ -560,18 +565,24 @@ function djdt_render_settings_theme() {
 			</td>
 		</tr>
 		<tr>
-			<th scope="row"><label for="djdt-sets">"Upcoming events" button link</label></th>
-			<td><input id="djdt-sets" class="regular-text" name="<?php echo esc_attr( $n ); ?>[sets_url]" value="<?php echo esc_attr( $s['sets_url'] ); ?>"></td>
+			<th scope="row"><label for="djdt-sets">Events page link</label></th>
+			<td>
+				<input id="djdt-sets" class="regular-text" name="<?php echo esc_attr( $n ); ?>[sets_url]" value="<?php echo esc_attr( $s['sets_url'] ); ?>">
+				<p class="description">Where "See all dates" under the homepage events goes.</p>
+			</td>
 		</tr>
 		<tr>
-			<th scope="row"><label for="djdt-videos">"Remix videos" button link</label></th>
-			<td><input id="djdt-videos" class="regular-text" name="<?php echo esc_attr( $n ); ?>[videos_url]" value="<?php echo esc_attr( $s['videos_url'] ); ?>"></td>
+			<th scope="row"><label for="djdt-videos">Video gallery link</label></th>
+			<td>
+				<input id="djdt-videos" class="regular-text" name="<?php echo esc_attr( $n ); ?>[videos_url]" value="<?php echo esc_attr( $s['videos_url'] ); ?>">
+				<p class="description">Where "See all videos" under the homepage remix videos goes.</p>
+			</td>
 		</tr>
 		<tr>
-			<th scope="row"><label for="djdt-book">Footer "Book me" link</label></th>
+			<th scope="row"><label for="djdt-book">"Book me" link</label></th>
 			<td>
 				<input id="djdt-book" class="regular-text" name="<?php echo esc_attr( $n ); ?>[book_url]" value="<?php echo esc_attr( $s['book_url'] ); ?>">
-				<p class="description">The solid button beside the social icons in the footer. Leave empty to hide it.</p>
+				<p class="description">The solid "Book me" button in the hero and in the footer, one link for both. Leave empty to hide both.
 			</td>
 		</tr>
 		<tr>
@@ -1813,8 +1824,7 @@ function djdt_hero_shortcode( $atts = array() ) {
 	wp_enqueue_script( 'djdt-mirrorball' );
 
 	$photos   = djdt_hero_photos();
-	$sets     = djdt_get( 'sets_url' );
-	$videos   = djdt_get( 'videos_url' );
+	$book     = trim( (string) djdt_get( 'book_url' ) );
 	$ball     = djdt_logo_ball_settings();
 	$logo_url = djdt_logo_url();
 
@@ -1870,10 +1880,12 @@ function djdt_hero_shortcode( $atts = array() ) {
 			<h1 class="djd-hero__sr-name">DJ DigiMark</h1>
 			<img class="djd-hero__logo" src="<?php echo esc_url( $logo_url ); ?>" alt="DJ DigiMark" width="1517" height="1798">
 			<p class="djd-hero__slogan">Bringing positive vibes to the dance <span class="djd-nowrap">floor <span class="djd-eq" role="img" aria-label="Rainbow flag and music"><span></span><span></span><span></span><span></span><span></span><span></span></span></span></p>
-			<div class="djd-hero__buttons">
-				<a class="djd-btn djd-btn--solid" href="<?php echo esc_url( $sets ); ?>">Upcoming events</a>
-				<a class="djd-btn djd-btn--line" href="<?php echo esc_url( $videos ); ?>">Remix videos</a>
-			</div>
+			<?php // v1.14.1: one "Book me" button (the shared book_url setting, also the footer's), none if empty. ?>
+			<?php if ( '' !== $book ) : ?>
+				<div class="djd-hero__buttons">
+					<a class="djd-btn djd-btn--solid" href="<?php echo esc_url( $book ); ?>">Book me</a>
+				</div>
+			<?php endif; ?>
 		</div>
 
 		<!-- Fades the hero's own lower edge into the page, full width (v1.6.0,

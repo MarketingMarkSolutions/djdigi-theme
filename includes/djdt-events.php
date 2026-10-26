@@ -195,8 +195,9 @@ function djdt_events_redirect_mec_singles() {
 }
 
 /**
- * The events page URL: reads the same admin configured "Upcoming events"
- * setting the hero's own button already points at (djdt_get('sets_url'),
+ * The events page URL: reads the admin configured "Events page link"
+ * setting (djdt_get('sets_url'), the hero's old "Upcoming events" button
+ * link until v1.14.1,
  * Theme Settings), rather than a separate hardcoded slug, so there is one
  * place to change it, not two that can drift apart.
  */
