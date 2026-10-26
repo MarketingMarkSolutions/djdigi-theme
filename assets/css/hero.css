@@ -311,7 +311,8 @@ body.djd-seq-3 .djd-hero__buttons { opacity: 1; transform: none; }
 	pointer-events: none;
 	opacity: 0;
 }
-#djd-ball-canvas {
+#djd-ball-canvas,
+#djd-ball-3d {
 	position: fixed;
 	left: 0;
 	top: 0;
@@ -319,6 +320,9 @@ body.djd-seq-3 .djd-hero__buttons { opacity: 1; transform: none; }
 	pointer-events: none;
 	opacity: 0;
 }
+/* v1.14.0: the 3D ball's canvas (mirrorball-3d.js) is CSS scaled from its
+   top left corner to the exact size each frame. */
+#djd-ball-3d { transform-origin: 0 0; }
 
 /* ---------------------------------------------------------------------
    The "Latest live set" section (v1.6.0, moved out of the hero itself,
@@ -510,6 +514,86 @@ body.djd-seq-3 .djd-hero__buttons { opacity: 1; transform: none; }
 .djd-player__links a:hover { color: var(--djd-cyan) !important; opacity: 1; }
 .djd-player__frame { position: absolute; width: 1px; height: 1px; left: -9999px; top: 0; border: 0; opacity: 0; pointer-events: none; }
 
+/* Playlist (v1.14.0): the 3 newest mixes under the player, one button per
+   row (djdt_playlist_html()); hero.js loads the chosen one into the player
+   above. The selected row gets a cyan title and a small "Playing" tag. */
+.djd-playlist {
+	list-style: none;
+	margin: 12px 0 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.djd-playlist__item { margin: 0; padding: 0; }
+.djd-playlist__row {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	width: 100%;
+	margin: 0;
+	padding: 10px 28px 10px 12px;
+	border: 0;
+	border-radius: 14px;
+	background: transparent;
+	color: var(--djd-paper);
+	font-family: var(--djd-sans);
+	text-align: left;
+	text-transform: none;
+	letter-spacing: normal;
+	cursor: pointer;
+	transition: background-color 0.2s ease;
+}
+.djd-playlist__row:hover { background: rgba(241, 236, 226, 0.06); }
+.djd-playlist__row:focus-visible { outline: 3px solid var(--djd-cyan); outline-offset: 2px; }
+.djd-playlist__row.is-current { background: #140f30; }
+.djd-playlist__thumb {
+	flex: 0 0 56px;
+	width: 56px;
+	height: 56px;
+	border-radius: 10px;
+	overflow: hidden;
+	background: #1d1645;
+}
+.djd-playlist__thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.djd-playlist__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.djd-playlist__main {
+	font-weight: 600;
+	font-size: 16px;
+	line-height: 1.25;
+	color: var(--djd-paper);
+	transition: color 0.2s ease;
+}
+.djd-playlist__sub {
+	margin-top: 2px;
+	font-weight: 400;
+	font-size: 14px;
+	line-height: 1.35;
+	color: rgba(241, 236, 226, 0.7);
+}
+.djd-playlist__row.is-current .djd-playlist__main,
+.djd-playlist__row:hover .djd-playlist__main { color: var(--djd-cyan); }
+.djd-playlist__mark {
+	display: none;
+	flex: 0 0 auto;
+	padding: 3px 9px;
+	border-radius: 999px;
+	background: rgba(36, 169, 224, 0.18);
+	color: var(--djd-cyan);
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+.djd-playlist__row.is-current .djd-playlist__mark { display: inline-block; }
+.djd-playlist__len {
+	flex: 0 0 auto;
+	font-size: 13px;
+	letter-spacing: 0.04em;
+	font-variant-numeric: tabular-nums;
+	color: rgba(241, 236, 226, 0.7);
+}
+
 /* Shared sine wave: every bar uses this exact curve, only the animation
    delay differs per bar, which is what makes it read as one wave rolling
    through the row instead of six independent meters. */
@@ -540,4 +624,8 @@ body.djd-seq-3 .djd-hero__buttons { opacity: 1; transform: none; }
 	.djd-player { flex-wrap: wrap; padding: 14px 16px; gap: 14px; }
 	.djd-player__btn,
 	.djd-player__art { flex-basis: 56px; width: 56px; height: 56px; }
+	.djd-playlist__row { gap: 12px; padding: 8px 12px 8px 8px; }
+	.djd-playlist__thumb { flex-basis: 48px; width: 48px; height: 48px; }
+	.djd-playlist__main { font-size: 15px; }
+	.djd-playlist__sub { font-size: 13px; }
 }

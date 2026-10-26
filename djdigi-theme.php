@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: DJ DigiMark Theme
- * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_venues], and [djdigi_events] for djdigimark.com.
- * Version: 1.13.0
+ * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_player], [djdigi_events], [djdigi_videos] and [djdigi_venues] for djdigimark.com.
+ * Version: 1.14.0
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.13.0' );
+define( 'DJDT_VERSION', '1.14.0' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -51,6 +51,13 @@ require_once DJDT_DIR . 'includes/djdt-events.php';
 require_once DJDT_DIR . 'includes/djdt-logo.php';
 
 /* -------------------------------------------------------------------------
+ * [djdigi_videos] (v1.14.0): the newest remix videos, rendered by
+ * djdigi-library's own card and lightbox code, see includes/djdt-videos.php.
+ * ---------------------------------------------------------------------- */
+
+require_once DJDT_DIR . 'includes/djdt-videos.php';
+
+/* -------------------------------------------------------------------------
  * Settings
  * ---------------------------------------------------------------------- */
 
@@ -63,6 +70,13 @@ function djdt_defaults() {
 		'hero_photos'    => array(),
 		'sets_url'       => '/upcoming-events/',
 		'videos_url'     => '/video-gallery/',
+		// Footer links beside the dock (v1.14.0). The site has no separate
+		// contact page; the contact form lives on About. There is no
+		// newsletter page either (the "Email Updates" form is a section of
+		// the old homepage with no anchor), so that one starts empty and
+		// its link stays hidden until a URL is saved.
+		'book_url'       => '/about/',
+		'newsletter_url' => '',
 		// Reused for the static genre list below the venues card (v1.3.0);
 		// the key is still called "ticker" since it is the same setting,
 		// just no longer a scrolling marquee. Do not rename the key, that
@@ -230,7 +244,8 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 		'venues'   => array_values( array_map( 'djdt_venue_admin_row', djdt_get( 'venues' ) ) ),
 		'heroLogo' => array(
 			'id'  => $logo_id,
-			'url' => $logo_id ? (string) wp_get_attachment_thumb_url( $logo_id ) : '',
+			// The thumb URL is empty for an SVG (no generated sizes).
+			'url' => $logo_id ? (string) ( 'image/svg+xml' === get_post_mime_type( $logo_id ) ? wp_get_attachment_url( $logo_id ) : wp_get_attachment_thumb_url( $logo_id ) ) : '',
 		),
 	) );
 } );
@@ -403,10 +418,16 @@ function djdt_sanitize( $in ) {
 		$out['mix_url']       = esc_url_raw( isset( $in['mix_url'] ) ? trim( $in['mix_url'] ) : '' );
 		$out['sets_url']      = sanitize_text_field( isset( $in['sets_url'] ) ? $in['sets_url'] : $d['sets_url'] );
 		$out['videos_url']    = sanitize_text_field( isset( $in['videos_url'] ) ? $in['videos_url'] : $d['videos_url'] );
+		$out['book_url']      = sanitize_text_field( isset( $in['book_url'] ) ? trim( $in['book_url'] ) : $d['book_url'] );
+		$out['newsletter_url'] = sanitize_text_field( isset( $in['newsletter_url'] ) ? trim( $in['newsletter_url'] ) : $d['newsletter_url'] );
 		$out['ticker']        = sanitize_textarea_field( isset( $in['ticker'] ) ? $in['ticker'] : $d['ticker'] );
 
+		// v1.14.0: wp_attachment_is_image() rejects SVGs, which dropped an
+		// SVG override on save; same explicit mime check as the read side
+		// in djdt_logo_url() (v1.12.1).
 		$logo_id              = isset( $in['logo_override'] ) ? (int) $in['logo_override'] : 0;
-		$out['logo_override'] = ( $logo_id > 0 && wp_attachment_is_image( $logo_id ) ) ? $logo_id : 0;
+		$logo_ok              = $logo_id > 0 && ( 'image/svg+xml' === get_post_mime_type( $logo_id ) || wp_attachment_is_image( $logo_id ) );
+		$out['logo_override'] = $logo_ok ? $logo_id : 0;
 		$out['logo_ball_x']   = isset( $in['logo_ball_x'] ) ? max( 0, min( 100, (float) $in['logo_ball_x'] ) ) : $d['logo_ball_x'];
 		$out['logo_ball_y']   = isset( $in['logo_ball_y'] ) ? max( 0, min( 100, (float) $in['logo_ball_y'] ) ) : $d['logo_ball_y'];
 		$out['logo_ball_r']   = isset( $in['logo_ball_r'] ) ? max( 0.5, min( 50, (float) $in['logo_ball_r'] ) ) : $d['logo_ball_r'];
@@ -475,6 +496,7 @@ function djdt_sanitize( $in ) {
 	}
 
 	delete_transient( 'djdt_mix' );
+	delete_transient( 'djdt_mixes' );
 	return $out;
 }
 
@@ -546,6 +568,20 @@ function djdt_render_settings_theme() {
 			<td><input id="djdt-videos" class="regular-text" name="<?php echo esc_attr( $n ); ?>[videos_url]" value="<?php echo esc_attr( $s['videos_url'] ); ?>"></td>
 		</tr>
 		<tr>
+			<th scope="row"><label for="djdt-book">Footer "Book me" link</label></th>
+			<td>
+				<input id="djdt-book" class="regular-text" name="<?php echo esc_attr( $n ); ?>[book_url]" value="<?php echo esc_attr( $s['book_url'] ); ?>">
+				<p class="description">The solid button beside the social icons in the footer. Leave empty to hide it.</p>
+			</td>
+		</tr>
+		<tr>
+			<th scope="row"><label for="djdt-newsletter">Footer "Join the newsletter" link</label></th>
+			<td>
+				<input id="djdt-newsletter" class="regular-text" name="<?php echo esc_attr( $n ); ?>[newsletter_url]" value="<?php echo esc_attr( $s['newsletter_url'] ); ?>">
+				<p class="description">The text link beside the "Book me" button. Leave empty to hide it.</p>
+			</td>
+		</tr>
+		<tr>
 			<th scope="row"><label for="djdt-ticker">Genres ("What I play")</label></th>
 			<td>
 				<textarea id="djdt-ticker" class="large-text" rows="7" name="<?php echo esc_attr( $n ); ?>[ticker]"><?php echo esc_textarea( $s['ticker'] ); ?></textarea>
@@ -575,9 +611,14 @@ function djdt_render_settings_theme() {
 		</tr>
 		<tr>
 			<td colspan="2">
-				<p>Hero shortcode: <code>[djdigi_hero]</code>. Put it alone in a 100% width container with no padding, at the top of the page. It also outputs the "Latest live set" player section right after the hero; add <code>player="no"</code> (<code>[djdigi_hero player="no"]</code>) to leave that out, then place <code>[djdigi_player]</code> wherever that section should go instead, for example after <code>[djdigi_events]</code>. The mirror ball's full entrance now plays on every page load; <code>?intro=1</code> no longer does anything.</p>
-				<p>Venues shortcode: <code>[djdigi_venues]</code>. Put it right below the hero shortcode on Home v2.</p>
-				<p><strong>After saving:</strong> if a caching plugin or your host's cache is active, purge the cached copy of any page carrying <code>[djdigi_hero]</code> or <code>[djdigi_venues]</code>, or changes here can keep showing the old version. See the plugin's CLAUDE.md for exact steps.</p>
+				<p><strong>Home v2 order</strong> (v1.14.0), each shortcode on its own line in this order:<br>
+					<code>[djdigi_hero player="no"]</code><br>
+					<code>[djdigi_events limit="5"]</code><br>
+					<code>[djdigi_player]</code><br>
+					<code>[djdigi_videos]</code><br>
+					<code>[djdigi_venues]</code></p>
+				<p>Hero: <code>[djdigi_hero]</code>, alone in a 100% width container with no padding, at the top of the page. Without <code>player="no"</code> it also outputs the "Latest live sets" player right after itself. Player: <code>[djdigi_player]</code>, the player plus a playlist of the 3 newest Mixcloud uploads. Remix videos: <code>[djdigi_videos]</code>, the 4 newest videos from the DJ DigiMark Library plugin (shows nothing if that plugin is inactive). Venues: <code>[djdigi_venues]</code>. The mirror ball's full entrance plays on every page load.</p>
+				<p><strong>After saving:</strong> if a caching plugin or your host's cache is active, purge the cached copy of any page carrying these shortcodes, or changes here can keep showing the old version. See the plugin's CLAUDE.md for exact steps.</p>
 			</td>
 		</tr>
 		<?php
@@ -656,7 +697,9 @@ add_action( 'wp_enqueue_scripts', function () {
 
 	wp_enqueue_script( 'djdt-dock', DJDT_URL . 'assets/js/dock.js', array(), djdt_ver( 'assets/js/dock.js' ), true );
 	wp_add_inline_script( 'djdt-dock', 'window.djdtDock = ' . wp_json_encode( array(
-		'mixcloudUrl' => 'https://www.mixcloud.com/' . rawurlencode( djdt_get( 'mixcloud_user' ) ) . '/',
+		'mixcloudUrl'   => 'https://www.mixcloud.com/' . rawurlencode( djdt_get( 'mixcloud_user' ) ) . '/',
+		'bookUrl'       => '' !== trim( (string) djdt_get( 'book_url' ) ) ? esc_url_raw( djdt_get( 'book_url' ) ) : '',
+		'newsletterUrl' => '' !== trim( (string) djdt_get( 'newsletter_url' ) ) ? esc_url_raw( djdt_get( 'newsletter_url' ) ) : '',
 	) ) . ';', 'before' );
 }, 20 );
 
@@ -681,7 +724,7 @@ add_action( 'wp_head', function () {
  * clientWidth (unlike 100vw, this never includes the scrollbar's own width,
  * the same bug that sat the hero 7px too far left back in v1.7.0), set on
  * html itself so every full bleed theme section (.djd-hero,
- * .djd-player-section, .djd-events, .djd-venues, each in their own
+ * .djd-player-section, .djd-events, .djd-videos, .djd-venues, each in their own
  * stylesheet) can read it with width: var(--djd-vw) and break out to the
  * true window width regardless of how many Avada containers deep their own
  * direct parent happens to sit (v1.8.2, found live at 2000px wide: Home v2's
@@ -711,7 +754,7 @@ add_action( 'wp_head', function () {
 
 /**
  * v1.10.0, found live at 2000px wide: every full bleed section (.djd-hero,
- * .djd-player-section, .djd-events, .djd-venues) still sat about 7px off
+ * .djd-player-section, .djd-events, .djd-venues; .djd-videos since v1.14.0) still sat about 7px off
  * the true left edge even with width: var(--djd-vw) in place. The CSS
  * breakout formula (margin-left: calc(50% - var(--djd-vw) / 2), each
  * section's own stylesheet) only lands exactly on 0 if the section's own
@@ -737,7 +780,7 @@ add_action( 'wp_footer', function () {
 	<script>
 	(function () {
 		function djdFixBreakout() {
-			document.querySelectorAll( '.djd-hero, .djd-player-section, .djd-events, .djd-venues' ).forEach( function ( el ) {
+			document.querySelectorAll( '.djd-hero, .djd-player-section, .djd-events, .djd-videos, .djd-venues' ).forEach( function ( el ) {
 				el.style.marginLeft = '0px';
 				var left = el.getBoundingClientRect().left;
 				el.style.marginLeft = ( -left ) + 'px';
@@ -1439,6 +1482,23 @@ function djdt_is_hero_page() {
 	return $post && has_shortcode( $post->post_content, 'djdigi_hero' );
 }
 
+/**
+ * The phone menu pill's button reads "Menu", not Avada's "Go to..."
+ * (v1.14.0). Avada's classic mobile menu builds that button in its own
+ * JS from a translated string it localizes (avadaMenuVars.dropdown_goto),
+ * so it is changed at the source here, hero pages only, where that button
+ * is the pill. A combined/minified copy cached by Asset CleanUp can still
+ * carry the old string until purged, so menu.js swaps it on the page too.
+ * The string compare comes first, this filter sees every translation; and
+ * nothing is checked before the main query has run (did_action( 'wp' )).
+ */
+add_filter( 'gettext', function ( $translation, $text, $domain ) {
+	if ( 'Go to...' === $text && 'Avada' === $domain && did_action( 'wp' ) && djdt_is_hero_page() ) {
+		return 'Menu';
+	}
+	return $translation;
+}, 10, 3 );
+
 add_filter( 'body_class', function ( $classes ) {
 	if ( ! djdt_is_active() ) {
 		return $classes;
@@ -1535,34 +1595,66 @@ function djdt_mixcloud_get( $path ) {
 }
 
 /**
- * Returns the hero player's mix data, cached for 6 hours: key, name, length
- * (seconds), picture (artwork URL) and url (the mix's own Mixcloud page).
+ * Returns the player's default mix: key, name, length (seconds), picture
+ * (artwork URL), thumb and url (the mix's own Mixcloud page). A pinned mix
+ * is cached for 6 hours.
  */
 function djdt_get_mix() {
+	// v1.14.0: "latest" mode is simply the first row of the playlist
+	// (djdt_get_mixes(), its own 1 hour cache and last good fallback), so
+	// the player and the playlist can never disagree about which is newest.
+	if ( 'pinned' !== djdt_get( 'mix_mode' ) || ! djdt_get( 'mix_url' ) ) {
+		$mixes = djdt_get_mixes();
+		return ! empty( $mixes[0]['key'] ) ? $mixes[0] : array();
+	}
 	$cached = get_transient( 'djdt_mix' );
 	if ( is_array( $cached ) ) {
 		return $cached;
 	}
 	$mix  = null;
-	$mode = djdt_get( 'mix_mode' );
-	if ( 'pinned' === $mode && djdt_get( 'mix_url' ) ) {
-		$path = wp_parse_url( djdt_get( 'mix_url' ), PHP_URL_PATH );
-		if ( $path ) {
-			$key  = '/' . trim( $path, '/' ) . '/';
-			$data = djdt_mixcloud_get( $key );
-			$mix  = $data ? djdt_mix_from_api( $key, $data ) : null;
-		}
-	} else {
-		$user = djdt_get( 'mixcloud_user' );
-		$data = djdt_mixcloud_get( '/' . rawurlencode( $user ) . '/cloudcasts/?limit=1' );
-		if ( $data && ! empty( $data['data'][0]['key'] ) ) {
-			$c   = $data['data'][0];
-			$mix = djdt_mix_from_api( $c['key'], $c );
-		}
+	$path = wp_parse_url( djdt_get( 'mix_url' ), PHP_URL_PATH );
+	if ( $path ) {
+		$key  = '/' . trim( $path, '/' ) . '/';
+		$data = djdt_mixcloud_get( $key );
+		$mix  = $data ? djdt_mix_from_api( $key, $data ) : null;
 	}
 	// Cache failures briefly so a Mixcloud outage never slows every page.
 	set_transient( 'djdt_mix', $mix ? $mix : array(), $mix ? 6 * HOUR_IN_SECONDS : 10 * MINUTE_IN_SECONDS );
 	return $mix ? $mix : array();
+}
+
+/**
+ * The 3 newest cloudcasts for the "Latest live sets" playlist (v1.14.0),
+ * newest first, each in djdt_mix_from_api()'s shape. Cached for an hour.
+ * Every good fetch is also kept as a "last good" copy with no expiry, so a
+ * Mixcloud error serves that instead of an empty playlist (re-tried after
+ * 10 minutes rather than on every page load). array() if there has never
+ * been a good fetch for the current username.
+ */
+function djdt_get_mixes() {
+	$cached = get_transient( 'djdt_mixes' );
+	if ( is_array( $cached ) ) {
+		return $cached;
+	}
+	$user  = (string) djdt_get( 'mixcloud_user' );
+	$mixes = array();
+	$data  = djdt_mixcloud_get( '/' . rawurlencode( $user ) . '/cloudcasts/?limit=3' );
+	if ( $data && ! empty( $data['data'] ) && is_array( $data['data'] ) ) {
+		foreach ( array_slice( $data['data'], 0, 3 ) as $c ) {
+			if ( ! empty( $c['key'] ) ) {
+				$mixes[] = djdt_mix_from_api( $c['key'], $c );
+			}
+		}
+	}
+	if ( $mixes ) {
+		set_transient( 'djdt_mixes', $mixes, HOUR_IN_SECONDS );
+		update_option( 'djdt_mixes_last_good', array( 'user' => $user, 'mixes' => $mixes ), false );
+		return $mixes;
+	}
+	$last  = get_option( 'djdt_mixes_last_good', array() );
+	$mixes = ( is_array( $last ) && isset( $last['user'], $last['mixes'] ) && $last['user'] === $user && is_array( $last['mixes'] ) ) ? $last['mixes'] : array();
+	set_transient( 'djdt_mixes', $mixes, 10 * MINUTE_IN_SECONDS );
+	return $mixes;
 }
 
 function djdt_mix_from_api( $key, $data ) {
@@ -1574,11 +1666,20 @@ function djdt_mix_from_api( $key, $data ) {
 			break;
 		}
 	}
+	// The playlist's small row thumbnail (v1.14.0), shown 56px wide.
+	$thumb = '';
+	foreach ( array( 'medium', 'medium_mobile', 'large', 'thumbnail' ) as $size ) {
+		if ( ! empty( $pictures[ $size ] ) ) {
+			$thumb = $pictures[ $size ];
+			break;
+		}
+	}
 	return array(
 		'key'     => $key,
 		'name'    => isset( $data['name'] ) ? $data['name'] : '',
 		'length'  => isset( $data['audio_length'] ) ? (int) $data['audio_length'] : 0,
 		'picture' => $picture,
+		'thumb'   => $thumb ? $thumb : $picture,
 		'url'     => ! empty( $data['url'] ) ? $data['url'] : 'https://www.mixcloud.com' . $key,
 	);
 }
@@ -1718,10 +1819,13 @@ function djdt_hero_shortcode( $atts = array() ) {
 	$logo_url = djdt_logo_url();
 
 	wp_add_inline_script( 'djdt-mirrorball', 'window.djdtMirrorBall = ' . wp_json_encode( array(
-		'logoUrl' => $logo_url,
-		'ballX'   => $ball['x'],
-		'ballY'   => $ball['y'],
-		'ballR'   => $ball['r'],
+		'logoUrl'   => $logo_url,
+		'ballX'     => $ball['x'],
+		'ballY'     => $ball['y'],
+		'ballR'     => $ball['r'],
+		// v1.14.0: the 3D ball, an ES module mirrorball.js imports after
+		// the page has loaded (it imports the bundled three.js itself).
+		'ball3dUrl' => add_query_arg( 'ver', djdt_ver( 'assets/js/mirrorball-3d.js' ), DJDT_URL . 'assets/js/mirrorball-3d.js' ),
 	) ) . ';', 'before' );
 
 	$next_up = shortcode_exists( 'djdigi_next_up' ) ? do_shortcode( '[djdigi_next_up]' ) : '';
@@ -1802,20 +1906,20 @@ function djdt_hero_shortcode( $atts = array() ) {
  * step instead of a bordered card.
  */
 function djdt_player_section() {
-	$mix = djdt_get_mix();
+	$mix   = djdt_get_mix();
+	$mixes = djdt_get_mixes();
 	if ( empty( $mix['key'] ) ) {
 		return '';
 	}
 	ob_start();
 	?>
-	<section class="djd-player-section" aria-label="Latest live set">
+	<section class="djd-player-section" aria-label="Latest live sets">
 		<div class="djd-player-section__inner">
-			<h2 class="djd-section-heading"><?php echo djdt_heading_html( 'Latest live set' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></h2>
+			<h2 class="djd-section-heading"><?php echo djdt_heading_html( 'Latest live sets' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></h2>
 			<div class="djd-player<?php echo $mix['picture'] ? ' has-artwork' : ''; ?>" data-feed="<?php echo esc_attr( $mix['key'] ); ?>" data-length="<?php echo (int) $mix['length']; ?>">
 				<div class="djd-player__art">
-					<?php if ( $mix['picture'] ) : ?>
-						<img class="djd-player__artimg" src="<?php echo esc_url( $mix['picture'] ); ?>" alt="">
-					<?php endif; ?>
+					<?php // Always printed (v1.14.0): a playlist row can bring artwork to a mix that had none. ?>
+					<img class="djd-player__artimg" src="<?php echo esc_url( $mix['picture'] ); ?>" alt=""<?php echo $mix['picture'] ? '' : ' hidden'; ?>>
 					<button type="button" class="djd-player__btn" aria-label="<?php echo esc_attr( 'Play ' . $mix['name'] ); ?>" data-label="<?php echo esc_attr( $mix['name'] ); ?>">
 						<svg class="djd-player__play" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 L20 12 L7 20 Z" fill="currentColor"/></svg>
 						<svg class="djd-player__pause" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="5" height="16" fill="currentColor"/><rect x="14" y="4" width="5" height="16" fill="currentColor"/></svg>
@@ -1844,10 +1948,11 @@ function djdt_player_section() {
 					<div class="djd-player__meta"><span class="djd-player__pos">0:00</span> / <span class="djd-player__dur"><?php echo esc_html( djdt_format_length( $mix['length'] ) ); ?></span></div>
 					<div class="djd-player__links">
 						<a href="<?php echo esc_url( 'https://www.mixcloud.com/' . rawurlencode( djdt_get( 'mixcloud_user' ) ) . '/' ); ?>" target="_blank" rel="noopener">Follow &amp; all mixes on Mixcloud ↗</a>
-						<a href="<?php echo esc_url( $mix['url'] ); ?>" target="_blank" rel="noopener">Tracklist ↗</a>
+						<a class="djd-player__tracklist" href="<?php echo esc_url( $mix['url'] ); ?>" target="_blank" rel="noopener">Tracklist ↗</a>
 					</div>
 				</div>
 			</div>
+			<?php echo djdt_playlist_html( $mixes, $mix['key'] ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?>
 		</div>
 	</section>
 	<?php
@@ -1879,6 +1984,60 @@ function djdt_mix_title_lines( $name ) {
 		return array( $name, '' );
 	}
 	return array( $main, $sub );
+}
+
+/**
+ * The 3 row playlist under the player (v1.14.0). Each row is a button that
+ * carries everything hero.js needs to load that mix into the same player
+ * (feed key, length, artwork, Mixcloud URL); the row whose key is already
+ * loaded starts selected. Nothing at all with fewer than 2 mixes, a one row
+ * list would only repeat the player above it.
+ */
+function djdt_playlist_html( $mixes, $current_key ) {
+	if ( ! is_array( $mixes ) || count( $mixes ) < 2 ) {
+		return '';
+	}
+	ob_start();
+	?>
+	<ol class="djd-playlist" aria-label="Choose a live set">
+		<?php foreach ( $mixes as $m ) : ?>
+			<?php
+			$lines = djdt_mix_title_lines( $m['name'] );
+			$on    = ( $m['key'] === $current_key );
+			$len   = djdt_format_length( $m['length'] );
+			$thumb = ! empty( $m['thumb'] ) ? $m['thumb'] : $m['picture'];
+			?>
+			<li class="djd-playlist__item">
+				<button type="button" class="djd-playlist__row<?php echo $on ? ' is-current' : ''; ?>" aria-pressed="<?php echo $on ? 'true' : 'false'; ?>"
+					data-feed="<?php echo esc_attr( $m['key'] ); ?>"
+					data-length="<?php echo (int) $m['length']; ?>"
+					data-name="<?php echo esc_attr( $m['name'] ); ?>"
+					data-main="<?php echo esc_attr( $lines[0] ); ?>"
+					data-sub="<?php echo esc_attr( $lines[1] ); ?>"
+					data-picture="<?php echo esc_url( $m['picture'] ); ?>"
+					data-url="<?php echo esc_url( $m['url'] ); ?>">
+					<span class="djd-playlist__thumb" aria-hidden="true">
+						<?php if ( $thumb ) : ?>
+							<img src="<?php echo esc_url( $thumb ); ?>" alt="" loading="lazy" width="56" height="56">
+						<?php endif; ?>
+					</span>
+					<span class="djd-playlist__text">
+						<span class="djd-sr"><?php echo esc_html( $m['name'] ); ?></span>
+						<span class="djd-playlist__main" aria-hidden="true"><?php echo esc_html( $lines[0] ); ?></span>
+						<?php if ( '' !== $lines[1] ) : ?>
+							<span class="djd-playlist__sub" aria-hidden="true"><?php echo esc_html( $lines[1] ); ?></span>
+						<?php endif; ?>
+					</span>
+					<span class="djd-playlist__mark">Playing</span>
+					<?php if ( $len ) : ?>
+						<span class="djd-playlist__len"><span class="djd-sr">, length </span><?php echo esc_html( $len ); ?></span>
+					<?php endif; ?>
+				</button>
+			</li>
+		<?php endforeach; ?>
+	</ol>
+	<?php
+	return ob_get_clean();
 }
 
 add_shortcode( 'djdigi_player', 'djdt_player_shortcode' );

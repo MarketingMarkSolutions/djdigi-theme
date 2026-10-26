@@ -103,6 +103,34 @@
 		});
 	})();
 
+	// "Book me" button and "Join the newsletter" link beside the dock
+	// (v1.14.0). Both URLs are Theme Settings fields; an empty one hides
+	// its item, and with both empty nothing is added at all. Placed right
+	// after the dock, or where the dock would be if it was not built.
+	(function buildFooterLinks() {
+		if (!cfg.bookUrl && !cfg.newsletterUrl) return;
+		var anchor = document.querySelector('footer#footer.fusion-footer-copyright-area .djd-dock') ||
+			document.querySelector('footer#footer.fusion-footer-copyright-area .fusion-social-links-footer');
+		if (!anchor) return;
+		var box = document.createElement('div');
+		box.className = 'djd-footer-links';
+		if (cfg.bookUrl) {
+			var book = document.createElement('a');
+			book.className = 'djd-footer-links__book';
+			book.href = cfg.bookUrl;
+			book.textContent = 'Book me';
+			box.appendChild(book);
+		}
+		if (cfg.newsletterUrl) {
+			var news = document.createElement('a');
+			news.className = 'djd-footer-links__news';
+			news.href = cfg.newsletterUrl;
+			news.textContent = 'Join the newsletter';
+			box.appendChild(news);
+		}
+		anchor.insertAdjacentElement('afterend', box);
+	})();
+
 	(function hideEmptyWidgetArea() {
 		var area = document.querySelector('.fusion-footer-widget-area');
 		if (!area) return;

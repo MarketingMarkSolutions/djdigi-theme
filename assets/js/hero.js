@@ -60,6 +60,9 @@
 	var widget = null;
 	var loading = null;
 	var wantPlay = false;
+	// The feed the hidden widget iframe currently has loaded (v1.14.0): a
+	// playlist row can change `feed` before or after the widget exists.
+	var iframeFeed = null;
 
 	function fmt(sec) {
 		sec = Math.max(0, Math.floor(sec));
@@ -100,6 +103,7 @@
 		iframe.setAttribute('tabindex', '-1');
 		iframe.setAttribute('aria-hidden', 'true');
 		iframe.src = 'https://player-widget.mixcloud.com/?hide_cover=1&mini=1&hide_artwork=1&autoplay=0&feed=' + encodeURIComponent(feed);
+		iframeFeed = feed;
 		player.appendChild(iframe);
 
 		loading = loadScript('https://widget.mixcloud.com/media/js/widgetApi.js').then(function () {
@@ -131,20 +135,119 @@
 		window.open('https://www.mixcloud.com' + feed, '_blank', 'noopener');
 	}
 
-	btn.addEventListener('click', function () {
-		if (widget) {
-			widget.togglePlay();
-			return;
-		}
+	// Plays whatever `feed` currently is: a plain play if the widget already
+	// has it loaded, otherwise the Widget API's load(feed, true) (v1.14.0,
+	// playlist rows). If load() fails, the hidden iframe is rebuilt for the
+	// new feed instead, and if that fails too the mix opens on Mixcloud.
+	function playCurrent() {
 		wantPlay = true;
 		player.classList.add('is-loading');
 		prepare().then(function (w) {
-			if (wantPlay) w.play();
+			if (!wantPlay) return;
+			if (iframeFeed === feed) return w.play();
+			var target = feed;
+			return Promise.resolve(w.load(target, true)).then(function () {
+				iframeFeed = target;
+			}, function () {
+				return rebuild().then(function (w2) { w2.play(); });
+			});
+		}).then(function () {
 			// If the browser blocked playback, clear the spinner so a second tap plays directly.
 			setTimeout(function () { player.classList.remove('is-loading'); }, 4000);
 		}).catch(function () {
 			player.classList.remove('is-loading');
 			openOnMixcloud();
+		});
+	}
+
+	function rebuild() {
+		var old = player.querySelector('.djd-player__frame');
+		if (old) old.parentNode.removeChild(old);
+		widget = null;
+		loading = null;
+		return prepare();
+	}
+
+	btn.addEventListener('click', function () {
+		if (widget && iframeFeed === feed) {
+			widget.togglePlay();
+			return;
+		}
+		playCurrent();
+	});
+
+	/* -----------------------------------------------------------------------
+	 * Playlist (v1.14.0): the 3 newest mixes under the player, each row a
+	 * button carrying its own feed key, length, title lines, artwork and
+	 * Mixcloud URL (djdt_playlist_html()). Choosing one swaps all of that
+	 * into this same player, moves the highlight, and starts it playing.
+	 * -------------------------------------------------------------------- */
+	var rows = Array.prototype.slice.call(document.querySelectorAll('.djd-playlist__row'));
+	var artImg = player.querySelector('.djd-player__artimg');
+	var titleBox = player.querySelector('.djd-player__title');
+	var durEl = player.querySelector('.djd-player__dur');
+	var trackLink = player.querySelector('.djd-player__tracklist');
+
+	function showMix(row) {
+		var name = row.getAttribute('data-name') || '';
+		var main = row.getAttribute('data-main') || name;
+		var sub = row.getAttribute('data-sub') || '';
+		var pic = row.getAttribute('data-picture') || '';
+		feed = row.getAttribute('data-feed');
+		knownLength = parseInt(row.getAttribute('data-length'), 10) || 0;
+		lastDuration = knownLength;
+		title = name || 'this mix';
+		btn.setAttribute('data-label', title);
+		setPlaying(false);
+		player.setAttribute('data-feed', feed);
+		player.setAttribute('data-length', knownLength);
+		player.style.setProperty('--djd-p', '0%');
+		if (posEl) posEl.textContent = fmt(0);
+		if (durEl) durEl.textContent = knownLength ? fmt(knownLength) : '';
+		if (scrub) {
+			scrub.setAttribute('aria-valuemax', knownLength);
+			scrub.setAttribute('aria-valuenow', 0);
+		}
+		if (artImg) {
+			if (pic) { artImg.src = pic; artImg.hidden = false; } else { artImg.hidden = true; }
+			player.classList.toggle('has-artwork', !!pic);
+		}
+		if (titleBox) {
+			titleBox.setAttribute('title', name);
+			titleBox.innerHTML = '';
+			var sr = document.createElement('span');
+			sr.className = 'djd-sr';
+			sr.textContent = name;
+			titleBox.appendChild(sr);
+			var m = document.createElement('span');
+			m.className = 'djd-player__title-main';
+			m.setAttribute('aria-hidden', 'true');
+			m.textContent = main;
+			titleBox.appendChild(m);
+			if (sub) {
+				var sb = document.createElement('span');
+				sb.className = 'djd-player__title-sub';
+				sb.setAttribute('aria-hidden', 'true');
+				sb.textContent = sub;
+				titleBox.appendChild(sb);
+			}
+		}
+		if (trackLink && row.getAttribute('data-url')) trackLink.href = row.getAttribute('data-url');
+		rows.forEach(function (r) {
+			var on = r === row;
+			r.classList.toggle('is-current', on);
+			r.setAttribute('aria-pressed', on ? 'true' : 'false');
+		});
+	}
+
+	rows.forEach(function (row) {
+		row.addEventListener('click', function () {
+			if (row.getAttribute('data-feed') === feed && widget && iframeFeed === feed) {
+				widget.togglePlay();
+				return;
+			}
+			showMix(row);
+			playCurrent();
 		});
 	});
 

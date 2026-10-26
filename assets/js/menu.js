@@ -155,4 +155,29 @@
 			li.addEventListener('focusin', function () { checkOne(li); });
 		});
 	})();
+
+	/* -----------------------------------------------------------------------
+	 * Phone menu pill text (v1.14.0): "Menu", not Avada's "Go to...", hero
+	 * pages only. PHP already changes the string Avada builds the button
+	 * from (the gettext filter in djdigi-theme.php); this covers a cached
+	 * copy of Avada's script still carrying the old one. Avada builds that
+	 * button in its own JS after this file runs, hence the observer, which
+	 * stops once the button has been seen.
+	 * -------------------------------------------------------------------- */
+	(function mobileMenuLabel() {
+		if (!document.body.classList.contains('djdigi-has-hero')) return;
+		var holder = document.querySelector('.fusion-mobile-nav-holder');
+		if (!holder) return;
+		function relabel() {
+			var span = holder.querySelector('.fusion-mobile-selector > span');
+			if (!span) return false;
+			if (span.textContent.trim() === 'Go to...') span.textContent = 'Menu';
+			return true;
+		}
+		if (relabel() || !window.MutationObserver) return;
+		var mo = new MutationObserver(function () {
+			if (relabel()) mo.disconnect();
+		});
+		mo.observe(holder, { childList: true, subtree: true });
+	})();
 })();

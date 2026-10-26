@@ -48,6 +48,9 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 ## Files
 - `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo halftone baking (Imagick assisted decode, GD for every pixel operation, see "Smoothness" below), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]` (`djdt_hero_shortcode()`) and the "Latest live set" player section it outputs right after itself (`djdt_player_section()`, v1.6.0, no separate shortcode), `[djdigi_venues]`. `require_once`s `includes/djdt-events.php` and (v1.11.0) `includes/djdt-logo.php` near the top, see below.
 - `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
+- `includes/djdt-videos.php` (v1.14.0): `[djdigi_videos]`, the 4 newest remix videos through djdigi-library's own `[djdigi_newest]` renderer, styled by `assets/css/videos.css`. See "v1.14.0" below.
+- `assets/js/mirrorball-3d.js` (v1.14.0): the 3D mirror ball (ES module, imports the bundled `assets/vendor/three/three.module.min.js`, three.js r160, MIT). mirrorball.js loads it after the page has loaded and falls back to its own 2D `drawBall()`. See "v1.14.0" below.
+- `reference/mirrorball-3d-reference.js` (v1.14.0): the approved 3D ball demo, source of truth for the look. Excluded from the zip.
 - `includes/djdt-logo.php` (v1.11.0): the mirror ball hero's own "night" logo, baked once with GD from the site's own `/wp-content/uploads/2014/08/VideoLogoBlueTr.fw_.png` (ball erased, white removed, same unique-filename-per-recipe caching pattern as the hero photo halftone bakes), or Mark's own override from Theme Settings. See "Mirror ball hero" below.
 - `assets/css/site.css`: site-wide, scoped to `body.djdigi-theme`. Avada header and menu selectors: `.fusion-header-wrapper` (v1.11.0: `position: fixed` on hero pages now, not `absolute`, see "Mirror ball hero" below), `.fusion-secondary-header` (no social icons at all now, see "Dock scoping"), `.fusion-header`, `.fusion-sticky-header-wrapper`, `.fusion-header-sticky-height` (Avada's own spacer, hidden on hero pages, see "Header over the hero" below), `.fusion-main-menu` (the pill bar, one constant style now, not a sticky/non-sticky variant, v1.11.0) `> ul.fusion-menu`, `.sub-menu` (including explicit dropdown/flyout positioning and the `djd-flip-right` class menu.js adds near the viewport edge), `.fusion-mobile-selector` (classic mobile menu). Also owns the footer dock's styling, the hero-page override of `html`'s own background color (see "Header over the hero" below, the cream strip fix), and (v1.8.0) the hero page background/transparency rules that let the hero's own bottom fade show through the sections below it.
 - `assets/css/hero.css`: hero, the "Latest live set" player section, and both, loaded only when the shortcode renders. v1.11.0, the mirror ball hero (see "Mirror ball hero" below): the full bleed rotating photo panel, the dark `.djd-hero__shade` wash, the inner block (logo, slogan, both buttons) absolutely centered at 54%, the fixed `#djd-wire`/`#djd-ball-canvas`, the `djd-seq-1` through `djd-seq-4` entrance classes mirrorball.js adds to `body`. The player section is otherwise unchanged (its own full width night background by default, no outlined box, see "Smoothness" below), as is the Pride EQ wave. No filter, mix-blend-mode or mask-image on the photo itself, see "Smoothness" below. No ticker here, see "Venues" below.
@@ -417,6 +420,121 @@ hidden, show on scroll up, focus keeps it shown, no horizontal scroll, no errors
 old logo never requested. The PHP string functions (autop strip, logo swap, title split) were
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
+
+## v1.14.0: 3D mirror ball, live sets playlist, remix videos, pill size, footer links
+Nine items, confirmed by Mark (the 3D ball approved live in a demo on Home v2) and built as specified.
+Supersedes "Homepage cleanup (v1.13.0)" on the pill's size and the hide on scroll.
+
+**3D mirror ball.** `assets/js/mirrorball-3d.js`, an ES module, ports the look of
+`reference/mirrorball-3d-reference.js` (the approved demo with its final tuned values, excluded from
+the zip like every `reference/` file) value for value: the ball group tilted (x 0.3, z -0.12) with an
+inner spinning group, a `MeshBasicMaterial` core (0.975, `#05031a`), 24 latitude bands of tiles (count
+per band by cos(lat), alternate bands offset half a tile, 84% size, random tilt +-0.07 on X and Y,
+random gray 0.82 to 1 per tile, one `InstancedMesh`), `MeshStandardMaterial` metalness 1 / roughness
+0.03, `mat.envMap` = the active hero photo through `PMREMGenerator` (the `<img>` mirrorball.js already
+has, the same file the demo's `TextureLoader` loaded), directional key (3.2, -2/2.6/3) and key2
+(`#f1ece2` 2.2), violet `#9a6cff` and cyan `#24a9e0` point lights (25, distance 12), hemisphere 0.5,
+ACES at 1.0, and the 4 additive sparkle sprites (dot plus thin cross, sin envelope 700 to 1400ms, 0.8
+to 3.4s apart, upper left of the ball). The demo's own environment refresh never actually fired (its
+selector always found the first photo); here it refreshes on every photo change, as the brief says.
+The demo's own
+"follow the 2D canvas" wiring is not ported: mirrorball.js still owns position, size, drop, wire,
+spotlight, docking and the pill slot math, and calls `render({ x, y, r, rot, flash, now })` every
+frame with the same `rot` the specks use (`ball.rotation.y = rot`, so ball and specks spin together)
+and the same `flash`: `envMapIntensity = 1.2 + flash * 3`, key light `3.2 + flash * 8`, on landing and
+on every photo change (`setEnv()` is called with the incoming photo when its transition starts).
+- three.js r160 is bundled, `assets/vendor/three/three.module.min.js` (+ its MIT `LICENSE`), never a
+  CDN. mirrorball.js loads the module on `load`, then `requestIdleCallback` (2s timeout), with a
+  dynamic `import()` of `djdtMirrorBall.ball3dUrl` (PHP, `?ver=` filemtime); the module imports three.js
+  by relative path. The `import()` is wrapped in `new Function` so a browser without dynamic import
+  does not reject all of mirrorball.js (2D ball included) as a syntax error.
+- The canvas (`#djd-ball-3d`, fixed, same CSS as `#djd-ball-canvas`) is the ball's diameter plus 18% of
+  it on each side (orthographic camera, half extent 1.36 ball radii) so sparkles are never clipped. One
+  renderer, DPR capped at 2. The drawing buffer only resizes in 16px steps and is CSS scaled to the
+  exact size in between (the radius changes every frame while docking). Rendered only from the drop's
+  start (t >= 400ms) and not at all while the tab is hidden (the loop already stops on
+  `visibilitychange`).
+- **Fallback:** until the module is ready the 2D `drawBall()` draws exactly as in v1.13.0; on the
+  first successful 3D render the 2D canvas goes to opacity 0 in the same frame, same center and
+  radius, so there is no jump. No WebGL (checked quietly on a throwaway canvas first, since three.js
+  itself logs console errors when it cannot get a context), the module or three.js failing to load,
+  a render throwing, or `webglcontextlost`: the 3D canvas is removed and the 2D ball stays for the
+  rest of the visit. `html[data-djd-ball]` reads `3d` or `2d` (debugging and the harness).
+
+**Latest live sets: one player + 3 item playlist.** Heading "Latest live sets". `djdt_get_mixes()`
+fetches `/<user>/cloudcasts/?limit=3` server side, transient `djdt_mixes` for 1 hour; every good fetch
+is also saved to option `djdt_mixes_last_good` (with the username), which is served on an error (then
+retried after 10 minutes). In "latest" mode `djdt_get_mix()` is simply `djdt_get_mixes()[0]` (so the
+player and the playlist never disagree); a pinned mix keeps its own 6 hour `djdt_mix` cache and no row
+starts highlighted. `djdt_playlist_html()` prints an `<ol>` of buttons (`.djd-playlist__row`, data
+attributes for feed, length, name, both title lines, artwork, URL): thumbnail (Mixcloud `medium`,
+shown 56px), the two line title from `djdt_mix_title_lines()`, the length (`m:ss` / `h:mm:ss`). The
+selected row has `is-current`, `aria-pressed="true"`, a cyan title and a small "Playing" tag. hero.js
+`showMix()` swaps the feed, title lines, artwork, duration, scrub max and the Tracklist link into the
+player and moves the highlight; `playCurrent()` then plays it: a plain `play()` if the widget already
+has that feed, otherwise the Widget API's `load(feed, true)`, rebuilding the hidden iframe if that
+fails, opening the mix on Mixcloud if everything fails. Clicking the selected row toggles play/pause.
+Nothing at all prints with fewer than 2 mixes.
+
+**Remix videos: `[djdigi_videos]`.** `includes/djdt-videos.php`. Calls djdigi-library's own
+`DjDigi_Library_Plugin::instance()->render_shortcode_newest( array( 'count' => 4 ) )`, the
+`[djdigi_newest]` renderer: the library's own card markup, lightbox, VIP modal and data, so it updates
+whenever the library's sheet cache does. djdigi-library is never modified (it has no auto-updater).
+Library inactive (class or method missing) or empty output: nothing at all. The lightbox and VIP
+modal the library prints after the cards are moved after this section's `</section>`: the section is
+its own stacking context (`z-index: 1`, like every theme section) and would otherwise trap the fixed
+pop-ups under the sections after it. Heading "Remix videos", a "See all videos" pill link to the
+`videos_url` setting (default `/video-gallery/`), the library's own "View All Videos" button hidden.
+`assets/css/videos.css` (enqueued only when the shortcode renders): full bleed section like the
+others, 4 across, 2 under 900px (the library sets its columns with `!important`, so these do too),
+night colors scoped to `.djd-videos` only, cyan where the library uses gold. Added to `djdFixBreakout`,
+the `:has()` breakout/overflow lists and the hero page transparent background rule.
+
+**Pill: 46px, logo 36px, always visible.** Hero pages only: `.fusion-main-menu` 46px tall
+(`box-sizing: border-box`, border included), links `height`/`line-height: 46px`, the current item
+highlight `height: 100%` inside the border; the phone `.fusion-mobile-selector` 46px too. Pill logo
+36px, which `placeLogo()` already centers (5px above and below; inside the rounded end, checked against
+the capsule shape in the harness). Slot math unchanged (6px to 52px, 8px gap). The v1.13.0 hide on
+scroll down is gone (class, CSS, scroll/focus listeners, the ball's header opacity weighting).
+
+**Phone menu button reads "Menu".** Avada builds the classic mobile button in its own JS from the
+localized string `avadaMenuVars.dropdown_goto` (`__( 'Go to...', 'Avada' )`); a `gettext` filter
+returns "Menu" for it on hero pages (string compare first, nothing checked before `did_action( 'wp' )`).
+menu.js relabels it too (MutationObserver until the button appears) for a cached combined script.
+**Found while building this:** the server sends `.fusion-mobile-nav-holder` empty and Avada fills it
+after the plugin's scripts run, so v1.13.0's one time `mobilePill` lookup in mirrorball.js found
+nothing live (the phone logo slot could never have worked there; the snapshot harness had the button
+pre-rendered, which hid it). mirrorball.js now looks it up when needed (`findMobilePill()`), and the
+v1.14.0 harness empties the nav holder so Avada's own JS builds it, as live.
+
+**Footer: Book me + newsletter.** Two Theme Settings fields, `book_url` and `newsletter_url`; empty
+hides that item, both empty adds nothing. dock.js builds `.djd-footer-links` right after the dock: a
+solid cyan "Book me" pill and an underlined "Join the newsletter" link (styles in site.css, since the
+footer is on every themed page). Defaults: `book_url` = `/about/` (the site has no contact page; the
+contact form is on About, checked live 2026-10-25: `/contact/`, `/booking/`, `/book-me/` and similar
+all 404); `newsletter_url` empty (no newsletter page exists; the "Email Updates" form is a section of
+the old homepage with no anchor, and goes away once Home v2 is the homepage).
+
+**SVG logo override saves.** `djdt_sanitize()` checks `'image/svg+xml' === get_post_mime_type()`
+ahead of `wp_attachment_is_image()`, same as the read side (v1.12.1). The admin preview uses the full
+URL for an SVG (`wp_get_attachment_thumb_url()` is empty for one).
+
+**Home v2 order** (set after release; page content is not edited by the plugin):
+`[djdigi_hero player="no"]`, `[djdigi_events limit="5"]`, `[djdigi_player]`, `[djdigi_videos]`,
+`[djdigi_venues]`. The Theme Settings help text shows this order.
+
+**Verified** in the snapshot harness (`build_harness14.py`, `test14.js`, the live site's own
+djdigi-library markup/data/CSS/JS, a stubbed Mixcloud Widget API that records `play`/`load` calls,
+Avada building its own mobile menu) at 2000, 1280 and 390, logged in and out, with WebGL (SwiftShader)
+and with WebGL disabled: 3D ball docks within 1px of the logo dot (2D with WebGL off, no console errors
+either way), pill 46px, logo 36px with 5px above and below inside the rounded end, links centered,
+the pill does not move while scrolling down, "Menu" on the phone, playlist 3 rows with the newest
+selected, each row (one by keyboard) plays in the player (`load(feed, true)`) with highlight, title,
+duration and Tracklist following, 4 video cards (4 / 2 across), the library lightbox opens on top,
+the section full bleed, footer links after the dock, no horizontal scroll. PHP checked with the
+`php-parser` npm package (syntax only). **Not verified** live: real Mixcloud widget `load()`, the real
+three.js look against the approved demo on Mark's own screens, and Avada/Asset CleanUp's live script
+combination.
 
 ## Dock scoping
 Avada reuses the exact same `.fusion-social-networks-wrapper` class for the header's small icon

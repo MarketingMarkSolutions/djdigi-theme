@@ -442,6 +442,44 @@ body.djdigi-theme .fusion-button:hover {
 /* Touch devices: a static row, no magnification. */
 .djd-dock.is-static .djd-dock__btn { transform: none !important; }
 
+/* Footer "Book me" button and "Join the newsletter" link (v1.14.0), built
+   by dock.js right after the dock from two Theme Settings URLs. Same pill
+   shape as the hero's .djd-btn, but defined here since hero.css only loads
+   on hero pages and the footer is on every themed page. */
+.djd-footer-links {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 12px 24px;
+	margin-top: 20px;
+}
+body.djdigi-theme .djd-footer-links__book {
+	display: inline-flex;
+	align-items: center;
+	min-height: 48px;
+	padding: 0 26px;
+	border-radius: 999px;
+	background: var(--djd-cyan);
+	color: var(--djd-night) !important;
+	font-family: var(--djd-sans);
+	font-weight: 600;
+	font-size: 15px;
+	text-decoration: none !important;
+	transition: background-color 0.2s ease;
+}
+body.djdigi-theme .djd-footer-links__book:hover { background: var(--djd-paper); }
+body.djdigi-theme .djd-footer-links__news {
+	color: var(--djd-paper) !important;
+	font-family: var(--djd-sans);
+	font-weight: 600;
+	font-size: 15px;
+	text-decoration: underline !important;
+	text-underline-offset: 4px;
+	text-decoration-thickness: 1px;
+}
+body.djdigi-theme .djd-footer-links__news:hover { color: var(--djd-cyan) !important; }
+.djd-footer-links a:focus-visible { outline: 3px solid var(--djd-cyan); outline-offset: 3px; }
+
 body.djdigi-theme .fusion-footer-widget-area.djdt-is-empty { display: none !important; }
 
 /* =========================================================================
@@ -478,27 +516,15 @@ body.djdigi-has-hero .fusion-header-wrapper {
 	width: 100% !important;
 	background-color: transparent !important;
 	background-image: none !important;
-	transition: transform 300ms ease-out, opacity 300ms ease-out;
 }
-/* v1.13.0: once the page is scrolled past the hero, mirrorball.js adds
-   djd-hdr-hidden while scrolling down and removes it on scroll up. The
-   whole wrapper moves (it paints nothing of its own, so the pill is all
-   anyone sees go), far enough to clear the admin bar offset too. The
-   ball reads the logo's own rect every frame, this transform included,
-   and fades with it, see mirrorball.js. */
-body.djdigi-has-hero .fusion-header-wrapper.djd-hdr-hidden {
-	transform: translateY(-140%);
-	opacity: 0;
-	pointer-events: none;
-	transition: transform 250ms ease-in, opacity 250ms ease-in;
-}
+/* v1.14.0: the v1.13.0 hide on scroll down / show on scroll up is gone,
+   Mark's call: the pill stays on screen the whole way down. */
 /* v1.13.0, found in the snapshot harness: once scrolled, Avada's own
    sticky header script adds .fusion-is-sticky and makes .fusion-header
    itself position: fixed (inline top included). The wrapper above is
    already fixed on hero pages, so that only collapsed the wrapper to 0px
-   tall, which made the -140% hide transform move nothing and threw off
-   mirrorball.js's header bottom edge. The inner header stays in normal
-   flow inside the fixed wrapper instead. */
+   tall and threw off mirrorball.js's header bottom edge. The inner header
+   stays in normal flow inside the fixed wrapper instead. */
 body.djdigi-has-hero .fusion-header-wrapper .fusion-header {
 	position: static !important;
 	top: auto !important;
@@ -613,7 +639,8 @@ body.djdigi-has-hero .fusion-header-wrapper .fusion-row { position: relative; }
 		display: flex !important;
 		align-items: center;
 		gap: 8px;
-		height: 40px !important;
+		height: 46px !important;
+		box-sizing: border-box;
 		line-height: 1 !important;
 		padding: 0 16px !important;
 		border-radius: 999px !important;
@@ -710,7 +737,9 @@ body.djdigi-has-hero .fusion-logo a {
    outline or backdrop added behind it, on purpose: a plain, larger mark
    is what was asked for, nothing more. */
 /* v1.13.0: 40px, the pill's own height (was 72px, 52px on phone): the
-   logo sits inside the pill now, see .fusion-logo above. Only the
+   logo sits inside the pill now, see .fusion-logo above. v1.14.0: 36px
+   in the 46px pill, 5px clear above and below (mirrorball.js centers it
+   on the pill's own rect). Only the
    standard logo img is ever shown on hero pages. PHP rewrites all three
    (standard, sticky, mobile) to the same night logo anyway
    (djdt_swap_header_logos()), and mirrorball.js reads one element, so
@@ -725,7 +754,7 @@ body.djdigi-has-hero .fusion-logo img.fusion-standard-logo {
 	display: block !important;
 }
 body.djdigi-has-hero .fusion-logo img {
-	height: 40px !important;
+	height: 36px !important;
 	width: auto !important;
 	max-height: none !important;
 	/* Starts hidden (v1.11.0): mirrorball.js swaps this image's own src to
@@ -770,6 +799,18 @@ body.djdigi-has-hero .fusion-main-menu {
 	background: rgba(14, 10, 36, 0.82);
 	border: 1px solid rgba(241, 236, 226, 0.16);
 }
+/* v1.14.0: the hero page pill is 46px tall (border included), links
+   centered on that same 46px line, and the sliding current item highlight
+   fills the inside of the border. Inner pages keep the 40px pill. */
+body.djdigi-has-hero .fusion-main-menu {
+	height: 46px;
+	box-sizing: border-box;
+}
+body.djdigi-has-hero .fusion-main-menu > ul > li > a {
+	height: 46px;
+	line-height: 46px !important;
+}
+body.djdigi-has-hero .djd-menu-pill { height: 100%; }
 body.djdigi-has-hero .fusion-main-menu > ul > li > a,
 body.djdigi-has-hero .fusion-main-menu > ul > li.current-menu-item > a,
 body.djdigi-has-hero .fusion-main-menu-icon:after {
@@ -844,6 +885,7 @@ body.djdigi-has-hero #main {
    actually has the hero's own glow to show through underneath. */
 body.djdigi-has-hero .djd-player-section,
 body.djdigi-has-hero .djd-events,
+body.djdigi-has-hero .djd-videos,
 body.djdigi-has-hero .djd-venues {
 	background: transparent;
 }
@@ -876,7 +918,7 @@ body.djdigi-has-hero .djd-player-section ~ .djd-events { padding-top: var(--djd-
    without :has() support; both do the exact same thing; the ancestor
    simply has two ways to ever end up styled by this rule, not two
    different behaviors. */
-body.djdigi-has-hero .fusion-fullwidth:has(.djd-hero, .djd-player-section, .djd-events, .djd-venues),
+body.djdigi-has-hero .fusion-fullwidth:has(.djd-hero, .djd-player-section, .djd-events, .djd-videos, .djd-venues),
 body.djdigi-has-hero .fusion-fullwidth.djd-breakout-host {
 	padding-left: 0 !important;
 	padding-right: 0 !important;
@@ -891,11 +933,11 @@ body.djdigi-has-hero .fusion-fullwidth.djd-breakout-host {
    output); not confirmed live whether either one actually sets its own
    overflow: hidden, written defensively either way, same as the
    fullwidth padding rule above, and harmless if neither one ever did. */
-body.djdigi-has-hero .fusion-fullwidth:has(.djd-hero, .djd-player-section, .djd-events, .djd-venues),
+body.djdigi-has-hero .fusion-fullwidth:has(.djd-hero, .djd-player-section, .djd-events, .djd-videos, .djd-venues),
 body.djdigi-has-hero .fusion-fullwidth.djd-breakout-host,
-body.djdigi-has-hero .fusion-builder-row:has(.djd-hero, .djd-player-section, .djd-events, .djd-venues),
-body.djdigi-has-hero .fusion-layout-column:has(.djd-hero, .djd-player-section, .djd-events, .djd-venues),
-body.djdigi-has-hero .fusion-column-wrapper:has(.djd-hero, .djd-player-section, .djd-events, .djd-venues) {
+body.djdigi-has-hero .fusion-builder-row:has(.djd-hero, .djd-player-section, .djd-events, .djd-videos, .djd-venues),
+body.djdigi-has-hero .fusion-layout-column:has(.djd-hero, .djd-player-section, .djd-events, .djd-videos, .djd-venues),
+body.djdigi-has-hero .fusion-column-wrapper:has(.djd-hero, .djd-player-section, .djd-events, .djd-videos, .djd-venues) {
 	overflow: visible !important;
 }
 body.djdigi-has-hero .post-content > .fusion-fullwidth:first-child { padding-top: 0 !important; }

@@ -12,6 +12,13 @@
    load of a hero page, Mark's call. ?intro=1 is accordingly a no-op now,
    there is nothing left for it to force.
 
+   v1.14.0: the ball itself is drawn in 3D (mirrorball-3d.js, three.js)
+   once that module has loaded, after the page has; drawBall() below is
+   what shows until then, and the fallback for good if WebGL is missing,
+   the module fails to load, or the WebGL context is lost. Everything
+   else here (position, size, drop, wire, spotlight, docking, the pill
+   slot, rot and flash) is unchanged and drives both.
+
    No prefers-reduced-motion branch anywhere in this file: keeping the
    sitewide "motion always on" policy intact (CLAUDE.md, "Motion: always
    on, by design") rather than carving out an exception for this feature. */
@@ -44,8 +51,15 @@
 	var logoRow = logoBox ? logoBox.parentElement : null;
 	var headerWrapper = document.querySelector('.fusion-header-wrapper');
 	var desktopPill = document.querySelector('.fusion-main-menu');
-	var mobilePill = document.querySelector('.fusion-mobile-selector');
-	var mobileList = mobilePill ? document.getElementById(mobilePill.getAttribute('aria-controls') || '') : null;
+	// v1.14.0: looked up when needed, not once here. Avada builds its
+	// classic mobile menu button in its own JS after this file has run
+	// (the server sends an empty .fusion-mobile-nav-holder), so a one time
+	// lookup found nothing live and the phone pill never got its logo slot.
+	var mobilePill = null;
+	function findMobilePill() {
+		if (!mobilePill || !mobilePill.isConnected) mobilePill = document.querySelector('.fusion-mobile-selector');
+		return mobilePill;
+	}
 	var wire = document.getElementById('djd-wire');
 	var bc = document.getElementById('djd-ball-canvas');
 	if (!fx || !dark || !big || !wire || !bc) return;
@@ -72,7 +86,8 @@
 	var SLOT_GROW = 46, SLOT_GAP = 8;
 	function activePill() {
 		if (desktopPill && desktopPill.offsetWidth > 0) return desktopPill;
-		if (mobilePill && mobilePill.offsetWidth > 0) return mobilePill;
+		var mp = findMobilePill();
+		if (mp && mp.offsetWidth > 0) return mp;
 		return null;
 	}
 	function basePad(el) {
@@ -98,54 +113,30 @@
 		logoBox.style.pointerEvents = q > 0.5 ? 'auto' : 'none';
 	}
 
-	// The header's own laid out bottom edge, without any hide/show
-	// transform (v1.13.0): q below must not drop back toward 0 just
-	// because the header slid up out of view. Its CSS top (0, or the admin
-	// bar offset) is read once and again on resize.
+	// The header's own laid out bottom edge (v1.13.0): its CSS top (0, or
+	// the admin bar offset) is read once and again on resize. The v1.13.0
+	// hide on scroll down was removed in v1.14.0; the pill always shows.
 	var headerTop = 0;
 	function readHeaderTop() {
 		headerTop = headerWrapper ? (parseFloat(getComputedStyle(headerWrapper).top) || 0) : 0;
 	}
 	readHeaderTop();
 
-	// Hide on scroll down, show on scroll up (v1.13.0), only once the page
-	// is scrolled past the hero. Always shown above that point, while the
-	// mobile menu is open, and while focus is inside the header.
-	var hdrHidden = false, lastY = window.pageYOffset, anchorY = lastY, scrollDir = 0;
-	function mobileMenuOpen() {
-		if (mobilePill && 'true' === mobilePill.getAttribute('aria-expanded')) return true;
-		return !!(mobileList && mobileList.offsetHeight > 0);
-	}
-	function headerMustShow(y) {
-		var heroBottom = hero.getBoundingClientRect().bottom + y;
-		if (y <= heroBottom) return true;
-		if (mobileMenuOpen()) return true;
-		return !!(headerWrapper && headerWrapper.contains(document.activeElement));
-	}
-	function setHeaderHidden(h) {
-		if (!headerWrapper || h === hdrHidden) return;
-		hdrHidden = h;
-		headerWrapper.classList.toggle('djd-hdr-hidden', h);
-	}
-	function onScroll() {
-		var y = window.pageYOffset, d = y - lastY;
-		if (d !== 0) {
-			var nd = d > 0 ? 1 : -1;
-			if (nd !== scrollDir) { scrollDir = nd; anchorY = lastY; }
-		}
-		lastY = y;
-		if (headerMustShow(y)) { setHeaderHidden(false); anchorY = y; return; }
-		if (scrollDir > 0 && y - anchorY > 8) setHeaderHidden(true);
-		else if (scrollDir < 0 && anchorY - y > 8) setHeaderHidden(false);
-	}
-	if (headerWrapper) {
-		window.addEventListener('scroll', onScroll, { passive: true });
-		headerWrapper.addEventListener('focusin', function () { setHeaderHidden(false); });
-		if (mobilePill) mobilePill.addEventListener('click', function () { setHeaderHidden(false); });
-	}
-
 	var fc = fx.getContext('2d');
 	var bx = bc.getContext('2d');
+
+	// The 3D ball (v1.14.0): its own fixed canvas beside #djd-ball-canvas
+	// (same CSS, hero.css), filled in by mirrorball-3d.js once loaded. ball3d
+	// stays null (2D drawBall()) until then, and goes back to null for good
+	// on any failure, see load3d() below.
+	var ball3d = null, c3 = null;
+	function drop3d() {
+		if (ball3d) { try { ball3d.dispose(); } catch (e) {} }
+		ball3d = null;
+		if (c3 && c3.parentNode) c3.parentNode.removeChild(c3);
+		c3 = null;
+		document.documentElement.setAttribute('data-djd-ball', '2d');
+	}
 	var imgs = Array.prototype.slice.call(hero.querySelectorAll('.djd-hero__photo'));
 	var curGuess = -1;
 	for (var gi = 0; gi < imgs.length; gi++) {
@@ -290,11 +281,9 @@
 		// below both still resolve to the hero's own slot.
 		//
 		// v1.13.0: headerBottom is the header's laid out position (CSS top
-		// plus its own height), not its live rect, so the hide/show
-		// transform never feeds back into q. The logo is moved into the
-		// pill's slot first, then both slots are read: slot(mini) reads the
-		// logo's live rect, the header's hide/show transform included, so
-		// the ball follows the pill up and back down.
+		// plus its own height). The logo is moved into the pill's slot
+		// first, then both slots are read, slot(mini) from the logo's own
+		// live rect.
 		var heroLogoRect = big.getBoundingClientRect();
 		var headerBottom = headerWrapper ? headerTop + headerWrapper.offsetHeight : 0;
 		var heroLogoH = Math.max(1, heroLogoRect.height);
@@ -319,16 +308,27 @@
 			by = ty;
 			if (!landed) { landed = true; flash = 1; ring = { t0: now }; }
 		}
-		// Docked, the ball fades with the header as it hides and shows
-		// (v1.13.0): its computed opacity mid transition, weighted by q so
-		// the ball riding the hero logo (q = 0) is never touched by it.
-		var hdrOp = (headerWrapper && q > 0) ? parseFloat(getComputedStyle(headerWrapper).opacity) : 1;
-		if (isNaN(hdrOp)) hdrOp = 1;
-		bc.style.opacity = t < 400 ? 0 : (1 - q + q * hdrOp);
-		var lx = (mouse.x - tx) / Math.max(W, 1), ly = (mouse.y - by) / Math.max(H, 1);
-		if (mouse.x < -999) { lx = -.4; ly = -.5; }
-		var sz = drawBall(tr, lx * 2, ly * 2, now);
-		bc.style.transform = 'translate(' + (tx - sz / 2) + 'px,' + (by - sz / 2) + 'px)';
+		bc.style.opacity = t < 400 ? 0 : 1;
+		var shown3d = false;
+		if (ball3d) {
+			// Rendered only while the ball is actually visible.
+			if (t >= 400) {
+				try {
+					shown3d = ball3d.render({ x: tx, y: by, r: tr, rot: rot, flash: flash, now: now });
+				} catch (e) {
+					drop3d();
+				}
+			}
+			if (c3) c3.style.opacity = shown3d ? 1 : 0;
+		}
+		if (shown3d) {
+			bc.style.opacity = 0;
+		} else {
+			var lx = (mouse.x - tx) / Math.max(W, 1), ly = (mouse.y - by) / Math.max(H, 1);
+			if (mouse.x < -999) { lx = -.4; ly = -.5; }
+			var sz = drawBall(tr, lx * 2, ly * 2, now);
+			bc.style.transform = 'translate(' + (tx - sz / 2) + 'px,' + (by - sz / 2) + 'px)';
+		}
 		var wa = t < 400 ? 0 : t < 2900 ? 1 : clamp(1 - (t - 2900) / 450);
 		wire.style.opacity = wa; wire.style.left = tx + 'px'; wire.style.height = Math.max(0, by - tr) + 'px';
 		dark.style.opacity = overlayFade(t);
@@ -383,6 +383,7 @@
 				imgs[to].classList.add('is-next');
 				imgs[to].style.clipPath = 'circle(0px at ' + ox + 'px ' + oy + 'px)';
 				flash = 1;
+				if (ball3d) ball3d.setEnv(imgs[to]);
 			}
 			if (trans) {
 				var k = clamp((now - trans.t0) / 1300), R = eIO(k) * Math.hypot(W + Math.abs(ox), H + Math.abs(oy));
@@ -446,6 +447,38 @@
 			heroOnScreen = entries[0].isIntersecting;
 		}, { threshold: 0 }).observe(hero);
 	}
+
+	// Loads the 3D ball after the page has finished loading, on idle, as an
+	// ES module (dynamic import(), cfg.ball3dUrl from PHP, which itself
+	// imports the bundled three.js). Any failure (no WebGL, the module or
+	// three.js not loading, a lost context) leaves the 2D ball in place.
+	function load3d() {
+		if (!cfg.ball3dUrl) { document.documentElement.setAttribute('data-djd-ball', '2d'); return; }
+		// import() wrapped in a Function: written directly, a browser
+		// without dynamic import would reject this whole file as a syntax
+		// error, 2D ball included. A blocked Function (strict CSP) lands in
+		// the catch, same as any other failure.
+		var importer;
+		try { importer = new Function('u', 'return import(u)'); } catch (e) { drop3d(); return; }
+		importer(cfg.ball3dUrl).then(function (mod) {
+			c3 = document.createElement('canvas');
+			c3.id = 'djd-ball-3d';
+			c3.setAttribute('aria-hidden', 'true');
+			bc.parentNode.insertBefore(c3, bc.nextSibling);
+			var b = mod.createBall(c3, { onLost: drop3d });
+			var photo = imgs[cur];
+			if (photo && photo.complete) b.setEnv(photo);
+			else if (photo) photo.addEventListener('load', function () { if (ball3d) ball3d.setEnv(photo); }, { once: true });
+			ball3d = b;
+			document.documentElement.setAttribute('data-djd-ball', '3d');
+		}).catch(function () { drop3d(); });
+	}
+	function whenIdle(fn) {
+		if (window.requestIdleCallback) window.requestIdleCallback(fn, { timeout: 2000 });
+		else setTimeout(fn, 200);
+	}
+	if (document.readyState === 'complete') whenIdle(load3d);
+	else window.addEventListener('load', function () { whenIdle(load3d); }, { once: true });
 
 	var firstPhoto = imgs[cur];
 	var photoReady = (firstPhoto && firstPhoto.decode) ? firstPhoto.decode().catch(function () {}) : Promise.resolve();
