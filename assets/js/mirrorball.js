@@ -19,6 +19,13 @@
    else here (position, size, drop, wire, spotlight, docking, the pill
    slot, rot and flash) is unchanged and drives both.
 
+   v1.15.0: inner pages (no .djd-hero) load this file too. There the ball
+   simply sits docked in the pill logo from the start and spins: q is
+   always 1, the logo slot is already open in CSS (site.css, "Inner
+   pages"), and there is no drop, wire, spotlight, specks, landing or
+   photo change, so flash stays 0. The 3D ball reflects the banner photo
+   (cfg.envUrl from PHP).
+
    No prefers-reduced-motion branch anywhere in this file: keeping the
    sitewide "motion always on" policy intact (CLAUDE.md, "Motion: always
    on, by design") rather than carving out an exception for this feature. */
@@ -26,16 +33,17 @@
 	'use strict';
 
 	var hero = document.querySelector('.djd-hero');
-	if (!hero) return;
+	// v1.15.0: no hero means an inner page, the ball always docked.
+	var docked = !hero;
 
 	var cfg = window.djdtMirrorBall || {};
 	var BALL_X = typeof cfg.ballX === 'number' ? cfg.ballX : 86;
 	var BALL_Y = typeof cfg.ballY === 'number' ? cfg.ballY : 13.6;
 	var BALL_R = typeof cfg.ballR === 'number' ? cfg.ballR : 9.2;
 
-	var fx = hero.querySelector('.djd-hero__fx');
-	var dark = hero.querySelector('.djd-hero__dark');
-	var big = hero.querySelector('.djd-hero__logo');
+	var fx = hero ? hero.querySelector('.djd-hero__fx') : null;
+	var dark = hero ? hero.querySelector('.djd-hero__dark') : null;
+	var big = hero ? hero.querySelector('.djd-hero__logo') : null;
 	// The Avada header's own logo image and the header row itself, outside
 	// the hero entirely: this is the reference's "mini", docked into on
 	// scroll. Not every page this script loads on necessarily has one (a
@@ -62,7 +70,7 @@
 	}
 	var wire = document.getElementById('djd-wire');
 	var bc = document.getElementById('djd-ball-canvas');
-	if (!fx || !dark || !big || !wire || !bc) return;
+	if (docked ? (!bc || !mini) : (!fx || !dark || !big || !wire || !bc)) return;
 
 	// PHP already rewrites all three Avada logo imgs to the night logo
 	// (djdt_swap_header_logos()); this is the backup if a cache layer ever
@@ -103,8 +111,15 @@
 			shownPill = pill;
 		}
 		if (!pill) return;
-		var pad = basePad(pill) + SLOT_GROW * q;
-		pill.style.setProperty('padding-left', pad.toFixed(2) + 'px', 'important');
+		// Docked (inner pages): CSS already opens the slot, so read the
+		// padding rather than grow it.
+		var pad;
+		if (docked) {
+			pad = parseFloat(getComputedStyle(pill).paddingLeft) || 0;
+		} else {
+			pad = basePad(pill) + SLOT_GROW * q;
+			pill.style.setProperty('padding-left', pad.toFixed(2) + 'px', 'important');
+		}
 		var pr = pill.getBoundingClientRect(), rr = logoRow.getBoundingClientRect();
 		var border = parseFloat(getComputedStyle(pill).borderLeftWidth) || 0;
 		var x = pr.left + border + pad - SLOT_GAP - mini.offsetWidth - rr.left;
@@ -122,7 +137,7 @@
 	}
 	readHeaderTop();
 
-	var fc = fx.getContext('2d');
+	var fc = fx ? fx.getContext('2d') : null;
 	var bx = bc.getContext('2d');
 
 	// The 3D ball (v1.14.0): its own fixed canvas beside #djd-ball-canvas
@@ -137,7 +152,7 @@
 		c3 = null;
 		document.documentElement.setAttribute('data-djd-ball', '2d');
 	}
-	var imgs = Array.prototype.slice.call(hero.querySelectorAll('.djd-hero__photo'));
+	var imgs = hero ? Array.prototype.slice.call(hero.querySelectorAll('.djd-hero__photo')) : [];
 	var curGuess = -1;
 	for (var gi = 0; gi < imgs.length; gi++) {
 		if (imgs[gi].classList.contains('is-on')) { curGuess = gi; break; }
@@ -161,6 +176,7 @@
 	function overlayFade(t) { return t < 2450 ? 1 : clamp(1 - (t - 2450) / 700); }
 
 	function size() {
+		if (docked) { W = window.innerWidth; H = window.innerHeight; return; }
 		var r = hero.getBoundingClientRect();
 		W = r.width; H = r.height;
 		fx.width = Math.round(W * DPR); fx.height = Math.round(H * DPR);
@@ -263,11 +279,47 @@
 		fc.fillStyle = g; fc.beginPath(); fc.arc(x * DPR, y * DPR, r * DPR, 0, 6.2832); fc.fill();
 	}
 
+	// The ball itself at (x, y), radius r: the 3D ball once loaded, else the
+	// 2D drawBall(). Hidden (visible false) before the drop starts.
+	function paintBall(x, y, r, now, visible) {
+		bc.style.opacity = visible ? 1 : 0;
+		var shown3d = false;
+		if (ball3d) {
+			// Rendered only while the ball is actually visible.
+			if (visible) {
+				try {
+					shown3d = ball3d.render({ x: x, y: y, r: r, rot: rot, flash: flash, now: now });
+				} catch (e) {
+					drop3d();
+				}
+			}
+			if (c3) c3.style.opacity = shown3d ? 1 : 0;
+		}
+		if (shown3d) {
+			bc.style.opacity = 0;
+		} else {
+			var lx = (mouse.x - x) / Math.max(W, 1), ly = (mouse.y - y) / Math.max(H, 1);
+			if (mouse.x < -999) { lx = -.4; ly = -.5; }
+			var sz = drawBall(r, lx * 2, ly * 2, now);
+			bc.style.transform = 'translate(' + (x - sz / 2) + 'px,' + (y - sz / 2) + 'px)';
+		}
+	}
+
 	function frame(now) {
 		if (!running) return;
 		var dt = Math.min(64, now - last); last = now;
 		var t = now - start;
 		rot += dt * .0002; flash = Math.max(0, flash - dt / 900);
+		// v1.15.0, inner pages: the logo sits in the open slot, the ball in
+		// its "j" dot, spinning. Nothing else to draw.
+		if (docked) {
+			placeLogo(1);
+			mini.style.opacity = 1;
+			var sd = slot(mini);
+			paintBall(sd.x, sd.y, sd.r, now, true);
+			requestAnimationFrame(frame);
+			return;
+		}
 		var hr = hero.getBoundingClientRect();
 
 		// Docking handoff (v1.12.0, replacing a plain scroll fraction): q is
@@ -308,27 +360,7 @@
 			by = ty;
 			if (!landed) { landed = true; flash = 1; ring = { t0: now }; }
 		}
-		bc.style.opacity = t < 400 ? 0 : 1;
-		var shown3d = false;
-		if (ball3d) {
-			// Rendered only while the ball is actually visible.
-			if (t >= 400) {
-				try {
-					shown3d = ball3d.render({ x: tx, y: by, r: tr, rot: rot, flash: flash, now: now });
-				} catch (e) {
-					drop3d();
-				}
-			}
-			if (c3) c3.style.opacity = shown3d ? 1 : 0;
-		}
-		if (shown3d) {
-			bc.style.opacity = 0;
-		} else {
-			var lx = (mouse.x - tx) / Math.max(W, 1), ly = (mouse.y - by) / Math.max(H, 1);
-			if (mouse.x < -999) { lx = -.4; ly = -.5; }
-			var sz = drawBall(tr, lx * 2, ly * 2, now);
-			bc.style.transform = 'translate(' + (tx - sz / 2) + 'px,' + (by - sz / 2) + 'px)';
-		}
+		paintBall(tx, by, tr, now, t >= 400);
 		var wa = t < 400 ? 0 : t < 2900 ? 1 : clamp(1 - (t - 2900) / 450);
 		wire.style.opacity = wa; wire.style.left = tx + 'px'; wire.style.height = Math.max(0, by - tr) + 'px';
 		dark.style.opacity = overlayFade(t);
@@ -442,7 +474,7 @@
 	document.addEventListener('visibilitychange', function () {
 		if (document.hidden) stopLoop(); else startLoop();
 	});
-	if (window.IntersectionObserver) {
+	if (hero && window.IntersectionObserver) {
 		new IntersectionObserver(function (entries) {
 			heroOnScreen = entries[0].isIntersecting;
 		}, { threshold: 0 }).observe(hero);
@@ -466,7 +498,9 @@
 			c3.setAttribute('aria-hidden', 'true');
 			bc.parentNode.insertBefore(c3, bc.nextSibling);
 			var b = mod.createBall(c3, { onLost: drop3d });
-			var photo = imgs[cur];
+			// Inner pages reflect the banner photo (by URL, setEnv only
+			// reads its src).
+			var photo = docked ? (cfg.envUrl ? { src: cfg.envUrl, complete: true } : null) : imgs[cur];
 			if (photo && photo.complete) b.setEnv(photo);
 			else if (photo) photo.addEventListener('load', function () { if (ball3d) ball3d.setEnv(photo); }, { once: true });
 			ball3d = b;
@@ -479,6 +513,12 @@
 	}
 	if (document.readyState === 'complete') whenIdle(load3d);
 	else window.addEventListener('load', function () { whenIdle(load3d); }, { once: true });
+
+	if (docked) {
+		size();
+		startLoop();
+		return;
+	}
 
 	var firstPhoto = imgs[cur];
 	var photoReady = (firstPhoto && firstPhoto.decode) ? firstPhoto.decode().catch(function () {}) : Promise.resolve();

@@ -42,8 +42,20 @@ body.djdigi-theme {
 	--h1_typography-font-family: var(--djd-display);
 	--h2_typography-font-family: var(--djd-display);
 	--h3_typography-font-family: var(--djd-display);
+	/* v1.15.0: the night look on every page. Avada's own text colors read
+	   these, so most of its elements follow without their own rule. */
+	--body_typography-color: rgba(241, 236, 226, 0.86);
+	--h1_typography-color: var(--djd-paper);
+	--h2_typography-color: var(--djd-paper);
+	--h3_typography-color: var(--djd-cyan);
+	--h4_typography-color: var(--djd-paper);
+	--h5_typography-color: var(--djd-paper);
+	--h6_typography-color: var(--djd-paper);
+	--link_color: var(--djd-cyan);
+	--link_hover_color: var(--djd-paper);
 
-	background-color: var(--djd-paper);
+	background-color: var(--djd-night);
+	color: rgba(241, 236, 226, 0.86);
 	font-family: var(--djd-sans);
 	/* Belt and suspenders on the no-horizontal-scroll requirement: the real
 	   fixes are the letter spans wrapping instead of forcing width and the
@@ -56,7 +68,8 @@ body.djdigi-theme {
 	body.djdigi-theme { --djd-section-gap: 72px; }
 }
 
-/* html has no body class to key off, so the paper color is set directly here.
+/* html has no body class to key off, so the page color is set directly here
+   (night on every page since v1.15.0, was paper).
    Without this, a page shorter than the viewport shows the browser's default
    behind the body, which reads as a gray strip under the footer. */
 /* overflow-x: hidden also lives on body.djdigi-theme itself (below), which
@@ -72,7 +85,7 @@ body.djdigi-theme {
    not just relying on body's own value to propagate, removes that
    ambiguity outright regardless of which way a given browser resolves it. */
 html:has(body.djdigi-theme) {
-	background-color: #f1ece2;
+	background-color: #0b0820;
 	overflow-x: hidden;
 }
 /* Hero pages specifically: WordPress's own admin bar CSS puts a margin-top
@@ -86,14 +99,22 @@ html:has(body.djdigi-has-hero) {
 	background-color: #0b0820;
 }
 
+/* v1.15.0: night on every page (was paper), Avada's own page wrappers
+   included, so no light strip shows anywhere around the content. */
 body.djdigi-theme #boxed-wrapper,
 body.djdigi-theme #wrapper,
-body.djdigi-theme #main {
-	background-color: var(--djd-paper);
+body.djdigi-theme .fusion-wrapper,
+body.djdigi-theme #main,
+body.djdigi-theme #content,
+body.djdigi-theme .fusion-page-wrapper {
+	background-color: var(--djd-night) !important;
 }
 
-body.djdigi-theme a { color: var(--djd-violet); }
-body.djdigi-theme a:hover { color: var(--djd-cyan); }
+/* v1.15.0: links are cyan (were violet, unreadable on night). Menus and
+   buttons set their own colors further down. The underline only goes on
+   links in running text, see "Page content" at the end of this file. */
+body.djdigi-theme a { color: var(--djd-cyan); }
+body.djdigi-theme a:hover { color: var(--djd-paper); }
 
 body.djdigi-theme h1,
 body.djdigi-theme h2,
@@ -375,28 +396,51 @@ body.djdigi-theme .fusion-is-sticky .fusion-header {
 	background-image: none !important;
 }
 
-/* ---------- Buttons (Avada's own .fusion-button, unchanged from v1.0.1) ----------
-   The new pill/sentence-case button style only applies to the hero's own .djd-btn
-   for now, in hero.css. Avada buttons sitewide get their own pass later, together
-   with djdigi-library and PMPro, once colors and buttons move into Avada's global
-   options. */
-
-body.djdigi-theme .fusion-button {
-	font-family: var(--djd-sans) !important;
-	font-weight: 700 !important;
-	font-stretch: 118%;
-	letter-spacing: 0.22em !important;
+/* ---------- Buttons: the paper pill (v1.15.0) ----------
+   Avada's own .fusion-button and every plain submit button (Avada forms,
+   Theme My Login, PMPro, newsletter forms): paper with night text, DJD
+   Saira 800 uppercase, fully rounded, cyan on hover. Replaces the old
+   square violet button. The mini record button (.djd-rec-btn) and the
+   theme's own components (any djd- class) keep their own styles. */
+body.djdigi-theme .fusion-button,
+body.djdigi-theme :is(#main, .fusion-footer) :is(button[type="submit"], input[type="submit"], input[type="button"]):not([class*="djd-"]),
+body.djdigi-theme :is(.tml-button, .pmpro_btn, .pmpro_btn-submit, #wp-submit, .wp-block-button__link) {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 48px;
+	padding: 12px 26px !important;
+	border: 0 !important;
+	border-radius: 999px !important;
+	background: #f1ece2 !important;
+	background-image: none !important;
+	box-shadow: none !important;
+	color: #0b0820 !important;
+	font-family: var(--djd-display) !important;
+	font-weight: 800 !important;
+	font-size: 17px !important;
+	font-stretch: normal;
+	line-height: 1 !important;
+	letter-spacing: 0.05em !important;
 	text-transform: uppercase !important;
-	border-radius: 0 !important;
-	background: var(--djd-violet) !important;
-	color: var(--djd-paper) !important;
-	border-color: var(--djd-violet) !important;
+	text-decoration: none !important;
+	text-shadow: none !important;
+	cursor: pointer;
+	transition: background-color 0.2s ease, transform 0.2s ease;
 }
-body.djdigi-theme .fusion-button .fusion-button-text { color: inherit !important; }
-body.djdigi-theme .fusion-button:hover {
-	background: var(--djd-cyan) !important;
-	border-color: var(--djd-cyan) !important;
-	color: var(--djd-night) !important;
+body.djdigi-theme .fusion-button :is(.fusion-button-text, i, .fusion-button-icon-divider) { color: inherit !important; border-color: transparent !important; }
+body.djdigi-theme .fusion-button:is(:hover, :focus-visible),
+body.djdigi-theme :is(#main, .fusion-footer) :is(button[type="submit"], input[type="submit"], input[type="button"]):not([class*="djd-"]):is(:hover, :focus-visible),
+body.djdigi-theme :is(.tml-button, .pmpro_btn, .pmpro_btn-submit, #wp-submit, .wp-block-button__link):is(:hover, :focus-visible) {
+	background: #24a9e0 !important;
+	color: #0b0820 !important;
+	transform: translateY(-1px);
+}
+body.djdigi-theme .fusion-button:focus-visible,
+body.djdigi-theme :is(#main, .fusion-footer) :is(button[type="submit"], input[type="submit"], input[type="button"]):not([class*="djd-"]):focus-visible {
+	outline: 3px solid #24a9e0;
+	outline-offset: 3px;
 }
 
 /* ---------- Magnetic social dock: footer only ----------
@@ -574,8 +618,18 @@ body.djdigi-theme a.djd-rec-btn:focus-visible { outline: 3px solid #24a9e0; outl
 body.djdigi-theme .fusion-footer-widget-area.djdt-is-empty { display: none !important; }
 
 /* =========================================================================
-   Pages with the [djdigi_hero]: header floats over the dark hero
+   The header: floats transparent over the page, a fixed pill menu
    ====================================================================== */
+
+/* v1.15.0: every rule in this section used to be scoped to hero pages
+   (body.djdigi-has-hero) and applies to every themed page now
+   (body.djdigi-theme): the same fixed transparent header, pill and phone
+   "Menu" button everywhere. The light header rules further up (paper
+   header, violet links, light dropdowns) are all overridden by these,
+   same specificity and later in the file. Hero only still: the Next Up
+   strip offset, and everything from "Remove gaps Avada leaves" down. The
+   one inner page difference, the logo slot always open, is in "Inner
+   pages" at the end of this file. */
 
 /* The header does not animate in at all (v1.4.0: removed the drop-in
    animation and the will-change/opacity-0 starting state that went with
@@ -598,7 +652,7 @@ body.djdigi-theme .fusion-footer-widget-area.djdt-is-empty { display: none !impo
    admin. Not verified against the real Avada markup, same caveat as
    every other header bullet in CLAUDE.md: confirm live that Avada's own
    sticky header JS does not fight this once it toggles its own classes. */
-body.djdigi-has-hero .fusion-header-wrapper {
+body.djdigi-theme .fusion-header-wrapper {
 	position: fixed !important;
 	top: 0;
 	left: 0;
@@ -616,13 +670,13 @@ body.djdigi-has-hero .fusion-header-wrapper {
    already fixed on hero pages, so that only collapsed the wrapper to 0px
    tall and threw off mirrorball.js's header bottom edge. The inner header
    stays in normal flow inside the fixed wrapper instead. */
-body.djdigi-has-hero .fusion-header-wrapper .fusion-header {
+body.djdigi-theme .fusion-header-wrapper .fusion-header {
 	position: static !important;
 	top: auto !important;
 }
-body.djdigi-has-hero.admin-bar .fusion-header-wrapper { top: 32px; }
+body.djdigi-theme.admin-bar .fusion-header-wrapper { top: 32px; }
 @media (max-width: 782px) {
-	body.djdigi-has-hero.admin-bar .fusion-header-wrapper { top: 46px; }
+	body.djdigi-theme.admin-bar .fusion-header-wrapper { top: 46px; }
 }
 
 body.djdigi-has-hero.djdigi-hero-strip .fusion-header-wrapper { top: 46px; }
@@ -633,7 +687,7 @@ body.djdigi-has-hero.djdigi-hero-strip .fusion-header-wrapper { top: 46px; }
    here. Left in place, it pushes the hero down by the header's height
    even though the header is visually floating over it, the actual cause
    of the hero starting below the header instead of behind it (v1.2.3). */
-body.djdigi-has-hero .fusion-header-sticky-height { display: none !important; }
+body.djdigi-theme .fusion-header-sticky-height { display: none !important; }
 
 /* Left-anchored now, not a centered box (v1.7.0, Mark's call, found live:
    a centered 1600px box left a wide empty band on the left at 2000px and
@@ -643,7 +697,7 @@ body.djdigi-has-hero .fusion-header-sticky-height { display: none !important; }
    (hero.css), so the logo starts at the same edge the hero content does
    and the menu ends at the same edge on the right. Applies whether or not
    the header is currently sticky, so nothing shifts sideways on scroll. */
-body.djdigi-has-hero .fusion-header {
+body.djdigi-theme .fusion-header {
 	padding-left: var(--djd-gutter) !important;
 	padding-right: var(--djd-gutter) !important;
 }
@@ -663,14 +717,14 @@ body.djdigi-has-hero .fusion-header {
    mobile selector instead, left alone here apart from the logo's own
    size (the img rule further down). */
 @media (min-width: 801px) {
-	body.djdigi-has-hero .fusion-header-wrapper .fusion-row {
+	body.djdigi-theme .fusion-header-wrapper .fusion-row {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		padding-top: 32px;
 	}
-	body.djdigi-has-hero .fusion-logo,
-	body.djdigi-has-hero .fusion-main-menu {
+	body.djdigi-theme .fusion-logo,
+	body.djdigi-theme .fusion-main-menu {
 		float: none !important;
 	}
 	/* v1.7.2, found live: the row above was spreading 5 children apart,
@@ -692,18 +746,18 @@ body.djdigi-has-hero .fusion-header {
 	   pins it to the right edge directly, the same reasoning
 	   justify-content: space-between was already leaning on, just not
 	   dependent on there being exactly two items in the row. */
-	body.djdigi-has-hero .fusion-main-menu {
+	body.djdigi-theme .fusion-main-menu {
 		margin-left: auto;
 	}
 }
 /* v1.13.0: the clearfix rule above (v1.7.2) applies at every width now,
    since the phone header row is flex too (below). */
-body.djdigi-has-hero .fusion-header-wrapper .fusion-row::before,
-body.djdigi-has-hero .fusion-header-wrapper .fusion-row::after,
-body.djdigi-has-hero .fusion-header-wrapper .fusion-row > .fusion-clearfix {
+body.djdigi-theme .fusion-header-wrapper .fusion-row::before,
+body.djdigi-theme .fusion-header-wrapper .fusion-row::after,
+body.djdigi-theme .fusion-header-wrapper .fusion-row > .fusion-clearfix {
 	display: none !important;
 }
-body.djdigi-has-hero .fusion-header-wrapper .fusion-row { position: relative; }
+body.djdigi-theme .fusion-header-wrapper .fusion-row { position: relative; }
 
 /* v1.13.0: one pill on the phone too. Below the desktop menu breakpoint
    Avada shows its classic mobile menu (a "Go to..." button inside
@@ -714,19 +768,19 @@ body.djdigi-has-hero .fusion-header-wrapper .fusion-row { position: relative; }
    two is visible as "the pill" and grows its logo slot the same way.
    Inner pages keep Avada's own mobile menu untouched. */
 @media (max-width: 800px) {
-	body.djdigi-has-hero .fusion-header-wrapper .fusion-row {
+	body.djdigi-theme .fusion-header-wrapper .fusion-row {
 		display: flex;
 		align-items: center;
 		justify-content: flex-end;
 		padding-top: 16px;
 	}
-	body.djdigi-has-hero .fusion-mobile-nav-holder {
+	body.djdigi-theme .fusion-mobile-nav-holder {
 		position: relative;
 		float: none !important;
 		width: auto !important;
 		margin: 0 0 0 auto !important;
 	}
-	body.djdigi-has-hero .fusion-mobile-selector {
+	body.djdigi-theme .fusion-mobile-selector {
 		display: flex !important;
 		align-items: center;
 		gap: 8px;
@@ -743,14 +797,14 @@ body.djdigi-has-hero .fusion-header-wrapper .fusion-row { position: relative; }
 		font-weight: 600 !important;
 		white-space: nowrap;
 	}
-	body.djdigi-has-hero .fusion-mobile-selector .fusion-selector-down {
+	body.djdigi-theme .fusion-mobile-selector .fusion-selector-down {
 		position: static !important;
 		border: 0 !important;
 		height: auto !important;
 		width: auto !important;
 		color: var(--djd-paper) !important;
 	}
-	body.djdigi-has-hero .fusion-mobile-nav-holder > ul {
+	body.djdigi-theme .fusion-mobile-nav-holder > ul {
 		position: absolute !important;
 		top: calc(100% + 8px);
 		right: 0;
@@ -765,18 +819,18 @@ body.djdigi-has-hero .fusion-header-wrapper .fusion-row { position: relative; }
 	/* Avada's mobile search box shows as a third row item once the menu
 	   opens, which pushed the pill left and the panel off screen. Hero
 	   pages have no room for it in a one pill header, so it is hidden. */
-	body.djdigi-has-hero .fusion-mobile-menu-search {
+	body.djdigi-theme .fusion-mobile-menu-search {
 		display: none !important;
 	}
-	body.djdigi-has-hero .fusion-mobile-nav-holder li,
-	body.djdigi-has-hero .fusion-mobile-nav-holder li a {
+	body.djdigi-theme .fusion-mobile-nav-holder li,
+	body.djdigi-theme .fusion-mobile-nav-holder li a {
 		background-color: transparent !important;
 		border-color: rgba(241, 236, 226, 0.08) !important;
 		color: var(--djd-paper) !important;
 	}
 }
 
-body.djdigi-has-hero .fusion-logo {
+body.djdigi-theme .fusion-logo {
 	/* v1.7.2, found live: margin-top: 10px (Avada's own default) was
 	   never actually overridden, just the v1.7.0 nudge that used to sit
 	   on top of it; the logo center was still 5px below the menu
@@ -815,7 +869,7 @@ body.djdigi-has-hero .fusion-logo {
 	display: flex !important;
 	align-items: center !important;
 }
-body.djdigi-has-hero .fusion-logo a {
+body.djdigi-theme .fusion-logo a {
 	display: flex !important;
 	align-items: center !important;
 }
@@ -837,14 +891,14 @@ body.djdigi-has-hero .fusion-logo a {
    Avada's own per breakpoint and sticky state swapping between them is
    switched off here rather than leaving the ball to dock into whichever
    one happens to be hidden. */
-body.djdigi-has-hero .fusion-logo img.fusion-sticky-logo,
-body.djdigi-has-hero .fusion-logo img.fusion-mobile-logo {
+body.djdigi-theme .fusion-logo img.fusion-sticky-logo,
+body.djdigi-theme .fusion-logo img.fusion-mobile-logo {
 	display: none !important;
 }
-body.djdigi-has-hero .fusion-logo img.fusion-standard-logo {
+body.djdigi-theme .fusion-logo img.fusion-standard-logo {
 	display: block !important;
 }
-body.djdigi-has-hero .fusion-logo img {
+body.djdigi-theme .fusion-logo img {
 	height: 36px !important;
 	width: auto !important;
 	max-height: none !important;
@@ -858,7 +912,7 @@ body.djdigi-has-hero .fusion-logo img {
 	opacity: 0;
 }
 
-body.djdigi-has-hero .fusion-secondary-header {
+body.djdigi-theme .fusion-secondary-header {
 	background-color: transparent !important;
 	background-image: none !important;
 }
@@ -872,10 +926,10 @@ body.djdigi-has-hero .fusion-secondary-header {
    further down switched it to a solid dark glass bar; that rule is gone
    entirely now; the header itself never paints anything of its own
    regardless of .fusion-is-sticky, on any scroll position. */
-body.djdigi-has-hero .fusion-header-wrapper .fusion-header,
-body.djdigi-has-hero .fusion-header-wrapper .fusion-row,
-body.djdigi-has-hero .fusion-sticky-header-wrapper .fusion-header,
-body.djdigi-has-hero .fusion-sticky-header-wrapper .fusion-row {
+body.djdigi-theme .fusion-header-wrapper .fusion-header,
+body.djdigi-theme .fusion-header-wrapper .fusion-row,
+body.djdigi-theme .fusion-sticky-header-wrapper .fusion-header,
+body.djdigi-theme .fusion-sticky-header-wrapper .fusion-row {
 	background-color: transparent !important;
 	background-image: none !important;
 	border-bottom-color: transparent;
@@ -886,45 +940,45 @@ body.djdigi-has-hero .fusion-sticky-header-wrapper .fusion-row {
    solid, not glass, a backdrop-filter here forces a repaint of whatever
    is behind it (the hero photo) on every frame, which is what was making
    the ticker look like a low frame rate video (v1.2.3). */
-body.djdigi-has-hero .fusion-main-menu {
+body.djdigi-theme .fusion-main-menu {
 	background: rgba(14, 10, 36, 0.82);
 	border: 1px solid rgba(241, 236, 226, 0.16);
 }
 /* v1.14.0: the hero page pill is 46px tall (border included), links
    centered on that same 46px line, and the sliding current item highlight
    fills the inside of the border. Inner pages keep the 40px pill. */
-body.djdigi-has-hero .fusion-main-menu {
+body.djdigi-theme .fusion-main-menu {
 	height: 46px;
 	box-sizing: border-box;
 }
-body.djdigi-has-hero .fusion-main-menu > ul > li > a {
+body.djdigi-theme .fusion-main-menu > ul > li > a {
 	height: 46px;
 	line-height: 46px !important;
 }
-body.djdigi-has-hero .djd-menu-pill { height: 100%; }
-body.djdigi-has-hero .fusion-main-menu > ul > li > a,
-body.djdigi-has-hero .fusion-main-menu > ul > li.current-menu-item > a,
-body.djdigi-has-hero .fusion-main-menu-icon:after {
+body.djdigi-theme .djd-menu-pill { height: 100%; }
+body.djdigi-theme .fusion-main-menu > ul > li > a,
+body.djdigi-theme .fusion-main-menu > ul > li.current-menu-item > a,
+body.djdigi-theme .fusion-main-menu-icon:after {
 	color: var(--djd-paper) !important;
 }
-body.djdigi-has-hero .fusion-main-menu > ul > li > a:hover {
+body.djdigi-theme .fusion-main-menu > ul > li > a:hover {
 	color: var(--djd-cyan) !important;
 }
 /* Dropdown panels on the hero are always dark (night with paper text). */
-body.djdigi-has-hero .fusion-main-menu .sub-menu {
+body.djdigi-theme .fusion-main-menu .sub-menu {
 	background-color: #140f33 !important;
 	border-color: rgba(241, 236, 226, 0.18) !important;
 	box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4) !important;
 }
-body.djdigi-has-hero .fusion-main-menu .sub-menu li a {
+body.djdigi-theme .fusion-main-menu .sub-menu li a {
 	color: var(--djd-paper) !important;
 }
-body.djdigi-has-hero .fusion-main-menu .sub-menu li a:hover,
-body.djdigi-has-hero .fusion-main-menu .sub-menu li:hover > a {
+body.djdigi-theme .fusion-main-menu .sub-menu li a:hover,
+body.djdigi-theme .fusion-main-menu .sub-menu li:hover > a {
 	background-color: rgba(36, 169, 224, 0.2) !important;
 	color: var(--djd-paper) !important;
 }
-body.djdigi-has-hero .fusion-mobile-selector {
+body.djdigi-theme .fusion-mobile-selector {
 	background-color: transparent !important;
 	border-color: rgba(241, 236, 226, 0.5) !important;
 	color: var(--djd-paper) !important;
@@ -1057,3 +1111,323 @@ body.djdigi-has-hero .post-content > p:empty,
 body.djdigi-has-hero .post-content > br {
 	display: none;
 }
+
+/* =========================================================================
+   v1.15.0: the mirror ball canvases (moved here from hero.css, since inner
+   pages have the docked ball too). Fixed position, placed every frame by
+   mirrorball.js. z-index above the header (50), so the ball is never
+   hidden behind it.
+   ====================================================================== */
+#djd-ball-canvas,
+#djd-ball-3d {
+	position: fixed;
+	left: 0;
+	top: 0;
+	z-index: 60;
+	pointer-events: none;
+	opacity: 0;
+}
+/* v1.14.0: the 3D ball's canvas (mirrorball-3d.js) is CSS scaled from its
+   top left corner to the exact size each frame. */
+#djd-ball-3d { transform-origin: 0 0; }
+
+/* =========================================================================
+   Inner pages (v1.15.0): every themed page without [djdigi_hero]
+   (body.djdigi-inner). Same header as hero pages (see "The header"
+   above), the title banner, and the night content, form, FAQ and footer
+   styles below. Nothing scoped to djdigi-inner touches hero pages.
+   ====================================================================== */
+
+/* The logo slot on the pill is always open: the hero pages' fully docked
+   padding (6 + 46px desktop, 16 + 46px phone) from the first paint.
+   mirrorball.js reads this padding and puts the logo in the slot. */
+body.djdigi-inner .fusion-main-menu { padding-left: 52px !important; }
+@media (max-width: 800px) {
+	body.djdigi-inner .fusion-mobile-selector { padding-left: 62px !important; }
+}
+
+/* Avada's own page title bar: the banner below replaces it. */
+body.djdigi-inner .avada-page-titlebar-wrapper,
+body.djdigi-inner .fusion-page-title-bar {
+	display: none !important;
+}
+
+/* "Hide banner" on a page: the content still has to clear the fixed
+   header, which no longer reserves any height of its own. */
+body.djdigi-no-banner #main { padding-top: 120px !important; }
+@media (max-width: 800px) {
+	body.djdigi-no-banner #main { padding-top: 96px !important; }
+}
+
+/* ---------- The title banner (includes/djdt-inner.php) ----------
+   Inserted right before <main id="main">, under the fixed header. The
+   halftone photo covers it, the shade fades it into the page, the title
+   sits on the gutter grid like every section heading. 170px on top
+   clears the header. */
+.djd-banner {
+	position: relative;
+	isolation: isolate;
+	overflow: hidden;
+	padding: 170px var(--djd-gutter) 56px;
+	background-color: #0b0820;
+}
+body.djdigi-theme .djd-banner__photo {
+	position: absolute;
+	inset: 0;
+	z-index: -2;
+	width: 100%;
+	height: 100%;
+	max-width: none;
+	object-fit: cover;
+	object-position: 50% 40%;
+	border-radius: 0;
+}
+.djd-banner__shade {
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	background: linear-gradient(180deg, rgba(11, 8, 32, 0.35), rgba(11, 8, 32, 0.55) 55%, #0b0820);
+	pointer-events: none;
+}
+body.djdigi-theme .djd-banner__title {
+	margin: 0 0 0 var(--djd-name-edge, -8px) !important;
+	padding: 0 !important;
+	font-family: var(--djd-display) !important;
+	font-weight: 800 !important;
+	font-size: clamp(44px, 6vw, 88px) !important;
+	line-height: 0.95 !important;
+	letter-spacing: 0.005em !important;
+	text-transform: uppercase !important;
+	text-align: left;
+	color: var(--djd-paper) !important;
+}
+body.djdigi-theme .djd-banner__title .djd-hw-outline,
+body.djdigi-theme .djd-banner__title .djd-hw-solid {
+	text-transform: uppercase !important;
+}
+
+/* ---------- Page content ----------
+   Scoped to #main on inner pages. The theme's own components (djd-) and
+   djdigi-library's (djdigi-) are left out: both style themselves. The
+   exclusions read "#main [class*=...]" on purpose: body's own classes
+   (djdigi-theme, djdigi-inner) match a bare [class*="djdigi-"], which
+   would exclude everything. */
+
+/* Avada containers lose their old light background colors and gradients.
+   A container with a real photo keeps it, darkened by an inset shadow,
+   which paints over the background and under the content. Avada's
+   decorative pattern and mask layers are hidden. */
+body.djdigi-inner #main .fusion-fullwidth {
+	--awb-background-color: transparent !important;
+	background-color: transparent !important;
+}
+body.djdigi-inner #main .fusion-fullwidth:not([data-bg]):not([style*="url("]) {
+	--awb-background-image: none !important;
+	background-image: none !important;
+}
+body.djdigi-inner #main .fusion-fullwidth:is([data-bg], [style*="url("]),
+body.djdigi-inner #main .fullwidth-faded {
+	box-shadow: inset 0 0 0 100vmax rgba(11, 8, 32, 0.62) !important;
+}
+body.djdigi-inner #main :is(.awb-background-pattern, .awb-background-mask) {
+	display: none !important;
+}
+
+/* Columns that had a visible background of their own become dark cards.
+   Avada puts a column's background on its .fusion-column-wrapper, from
+   variables set inline on the column. */
+body.djdigi-inner #main .fusion-layout-column:is([style*="--awb-bg-color:"], [style*="--awb-bg-image:linear-gradient"], [style*="--awb-bg-image:radial-gradient"]):not([style*="--awb-bg-color:transparent"]):not([style*="--awb-bg-color:rgba(255,255,255,0)"]) > .fusion-column-wrapper {
+	background-color: #160d2e !important;
+	background-image: none !important;
+	border-radius: 14px !important;
+	box-shadow: inset 0 0 0 1px rgba(241, 236, 226, 0.08) !important;
+	padding: 28px clamp(20px, 2.5vw, 36px) !important;
+}
+
+/* Headings. Avada's own title element (fusion-title) and the FAQ heading
+   carry inline sizes and colors, hence !important throughout. */
+body.djdigi-inner #main :is(h1, h2):not([class*="djd-"]):not(:is(#main [class*="djd-"], #main [class*="djdigi-"]) *) {
+	margin-top: 1.2em !important;
+	font-family: var(--djd-display) !important;
+	font-weight: 800 !important;
+	font-size: clamp(30px, 3vw, 42px) !important;
+	line-height: 1 !important;
+	letter-spacing: 0.005em !important;
+	text-transform: uppercase !important;
+	color: #f1ece2 !important;
+}
+body.djdigi-inner #main h3:not([class*="djd-"]):not(:is(#main [class*="djd-"], #main [class*="djdigi-"]) *) {
+	font-family: var(--djd-display) !important;
+	font-weight: 800 !important;
+	font-size: 22px !important;
+	line-height: 1.15 !important;
+	letter-spacing: 0.04em !important;
+	text-transform: uppercase !important;
+	color: #24a9e0 !important;
+}
+/* Text inside a heading (Avada's title element wraps it in a <p>) follows
+   the heading, not the paragraph rule below. */
+body.djdigi-inner #main :is(h1, h2, h3, h4, h5, h6) p {
+	margin: 0 !important;
+	font: inherit !important;
+	color: inherit !important;
+	letter-spacing: inherit !important;
+	text-transform: inherit !important;
+}
+
+/* Running text. A text element with its own font size set in Avada
+   (style="--awb-font-size: ...", like the old 150px "About") keeps it. */
+body.djdigi-inner #main :is(p, li):not(:is(h1, h2, h3, h4, h5, h6) *):not(:is(#main [class*="djd-"], #main [class*="djdigi-"], .fusion-text[style*="--awb-font-size"]) *) {
+	font-size: 17px;
+	line-height: 1.65;
+}
+/* Avada text elements carry their own text color inline (the blog's post
+   cards: #1c2a37, dark on dark now); one night text color for all. */
+body.djdigi-inner #main .fusion-text { --awb-text-color: rgba(241, 236, 226, 0.86) !important; }
+body.djdigi-inner #main :is(strong, b):not(:is(#main [class*="djd-"], #main [class*="djdigi-"]) *) { color: #f1ece2; }
+body.djdigi-inner #main img:not([class*="djd-"]):not(.emoji):not(:is(#main [class*="djd-"], #main [class*="djdigi-"]) *) { border-radius: 12px; }
+
+/* Links in running text (body content only, never menus or buttons):
+   cyan, underlined 3px below. Every themed page. */
+body.djdigi-theme #main :is(p, li, td, dd, blockquote, figcaption) a:not([class*="button"]):not([class*="btn"]):not([class*="djd-"]):not(:is(#main [class*="djd-"], #main [class*="djdigi-"]) *) {
+	color: #24a9e0 !important; /* over inline link colors in old content */
+	text-decoration: underline !important;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 3px;
+}
+body.djdigi-theme #main :is(p, li, td, dd, blockquote, figcaption) a:not([class*="button"]):not([class*="btn"]):not([class*="djd-"]):not(:is(#main [class*="djd-"], #main [class*="djdigi-"]) *):hover {
+	color: #f1ece2 !important;
+}
+
+/* ---------- Forms: Avada forms, Theme My Login, PMPro, newsletters ---------- */
+body.djdigi-theme :is(#main, .fusion-footer) :is(input:not([type]), input[type="text"], input[type="email"], input[type="tel"], input[type="url"], input[type="password"], input[type="search"], input[type="number"], input[type="date"], input[type="time"], select, textarea):not([class*="djd-"]) {
+	background-color: #0b0820 !important;
+	background-image: none !important;
+	border: 1.5px solid rgba(241, 236, 226, 0.22) !important;
+	border-radius: 10px !important;
+	box-shadow: none !important;
+	color: #f1ece2 !important;
+	color-scheme: dark;
+}
+body.djdigi-theme :is(#main, .fusion-footer) :is(input, select, textarea):not([class*="djd-"]):focus {
+	border-color: #24a9e0 !important;
+	outline: none !important;
+}
+body.djdigi-theme :is(#main, .fusion-footer) :is(input, textarea)::placeholder {
+	color: rgba(241, 236, 226, 0.45) !important;
+	opacity: 1;
+}
+body.djdigi-theme :is(#main, .fusion-footer) select option { background-color: #0b0820; color: #f1ece2; }
+/* Browser autofill paints its own light fill; keep it night. */
+body.djdigi-theme :is(#main, .fusion-footer) input:-webkit-autofill {
+	-webkit-box-shadow: 0 0 0 1000px #0b0820 inset !important;
+	-webkit-text-fill-color: #f1ece2 !important;
+	caret-color: #f1ece2;
+}
+/* Avada's select arrow sits over the field. */
+body.djdigi-theme :is(#main, .fusion-footer) .select-arrow { color: #f1ece2 !important; background: transparent !important; }
+/* Checkboxes and radios stay native, in the dark scheme with cyan ticks,
+   so they read on night. */
+body.djdigi-theme :is(#main, .fusion-footer) :is(input[type="checkbox"], input[type="radio"]) {
+	accent-color: #24a9e0;
+	color-scheme: dark;
+}
+body.djdigi-theme :is(#main, .fusion-footer) label:not([class*="djd-"]):not(:is(#main, .fusion-footer) [class*="djd-"] *) {
+	font-family: var(--djd-display) !important;
+	font-weight: 700 !important;
+	font-size: 17px !important;
+	letter-spacing: 0.05em !important;
+	text-transform: uppercase !important;
+	color: #f1ece2 !important;
+}
+
+/* ---------- The FAQ on /about/ ----------
+   Its own inline <style> block in the page content sets a light design on
+   single class selectors; body.djdigi-theme outranks them. */
+body.djdigi-theme .dj-faq-item {
+	background: #160d2e !important;
+	border: 1px solid rgba(241, 236, 226, 0.12) !important;
+	border-radius: 12px !important;
+}
+body.djdigi-theme .dj-faq-item.active { border-color: #24a9e0 !important; }
+body.djdigi-theme .dj-faq-header,
+body.djdigi-theme .dj-faq-item.active .dj-faq-header {
+	background: #160d2e !important;
+	color: #f1ece2 !important;
+	font-family: var(--djd-sans) !important;
+	font-weight: 600 !important;
+}
+body.djdigi-theme .dj-faq-header:hover,
+body.djdigi-theme .dj-faq-item.active .dj-faq-header:hover { background: #1d1238 !important; }
+body.djdigi-theme .dj-faq-panel,
+body.djdigi-theme .dj-faq-panel-inner {
+	background: #160d2e !important;
+	color: rgba(241, 236, 226, 0.82) !important;
+}
+body.djdigi-theme .dj-faq-chevron { color: #24a9e0 !important; }
+
+/* ---------- Footer on inner pages: night ----------
+   Hero pages keep Avada's own footer color (black, #000) so Home v2 stays
+   exactly as it was; the dock and buttons are the same on both. */
+body.djdigi-inner :is(.fusion-footer, .fusion-footer-widget-area, .fusion-footer-copyright-area) {
+	background-color: #0b0820 !important;
+	background-image: none !important;
+	border-color: rgba(241, 236, 226, 0.08) !important;
+	color: rgba(241, 236, 226, 0.7);
+}
+body.djdigi-inner .fusion-footer :is(.fusion-copyright-notice, .fusion-copyright-notice div, p) { color: rgba(241, 236, 226, 0.7) !important; }
+
+/* ---------- Modern Events Calendar on inner pages ----------
+   MEC's own list view and search bar (/upcoming-events/) are white boxes
+   with gray text; same night cards as everything else. */
+body.djdigi-inner #main .mec-wrap :is(.mec-search-form, .mec-totalcal-box, .mec-event-article, .mec-event-sharing, .mec-event-footer) {
+	background: #160d2e !important;
+	border-color: rgba(241, 236, 226, 0.08) !important;
+	box-shadow: none !important;
+}
+body.djdigi-inner #main .mec-wrap :is(.mec-search-form, .mec-event-article) { border-radius: 14px !important; }
+body.djdigi-inner #main .mec-wrap .mec-event-footer { border-top: 1px solid rgba(241, 236, 226, 0.08) !important; }
+body.djdigi-inner #main .mec-wrap :is(.mec-totalcal-box i, .mec-totalcal-box span, .mec-booking-button, .mec-event-sharing-wrap .mec-event-share, .mec-event-sharing-wrap > li) {
+	background: transparent !important;
+	border-color: rgba(241, 236, 226, 0.22) !important;
+	color: #f1ece2 !important;
+}
+body.djdigi-inner #main .mec-wrap .mec-totalcal-box span.mec-totalcalview-selected {
+	background: #24a9e0 !important;
+	border-color: #24a9e0 !important;
+	color: #0b0820 !important;
+}
+body.djdigi-inner #main .mec-wrap .mec-booking-button:is(:hover, :focus-visible) { background: #24a9e0 !important; color: #0b0820 !important; }
+body.djdigi-inner #main .mec-wrap :is(h4, h5, .mec-month-divider span, .mec-event-description, .mec-event-detail, .mec-event-loc-place, .mec-event-address, address, .mec-event-date, .mec-event-time, .mec-start-date-label) {
+	color: rgba(241, 236, 226, 0.86) !important;
+}
+body.djdigi-inner #main .mec-wrap .mec-month-divider span { background: #0b0820 !important; }
+body.djdigi-inner #main .mec-wrap .mec-month-divider span::before { border-color: rgba(241, 236, 226, 0.22) !important; }
+body.djdigi-inner #main .mec-wrap :is(.mec-event-title a, a.mec-color-hover) { color: #24a9e0 !important; }
+body.djdigi-inner #main .mec-wrap .mec-event-article :is(span, div, p, address):not([class*="mec-color"]):not(.mec-event-sharing *) { color: rgba(241, 236, 226, 0.82) !important; }
+body.djdigi-inner #main .mec-wrap .mec-load-more-button {
+	background: transparent !important;
+	border: 2px solid #f1ece2 !important;
+	border-radius: 999px !important;
+	color: #f1ece2 !important;
+	font-family: var(--djd-display) !important;
+	font-weight: 800 !important;
+	letter-spacing: 0.05em !important;
+	text-transform: uppercase !important;
+}
+body.djdigi-inner #main .mec-wrap .mec-load-more-button:hover { background: #24a9e0 !important; border-color: #24a9e0 !important; color: #0b0820 !important; }
+
+/* Avada menu elements inside the content (the Music & Video pages' own
+   sub menu): collapsed on a phone, its rows were white. */
+body.djdigi-inner #main .awb-menu.collapse-enabled {
+	--awb-mobile-bg: #160d2e !important;
+	--awb-mobile-color: #f1ece2 !important;
+	--awb-mobile-active-bg: #1d1238 !important;
+	--awb-mobile-active-color: #24a9e0 !important;
+	--awb-mobile-sep-color: rgba(241, 236, 226, 0.08) !important;
+}
+body.djdigi-inner #main .awb-menu.collapse-enabled :is(.awb-menu__main-li, .awb-menu__main-a, .awb-menu__sub-ul, .awb-menu__sub-li, .awb-menu__sub-a) {
+	background-color: #160d2e !important;
+	border-color: rgba(241, 236, 226, 0.08) !important;
+}
+body.djdigi-inner #main .awb-menu.collapse-enabled :is(.awb-menu__main-a, .awb-menu__sub-a):is(:hover, :focus-visible) { background-color: #1d1238 !important; }

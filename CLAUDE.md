@@ -48,6 +48,7 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 ## Files
 - `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo halftone baking (Imagick assisted decode, GD for every pixel operation, see "Smoothness" below), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]` (`djdt_hero_shortcode()`) and the "Latest live set" player section it outputs right after itself (`djdt_player_section()`, v1.6.0, no separate shortcode), `[djdigi_venues]`. `require_once`s `includes/djdt-events.php` and (v1.11.0) `includes/djdt-logo.php` near the top, see below.
 - `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
+- `includes/djdt-inner.php` (v1.15.0): inner pages. The title banner (`djdt_banner_html()`, put before `<main id="main">` by the same output buffer as the logo swap), its "Banner title" / "Hide banner" fields (a "DigiMark banner" box on pages and posts), the featured image bake queue (`djdt_bake_banner` cron), and the leading emoji strip on content headings (`djdt_strip_heading_emoji()`). See "v1.15.0" below.
 - `includes/djdt-videos.php` (v1.14.0): `[djdigi_videos]`, the 4 newest remix videos through djdigi-library's own `[djdigi_newest]` renderer, styled by `assets/css/videos.css`. See "v1.14.0" below.
 - `assets/js/mirrorball-3d.js` (v1.14.0): the 3D mirror ball (ES module, imports the bundled `assets/vendor/three/three.module.min.js`, three.js r160, MIT). mirrorball.js loads it after the page has loaded and falls back to its own 2D `drawBall()`. See "v1.14.0" below.
 - `reference/mirrorball-3d-reference.js` (v1.14.0): the approved 3D ball demo, source of truth for the look. Excluded from the zip.
@@ -420,6 +421,143 @@ hidden, show on scroll up, focus keeps it shown, no horizontal scroll, no errors
 old logo never requested. The PHP string functions (autop strip, logo swap, title split) were
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
+
+## v1.15.0: sitewide look (inner pages match the homepage)
+Confirmed by Mark (previewed live on /about/) and built as specified. Everything is still behind
+`djdt_is_active()`. Hero pages (`[djdigi_hero]`) are unchanged except where noted.
+
+**Two page kinds.** `djdigi-has-hero` as before, and `djdigi-inner` (new body class) for every
+other themed page, archives, search and 404 included (`djdt_is_inner_page()`, djdt-inner.php).
+`djdigi-no-banner` is added when a page has "Hide banner" checked.
+
+**Global base (site.css, top).** html, body, `#boxed-wrapper`, `#wrapper`, `.fusion-wrapper`,
+`#main`, `#content`, `.fusion-page-wrapper`: night. Body text Archivo at 86% paper, also set through
+Avada's own `--body_typography-color` / `--hN_typography-color` / `--link_color` variables. Links are
+cyan (were violet). The underline (3px offset, 1px) only goes on links inside p, li, td, dd,
+blockquote and figcaption in `#main`; that color is `!important` because old content has inline
+link colors (#3366ff, #66ccff). `.fusion-button`, plain submit buttons in `#main` and the footer,
+`.tml-button`, `.pmpro_btn` and `#wp-submit` are the paper pill (Saira 800 uppercase 17px, radius
+999px, hover cyan). The old square violet `.fusion-button` rule is gone. `.djd-rec-btn` and any
+`djd-` class keep their own styles.
+
+**Header on every page.** Every rule in site.css's header section that was `body.djdigi-has-hero`
+is now `body.djdigi-theme`: fixed transparent header, admin bar offset, hidden sticky spacer, flex
+row, clearfix hiding, the 46px pill, dark dropdowns, the phone "Menu" pill and its dark panel. The
+old light header rules earlier in the file are all overridden by these (same specificity, later).
+Still hero only: the Next Up strip offset and everything from "Remove gaps Avada leaves" down.
+Also on every themed page now: the late `djdt-header-bg-kill` style block, the logo swap buffer
+(`template_redirect`, skipped for feeds and embeds), the "Go to..." to "Menu" gettext filter and
+menu.js's relabel.
+- **Logo slot always open on inner pages:** CSS gives the pill its fully docked padding from the
+  first paint (`.fusion-main-menu` 52px, phone `.fusion-mobile-selector` 62px, both `!important`).
+- **The ball on inner pages:** djdigi-theme.php enqueues mirrorball.js on non-hero pages with
+  `djdt_mirrorball_config( array( 'envUrl' => djdt_banner_photo_url() ) )` (the config builder is
+  shared with the hero shortcode now) and prints `#djd-ball-canvas` in `wp_footer` at priority 5.
+  mirrorball.js has a `docked` mode when there is no `.djd-hero`: every frame `placeLogo(1)` (which
+  reads the CSS padding instead of growing it), logo opacity 1, and the ball drawn at `slot(mini)`.
+  No drop, wire, spotlight, specks, ring or photo changes, so `flash` stays 0. The 3D ball reflects
+  the banner photo (`setEnv` gets `{ src: envUrl }`); the 2D fallback is unchanged. Drawing the ball
+  moved into `paintBall(x, y, r, now, visible)`, shared by both modes.
+- `#djd-ball-canvas` / `#djd-ball-3d` CSS moved from hero.css to site.css (hero.css only loads on
+  hero pages).
+
+**Banner (djdt-inner.php; site.css "The title banner").**
+- Markup: `div.djd-banner > img.djd-banner__photo + div.djd-banner__shade + h1.djd-banner__title`,
+  the title through `djdt_heading_html()`. `djdt_insert_banner()` puts it right before
+  `<main id="main">` in the output buffer, so no Avada hook is needed. Avada's title bar
+  (`.avada-page-titlebar-wrapper`, `.fusion-page-title-bar`) is hidden on inner pages; the live site
+  already had it off (`avada-has-titlebar-hide`).
+- Title: the "Banner title" field (`_djdt_banner_title`), else the page title. The blog index uses
+  the posts page title; search "Search results"; 404 "Page not found"; archives
+  `get_the_archive_title()`.
+- Photo, first match wins: the featured image, Theme Settings "Default banner photo"
+  (`banner_photo`, a picker in admin.js like the hero logo one), the first hero photo. The first two
+  are used only once baked with the current `DJDT_HALFTONE_RECIPE` (`djdt_banner_baked_url()`).
+  Baking takes seconds, so a missing bake is queued as a one off cron event (`djdt_bake_banner`, at
+  most once an hour after a failure) and the next option is used for that page load. Saving a page
+  or post with a featured image queues its bake right away; saving Theme Settings bakes the default
+  photo inline, like Hero Photos. Same files, meta and recipe as the hero photos
+  (`djdt_ensure_halftone()`).
+- Look: photo `object-fit: cover`, shade `linear-gradient(180deg, rgba(11,8,32,.35),
+  rgba(11,8,32,.55) 55%, #0b0820)`, padding 170px gutter 56px, title Saira 800
+  `clamp(44px, 6vw, 88px)` / .95, uppercase, left at the gutter minus `--djd-name-edge` like the
+  section headings.
+- "Hide banner" (`_djdt_banner_hide`): no banner, and `#main` gets 120px top padding (96px at 800px
+  and under) to clear the fixed header.
+- /about/ still has its old banner container (the 150px "About" over a photo) in its content. It
+  stays readable: the photo is darkened like every content background photo, and the text keeps
+  its own size (see below). Remove it in the page editor after release.
+
+**Page content (inner pages, `#main`).** The exclusions for the theme's own (`djd-`) and
+djdigi-library's (`djdigi-`) components read `#main [class*="djdigi-"]`, never a bare
+`[class*="djdigi-"]`: body's own classes (`djdigi-theme`, `djdigi-inner`) match that, which
+silently excluded everything (caught by the harness while building this).
+- Containers: `.fusion-fullwidth` background color transparent; background image `none` unless the
+  container has a real photo (`[data-bg]` or `url(` in its inline style), which is kept and darkened
+  with `box-shadow: inset 0 0 0 100vmax rgba(11,8,32,.62)` (paints over the background, under the
+  content). Avada's pattern and mask layers are hidden.
+- Columns whose inline style sets `--awb-bg-color` or a gradient `--awb-bg-image` become cards on
+  their `.fusion-column-wrapper`: #160d2e, radius 14px, inset 1px 8% paper, and padding
+  `28px clamp(20px, 2.5vw, 36px)` (added so text does not touch the card edge).
+- h1/h2 Saira 800 uppercase paper `clamp(30px, 3vw, 42px)`, line height 1, margin-top 1.2em; h3
+  Saira 800 22px cyan .04em; all `!important` (Avada title elements and the FAQ heading set inline
+  sizes). A `<p>` inside a heading (Avada's title element) follows the heading.
+- p and li 17px / 1.65, except inside a `.fusion-text` that sets its own `--awb-font-size` (keeps
+  the old "About" at its size). strong/b paper. Images radius 12px. `.fusion-text`'s
+  `--awb-text-color` is forced to 86% paper (the blog's post cards were #1c2a37 on dark).
+- Avada menu elements in the content (the Music & Video pages' sub menu) are dark when collapsed on
+  a phone (`.awb-menu.collapse-enabled`).
+- Modern Events Calendar (/upcoming-events/ still shows MEC's own list view): search box, view
+  switch, event cards, footer row, sharing and booking buttons dark, text 82 to 86% paper, the
+  selected view and titles cyan, "Load more" an outlined pill.
+- Leading emoji: `djdt_strip_heading_emoji()` on `the_content` at 20, every themed page. It skips
+  formatting tags right after the heading's opening tag (strong, b, em, i, span, a, p, mark),
+  decodes the leading run of non-ASCII characters and numeric entities, removes emoji (variation
+  selectors, skin tones, ZWJ sequences and flags included) and the space after them, and escapes
+  the rest back. Saved content is untouched. The blog has two headings that are only an emoji; they
+  render empty now.
+
+**Forms** (`#main` and the footer): text-like inputs, selects and textareas night, 1.5px 22% paper
+border (Chrome draws it 1px on a 1x screen), paper text, radius 10px; focus cyan border, no
+outline; placeholders 45% paper; autofill kept night. Labels Saira 700 17px uppercase .05em paper.
+Checkboxes and radios stay native with `accent-color` cyan and `color-scheme: dark`. reCAPTCHA is
+untouched.
+
+**FAQ on /about/** (`.dj-faq-*`, its own inline style block): item #160d2e, 1px 12% paper border,
+radius 12px, cyan border when open; header paper Archivo 600 on #160d2e, hover #1d1238; panel 82%
+paper on #160d2e; chevron cyan.
+
+**Footer:** the dock, Contact / Book me and the newsletter link were already on every page
+(dock.js). Inner pages get the night background. Hero pages keep Avada's own footer color (black,
+#000) so Home v2 stays exactly as it was; one selector to change if Mark wants night there too.
+
+**Verified** with a new harness (`build_inner.py`, `test_inner.js`, session scratchpad): the live
+pages' own markup fetched logged out, plus what the plugin adds for an admin, put back by Python
+ports of the PHP (body classes, logo swap, banner, emoji strip, plugin CSS/JS, ball canvas). Avada's
+and the other plugins' CSS/JS were served from a local copy of the live files. /about/,
+/upcoming-events/, /video-gallery/, /live-mixes-shows/, /downloads/, /membership-account/, /login/
+and /blog/ at 2000, 1280 and 390, logged in and out, with WebGL (all 1056 checks pass) and without
+it (1280, all pass):
+- Night backgrounds; the fixed transparent header at 0/32/46px; the 46px pill with its slot open;
+  the logo 36px inside the pill; the ball within 1.5px of the logo dot and spinning (3D, or 2D
+  without WebGL); "Menu" on the phone.
+- The banner: title size per width, Saira 800 uppercase, cyan last word, on the gutter, photo
+  loaded, right before `#main`. No title bar, no horizontal scroll.
+- Footer night with the dock and button.
+- No light boxes; text contrast (4.5:1, or 3:1 for large text) on every visible text element
+  outside djdigi-library; no emoji leading a heading; h2/h3/p/link styles.
+- Dark inputs, paper pill submits, labels, checkboxes; FAQ colors and opening.
+- No console errors from plugin files.
+- Home v2: test14 (with and without WebGL), test143 and test144 all pass.
+
+**Not verified live:** Avada's Google fonts and lazy loaded images do not load in the harness (so
+old content titles show in a fallback serif there), and the WordPress side (meta box, cron bake,
+the buffer) only runs live. The emoji strip, banner and buffer were checked through Python ports
+with unit cases; PHP syntax with php-parser.
+
+**Left as is:** djdigi-library's own dim "-" placeholder (no preview) is under 4.5:1; the library
+styles itself and was not part of this release. Old content blocks with a fixed huge size (the
+150px "About", the "Upcoming Events" heading text) are wider than a phone screen and clip.
 
 ## v1.14.4: music styles line in the hero
 Confirmed by Mark (previewed live) and built as specified.
@@ -1774,6 +1912,7 @@ is correct whether or not the animation happens to be running at that instant.
 ## Body classes
 - `djdigi-theme`: plugin active for this viewer.
 - `djdigi-has-hero`: the page content contains `[djdigi_hero]`. The header becomes absolute and transparent over the hero.
+- `djdigi-inner` (v1.15.0): every other themed page. Same header, the title banner, night content. `djdigi-no-banner` when "Hide banner" is checked.
 - `djdigi-hero-strip`: `[djdigi_next_up]` exists (from djdigi-library), so the Next Up strip shows above the header and the header shifts down 46px.
 
 ## Design tokens
@@ -1944,9 +2083,8 @@ can render in the wrong state regardless of anything in this plugin.
 - Confirm the Mixcloud widget still connects (play, pause, seek, progress events) now that the iframe
   src points at `player-widget.mixcloud.com`.
 - Avada preloads an unused "petsupplies" icon font. Noted for a later speed cleanup pass, not fixed now.
-- Restyle remaining homepage sections and pages (New Stuff, Music, Mailchimp, footer, library, PMPro
-  with inline hex only). Avada's own `.fusion-button` sitewide is part of that later pass, not touched
-  yet.
+- v1.15.0 restyled the inner pages, forms, PMPro/TML and `.fusion-button`. Still open: djdigi-library's
+  own colors (its own plugin), and removing /about/'s old banner container in the page editor.
 - The homepage Blog section in the mockup goes away with the Blog menu item.
 - If a hero CTA button returns later, it needs building from scratch; Book me was removed entirely in
   v1.2.0 (PHP filter, JS fallback, setting, styles), not just hidden.

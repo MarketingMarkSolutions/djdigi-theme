@@ -377,4 +377,58 @@
 
 	})();
 
+	// v1.15.0: the inner page banner's "Default banner photo", same single
+	// picker pattern as the hero logo above.
+	(function bannerPhoto() {
+
+	var wrap = document.getElementById('djdt-banner-photo');
+	var hidden = document.getElementById('djdt-banner-photo-id');
+	var pickBtn = document.getElementById('djdt-banner-photo-pick');
+	var removeBtn = document.getElementById('djdt-banner-photo-remove');
+	if (!wrap || !hidden || !pickBtn || !removeBtn) return;
+
+	var current = (window.djdtAdmin && window.djdtAdmin.bannerPhoto) || { id: 0, url: '' };
+
+	function render() {
+		wrap.innerHTML = '';
+		if (!current.id) {
+			var hint = document.createElement('p');
+			hint.className = 'description';
+			hint.textContent = 'No photo picked, using the first hero photo.';
+			wrap.appendChild(hint);
+			return;
+		}
+		var img = document.createElement('img');
+		img.src = current.url;
+		img.alt = '';
+		img.style.maxHeight = '120px';
+		img.style.display = 'block';
+		wrap.appendChild(img);
+	}
+
+	pickBtn.addEventListener('click', function (e) {
+		e.preventDefault();
+		var frame = wp.media({ title: 'Choose a default banner photo', multiple: false, library: { type: 'image' } });
+		frame.on('select', function () {
+			var attachment = frame.state().get('selection').first();
+			current.id = attachment.get('id');
+			var sizes = attachment.get('sizes');
+			current.url = (sizes && sizes.thumbnail && sizes.thumbnail.url) || attachment.get('url') || '';
+			hidden.value = current.id;
+			render();
+		});
+		frame.open();
+	});
+
+	removeBtn.addEventListener('click', function (e) {
+		e.preventDefault();
+		current = { id: 0, url: '' };
+		hidden.value = '0';
+		render();
+	});
+
+	render();
+
+	})();
+
 })(jQuery);

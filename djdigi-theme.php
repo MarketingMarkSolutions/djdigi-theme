@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: DJ DigiMark Theme
- * Description: Site styling, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_player], [djdigi_events], [djdigi_videos] and [djdigi_venues] for djdigimark.com.
- * Version: 1.14.4
+ * Description: Site styling, the inner page banner, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_player], [djdigi_events], [djdigi_videos] and [djdigi_venues] for djdigimark.com.
+ * Version: 1.15.0
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.14.4' );
+define( 'DJDT_VERSION', '1.15.0' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -56,6 +56,14 @@ require_once DJDT_DIR . 'includes/djdt-logo.php';
  * ---------------------------------------------------------------------- */
 
 require_once DJDT_DIR . 'includes/djdt-videos.php';
+
+/* -------------------------------------------------------------------------
+ * Inner pages (v1.15.0): the title banner and its per page fields, the
+ * featured image bake, and the leading emoji strip on content headings,
+ * see includes/djdt-inner.php.
+ * ---------------------------------------------------------------------- */
+
+require_once DJDT_DIR . 'includes/djdt-inner.php';
 
 /* -------------------------------------------------------------------------
  * Settings
@@ -111,6 +119,10 @@ function djdt_defaults() {
 		'logo_ball_x'    => 85.5,
 		'logo_ball_y'    => 14.2,
 		'logo_ball_r'    => 9.6,
+		// v1.15.0: the inner page banner's fallback photo (an attachment id,
+		// baked to the hero halftone look) for pages with no featured image.
+		// 0 means use the first hero photo instead.
+		'banner_photo'   => 0,
 	);
 }
 
@@ -244,7 +256,8 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 	wp_enqueue_media();
 	wp_enqueue_style( 'djdt-admin', DJDT_URL . 'assets/css/admin.css', array(), djdt_ver( 'assets/css/admin.css' ) );
 	wp_enqueue_script( 'djdt-admin', DJDT_URL . 'assets/js/admin.js', array( 'jquery' ), djdt_ver( 'assets/js/admin.js' ), true );
-	$logo_id = (int) djdt_get( 'logo_override' );
+	$logo_id   = (int) djdt_get( 'logo_override' );
+	$banner_id = (int) djdt_get( 'banner_photo' );
 	wp_localize_script( 'djdt-admin', 'djdtAdmin', array(
 		'photos'   => array_values( djdt_get( 'hero_photos' ) ),
 		'venues'   => array_values( array_map( 'djdt_venue_admin_row', djdt_get( 'venues' ) ) ),
@@ -252,6 +265,11 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 			'id'  => $logo_id,
 			// The thumb URL is empty for an SVG (no generated sizes).
 			'url' => $logo_id ? (string) ( 'image/svg+xml' === get_post_mime_type( $logo_id ) ? wp_get_attachment_url( $logo_id ) : wp_get_attachment_thumb_url( $logo_id ) ) : '',
+		),
+		// v1.15.0: the inner page banner's default photo picker.
+		'bannerPhoto' => array(
+			'id'  => $banner_id,
+			'url' => $banner_id ? (string) wp_get_attachment_thumb_url( $banner_id ) : '',
 		),
 	) );
 } );
@@ -437,6 +455,14 @@ function djdt_sanitize( $in ) {
 		$out['logo_ball_x']   = isset( $in['logo_ball_x'] ) ? max( 0, min( 100, (float) $in['logo_ball_x'] ) ) : $d['logo_ball_x'];
 		$out['logo_ball_y']   = isset( $in['logo_ball_y'] ) ? max( 0, min( 100, (float) $in['logo_ball_y'] ) ) : $d['logo_ball_y'];
 		$out['logo_ball_r']   = isset( $in['logo_ball_r'] ) ? max( 0.5, min( 50, (float) $in['logo_ball_r'] ) ) : $d['logo_ball_r'];
+
+		// v1.15.0: baked now, while saving, like the hero photos, never on a
+		// visitor's page load.
+		$banner_id           = isset( $in['banner_photo'] ) ? (int) $in['banner_photo'] : 0;
+		$out['banner_photo'] = ( $banner_id > 0 && wp_attachment_is_image( $banner_id ) ) ? $banner_id : 0;
+		if ( $out['banner_photo'] ) {
+			djdt_ensure_halftone( $out['banner_photo'] );
+		}
 	}
 
 	if ( 'photos' === $page ) {
@@ -613,6 +639,18 @@ function djdt_render_settings_theme() {
 			</td>
 		</tr>
 		<tr>
+			<th scope="row">Default banner photo</th>
+			<td>
+				<div id="djdt-banner-photo"></div>
+				<p>
+					<button type="button" class="button" id="djdt-banner-photo-pick">Select image</button>
+					<button type="button" class="button" id="djdt-banner-photo-remove">Remove</button>
+				</p>
+				<input type="hidden" id="djdt-banner-photo-id" name="<?php echo esc_attr( $n ); ?>[banner_photo]" value="<?php echo esc_attr( (int) $s['banner_photo'] ); ?>">
+				<p class="description">The photo behind the title banner on inner pages that have no featured image. It gets the same halftone look as the hero photos. Leave empty to use the first hero photo. Each page also has its own "Banner title" and "Hide banner" fields, in the DigiMark banner box in the page editor.</p>
+			</td>
+		</tr>
+		<tr>
 			<th scope="row">Mirror ball position</th>
 			<td>
 				<label>Center X <input type="number" step="0.1" min="0" max="100" class="small-text" name="<?php echo esc_attr( $n ); ?>[logo_ball_x]" value="<?php echo esc_attr( $s['logo_ball_x'] ); ?>">%</label>
@@ -708,12 +746,42 @@ add_action( 'wp_enqueue_scripts', function () {
 	wp_enqueue_script( 'djdt-menu', DJDT_URL . 'assets/js/menu.js', array(), djdt_ver( 'assets/js/menu.js' ), true );
 
 	wp_enqueue_script( 'djdt-dock', DJDT_URL . 'assets/js/dock.js', array(), djdt_ver( 'assets/js/dock.js' ), true );
+
+	// v1.15.0: inner pages get the mirror ball too, docked in the pill logo
+	// from the start (no hero, so no drop, wire or specks; mirrorball.js).
+	// It reflects the banner photo. The canvas is printed in wp_footer.
+	if ( ! djdt_is_hero_page() ) {
+		wp_enqueue_script( 'djdt-mirrorball' );
+		wp_add_inline_script( 'djdt-mirrorball', 'window.djdtMirrorBall = ' . wp_json_encode( djdt_mirrorball_config( array( 'envUrl' => djdt_banner_photo_url() ) ) ) . ';', 'before' );
+	}
 	wp_add_inline_script( 'djdt-dock', 'window.djdtDock = ' . wp_json_encode( array(
 		'mixcloudUrl'   => 'https://www.mixcloud.com/' . rawurlencode( djdt_get( 'mixcloud_user' ) ) . '/',
 		'bookUrl'       => '' !== trim( (string) djdt_get( 'book_url' ) ) ? esc_url_raw( djdt_get( 'book_url' ) ) : '',
 		'newsletterUrl' => '' !== trim( (string) djdt_get( 'newsletter_url' ) ) ? esc_url_raw( djdt_get( 'newsletter_url' ) ) : '',
 	) ) . ';', 'before' );
 }, 20 );
+
+/** The mirror ball's settings for mirrorball.js (window.djdtMirrorBall), plus $extra. */
+function djdt_mirrorball_config( $extra = array() ) {
+	$ball = djdt_logo_ball_settings();
+	return array_merge( array(
+		'logoUrl'   => djdt_logo_url(),
+		'ballX'     => $ball['x'],
+		'ballY'     => $ball['y'],
+		'ballR'     => $ball['r'],
+		// v1.14.0: the 3D ball, an ES module mirrorball.js imports after
+		// the page has loaded (it imports the bundled three.js itself).
+		'ball3dUrl' => add_query_arg( 'ver', djdt_ver( 'assets/js/mirrorball-3d.js' ), DJDT_URL . 'assets/js/mirrorball-3d.js' ),
+	), $extra );
+}
+
+/** v1.15.0: the docked ball's canvas on inner pages, before the footer scripts run. Hero pages print theirs in [djdigi_hero]. */
+add_action( 'wp_footer', function () {
+	if ( djdt_is_inner_page() ) {
+		echo '<canvas id="djd-ball-canvas" aria-hidden="true"></canvas>' . "
+";
+	}
+}, 5 );
 
 /**
  * The "mini record" call to action (v1.14.2): a paper pill with a small
@@ -833,6 +901,9 @@ add_action( 'wp_footer', function () {
  * background color: djdt-site.css already handles the transparent versus
  * sticky distinction correctly through the normal cascade, that was never
  * the part Avada's own CSS was beating.
+ *
+ * v1.15.0: every themed page, not just hero pages, since every page has
+ * the transparent header now.
  */
 add_action( 'wp_head', function () {
 	if ( ! djdt_is_active() ) {
@@ -840,14 +911,14 @@ add_action( 'wp_head', function () {
 	}
 	?>
 	<style id="djdt-header-bg-kill">
-	html body.djdigi-has-hero .fusion-header-wrapper,
-	html body.djdigi-has-hero .fusion-header-wrapper .fusion-row,
-	html body.djdigi-has-hero .fusion-header,
-	html body.djdigi-has-hero .fusion-secondary-header,
-	html body.djdigi-has-hero .fusion-secondary-header .fusion-row,
-	html body.djdigi-has-hero .fusion-sticky-header-wrapper,
-	html body.djdigi-has-hero .fusion-sticky-header-wrapper .fusion-header,
-	html body.djdigi-has-hero .fusion-sticky-header-wrapper .fusion-row {
+	html body.djdigi-theme .fusion-header-wrapper,
+	html body.djdigi-theme .fusion-header-wrapper .fusion-row,
+	html body.djdigi-theme .fusion-header,
+	html body.djdigi-theme .fusion-secondary-header,
+	html body.djdigi-theme .fusion-secondary-header .fusion-row,
+	html body.djdigi-theme .fusion-sticky-header-wrapper,
+	html body.djdigi-theme .fusion-sticky-header-wrapper .fusion-header,
+	html body.djdigi-theme .fusion-sticky-header-wrapper .fusion-row {
 		background-image: none !important;
 	}
 	</style>
@@ -1510,14 +1581,14 @@ function djdt_is_hero_page() {
  * The phone menu pill's button reads "Menu", not Avada's "Go to..."
  * (v1.14.0). Avada's classic mobile menu builds that button in its own
  * JS from a translated string it localizes (avadaMenuVars.dropdown_goto),
- * so it is changed at the source here, hero pages only, where that button
- * is the pill. A combined/minified copy cached by Asset CleanUp can still
+ * so it is changed at the source here. v1.15.0: on every themed page,
+ * since the button is the pill everywhere now. A combined/minified copy cached by Asset CleanUp can still
  * carry the old string until purged, so menu.js swaps it on the page too.
  * The string compare comes first, this filter sees every translation; and
  * nothing is checked before the main query has run (did_action( 'wp' )).
  */
 add_filter( 'gettext', function ( $translation, $text, $domain ) {
-	if ( 'Go to...' === $text && 'Avada' === $domain && did_action( 'wp' ) && djdt_is_hero_page() ) {
+	if ( 'Go to...' === $text && 'Avada' === $domain && did_action( 'wp' ) && djdt_is_active() ) {
 		return 'Menu';
 	}
 	return $translation;
@@ -1532,6 +1603,12 @@ add_filter( 'body_class', function ( $classes ) {
 		$classes[] = 'djdigi-has-hero';
 		if ( shortcode_exists( 'djdigi_next_up' ) ) {
 			$classes[] = 'djdigi-hero-strip';
+		}
+	} else {
+		// v1.15.0: every other themed page, see includes/djdt-inner.php.
+		$classes[] = 'djdigi-inner';
+		if ( ! djdt_banner_shown() ) {
+			$classes[] = 'djdigi-no-banner';
 		}
 	}
 	return $classes;
@@ -1564,19 +1641,28 @@ add_filter( 'the_content', 'djdt_strip_hero_autop', 20 );
  * override) before the page leaves the server, srcset cleared, so the old
  * PNG never shows, not even for one frame before mirrorball.js runs.
  * There is no Avada filter for these tags, so the page is buffered from
- * template_redirect and the tags rewritten in the buffer's callback; the
- * buffer is only ever started on a hero page.
+ * template_redirect and the tags rewritten in the buffer's callback.
  */
 add_action( 'template_redirect', function () {
-	if ( ! djdt_is_hero_page() ) {
+	// v1.15.0: every themed page, not just hero pages (the pill logo is on
+	// every page now), and on inner pages the same buffer also puts the
+	// title banner right before <main id="main">, under the header.
+	if ( ! djdt_is_active() || is_feed() || is_embed() ) {
 		return;
 	}
-	$url = djdt_logo_url();
-	if ( '' === $url ) {
+	$url    = djdt_logo_url();
+	$banner = djdt_is_hero_page() ? '' : djdt_banner_html();
+	if ( '' === $url && '' === $banner ) {
 		return;
 	}
-	ob_start( function ( $html ) use ( $url ) {
-		return djdt_swap_header_logos( $html, $url );
+	ob_start( function ( $html ) use ( $url, $banner ) {
+		if ( '' !== $url ) {
+			$html = djdt_swap_header_logos( $html, $url );
+		}
+		if ( '' !== $banner ) {
+			$html = djdt_insert_banner( $html, $banner );
+		}
+		return $html;
 	} );
 } );
 
@@ -1840,18 +1926,9 @@ function djdt_hero_shortcode( $atts = array() ) {
 	$book     = trim( (string) djdt_get( 'book_url' ) );
 	// v1.14.4: the music styles line, one item per saved line, as typed.
 	$styles   = array_values( array_filter( array_map( 'trim', explode( "\n", (string) djdt_get( 'ticker' ) ) ), 'strlen' ) );
-	$ball     = djdt_logo_ball_settings();
 	$logo_url = djdt_logo_url();
 
-	wp_add_inline_script( 'djdt-mirrorball', 'window.djdtMirrorBall = ' . wp_json_encode( array(
-		'logoUrl'   => $logo_url,
-		'ballX'     => $ball['x'],
-		'ballY'     => $ball['y'],
-		'ballR'     => $ball['r'],
-		// v1.14.0: the 3D ball, an ES module mirrorball.js imports after
-		// the page has loaded (it imports the bundled three.js itself).
-		'ball3dUrl' => add_query_arg( 'ver', djdt_ver( 'assets/js/mirrorball-3d.js' ), DJDT_URL . 'assets/js/mirrorball-3d.js' ),
-	) ) . ';', 'before' );
+	wp_add_inline_script( 'djdt-mirrorball', 'window.djdtMirrorBall = ' . wp_json_encode( djdt_mirrorball_config() ) . ';', 'before' );
 
 	$next_up = shortcode_exists( 'djdigi_next_up' ) ? do_shortcode( '[djdigi_next_up]' ) : '';
 

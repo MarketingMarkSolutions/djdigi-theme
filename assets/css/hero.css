@@ -344,18 +344,8 @@ body.djdigi-theme .djd-hero ul.djd-hero__styles li + li::before {
 	pointer-events: none;
 	opacity: 0;
 }
-#djd-ball-canvas,
-#djd-ball-3d {
-	position: fixed;
-	left: 0;
-	top: 0;
-	z-index: 60;
-	pointer-events: none;
-	opacity: 0;
-}
-/* v1.14.0: the 3D ball's canvas (mirrorball-3d.js) is CSS scaled from its
-   top left corner to the exact size each frame. */
-#djd-ball-3d { transform-origin: 0 0; }
+/* #djd-ball-canvas and #djd-ball-3d moved to site.css in v1.15.0: inner
+   pages have the docked ball too, and this file only loads on hero pages. */
 
 /* ---------------------------------------------------------------------
    The "Latest live set" section (v1.6.0, moved out of the hero itself,
