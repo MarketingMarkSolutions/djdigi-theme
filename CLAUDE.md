@@ -422,6 +422,54 @@ old logo never requested. The PHP string functions (autop strip, logo swap, titl
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
 
+## v1.15.2: the hero intro plays at most once per 15 minutes
+Mark's rule (with his follow-up correction). Supersedes "Entrance: every page load" in "Homepage
+polish (v1.12.0)" and the "Hero copy"/intro notes that say the entrance plays on every load.
+- **The rule:** only hero page views count. The full intro sets localStorage `ddm_last_visit`
+  (ms) when it plays. Opening a hero page again under 15 minutes after that skips the intro and
+  leaves the timestamp alone; from 15 minutes on, the full intro plays and the timestamp resets.
+  So the intro comes back 15 minutes after it last actually played. Inner pages never read or
+  write the timer. `?intro=1` always plays the full intro (and resets the timer). A future
+  timestamp (clock change) counts as expired.
+- **Decided in the browser, not PHP** (the HTML is cached by Cloudflare): a tiny inline script,
+  `wp_head` priority 0, printed only when `djdt_is_hero_page()`, before any CSS or paint. Under
+  15 minutes it adds `ddm-intro-seen` to `<html>`; otherwise it writes the timestamp. Every
+  localStorage access is in a try/catch: no storage (private mode, blocked) means the intro plays.
+- **hero.css** ("the intro already played", above the music styles line): under
+  `html.ddm-intro-seen` the black overlay is `opacity: 0 !important` (mirrorball.js sets it inline
+  every frame), the wire is hidden, and the logo, slogan, styles line and button are at
+  `opacity: 1`, `transform: none`, `transition: none`, so the first paint is already the settled
+  hero. The logo's opacity is left a plain value so mirrorball.js's inline docking fade still
+  works.
+- **mirrorball.js** (`skipIntro`): `play()` sets `start` 60s in the past, so every `t < ...` step in
+  `frame()` has finished on the first frame (ball at its slot, specks out, overlay and spotlight
+  gone, logo shown), sets `landed` so there is no landing flash or ring, adds all four `djd-seq-*`
+  classes at once, and schedules the first photo change on the normal 6s rhythm. It also starts
+  right away instead of waiting for the photo decode and fonts. The perpetual motion (ball spin,
+  specks, EQ bars, the record) runs as usual; it is not part of the intro.
+- **One mechanism:** the v1.11.0 sessionStorage repeat skip had already been removed in v1.12.0;
+  nothing else in the plugin skips or shortens the intro. The Next Up strip has no entrance of its
+  own, and nothing in the plugin waits on `animationend`; the Mixcloud player (hero.js) does not
+  depend on the intro at all.
+- No `prefers-reduced-motion` handling (the motion-always-on policy).
+- Theme Settings' help text says the entrance plays once per 15 minutes and mentions `?intro=1`.
+- **Verified** (`test152.js`: the Home v2 harness with the real inline script lifted from
+  djdigi-theme.php, plus an inner page on the same origin) at 2000 and 390, logged in and out, 76
+  checks:
+  - Fresh browser: the full intro plays (overlay up, logo and slogan hidden at first paint, the
+    wire during the drop) and the timestamp is written.
+  - Reload, a new tab, and Home again after an inner page, all within 15 minutes: `ddm-intro-seen`
+    is set before the first paint, which is already settled (overlay 0, logo, slogan, styles and
+    button at 1, no transform, no transition). Nothing changes over the next second. Ball position
+    and logo opacity are identical to the state the full intro settles into (at 390 the logo
+    already sits partly under the header, so both are partly docked: same numbers). The timestamp
+    is unchanged after skipped visits and after the inner page.
+  - Mixcloud play button plays when skipped.
+  - 14 minutes ago: skipped. 16 minutes ago: the full intro, timestamp reset. `?intro=1`: the full
+    intro, timestamp reset.
+  - localStorage throwing: the full intro, no errors.
+  - test14 and test144 (full intro, no timer script) still pass.
+
 ## v1.15.1: residencies, the menu highlight, headings
 Confirmed by Mark and built as specified (items 1 to 6, plus item 7, the heading split, added
 during the build).

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, the inner page banner, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_player], [djdigi_events], [djdigi_videos] and [djdigi_venues] for djdigimark.com.
- * Version: 1.15.1
+ * Version: 1.15.2
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.15.1' );
+define( 'DJDT_VERSION', '1.15.2' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -667,7 +667,7 @@ function djdt_render_settings_theme() {
 					<code>[djdigi_player]</code><br>
 					<code>[djdigi_videos]</code><br>
 					<code>[djdigi_venues]</code></p>
-				<p>Hero: <code>[djdigi_hero]</code>, alone in a 100% width container with no padding, at the top of the page. Without <code>player="no"</code> it also outputs the "Latest live sets" player right after itself. Player: <code>[djdigi_player]</code>, the player plus a playlist of the 3 newest Mixcloud uploads. Remix videos: <code>[djdigi_videos]</code>, the 4 newest videos from the DJ DigiMark Library plugin (shows nothing if that plugin is inactive). Venues: <code>[djdigi_venues]</code>. The mirror ball's full entrance plays on every page load.</p>
+				<p>Hero: <code>[djdigi_hero]</code>, alone in a 100% width container with no padding, at the top of the page. Without <code>player="no"</code> it also outputs the "Latest live sets" player right after itself. Player: <code>[djdigi_player]</code>, the player plus a playlist of the 3 newest Mixcloud uploads. Remix videos: <code>[djdigi_videos]</code>, the 4 newest videos from the DJ DigiMark Library plugin (shows nothing if that plugin is inactive). Venues: <code>[djdigi_venues]</code>. The mirror ball's full entrance plays when someone opens a hero page, then not again for 15 minutes (the hero shows already settled). Add <code>?intro=1</code> to the URL to see it any time.</p>
 				<p><strong>After saving:</strong> if a caching plugin or your host's cache is active, purge the cached copy of any page carrying these shortcodes, or changes here can keep showing the old version. See the plugin's CLAUDE.md for exact steps.</p>
 			</td>
 		</tr>
@@ -810,6 +810,29 @@ add_action( 'wp_head', function () {
 	echo '<link rel="preload" href="' . esc_url( $f . 'saira-extra-condensed-800.woff2' ) . '" as="font" type="font/woff2" crossorigin>' . "\n";
 	echo '<link rel="preload" href="' . esc_url( $f . 'archivo-wdth.woff2' ) . '" as="font" type="font/woff2" crossorigin>' . "\n";
 }, 2 );
+
+/**
+ * The hero intro only plays once per 15 minutes (v1.15.2, Mark's rule).
+ * The page HTML is cached (Cloudflare), so this is decided in the browser,
+ * not in PHP: a tiny inline script, first thing in wp_head on hero pages
+ * only, before anything paints. If localStorage "ddm_last_visit" is under
+ * 15 minutes old, html gets "ddm-intro-seen" (hero.css and mirrorball.js
+ * then show the hero already settled) and the timestamp is left alone;
+ * otherwise the full intro plays and the timestamp is set to now. So the
+ * intro comes back 15 minutes after the last time it actually played, and
+ * other pages never touch the timer. ?intro=1 always plays it (and resets
+ * the timer). No storage (private mode, blocked): the intro plays, as
+ * before. Replaces nothing: the v1.11.0 sessionStorage repeat skip was
+ * already removed in v1.12.0, so this is the only mechanism.
+ */
+add_action( 'wp_head', function () {
+	if ( ! djdt_is_hero_page() ) {
+		return;
+	}
+	?>
+	<script>(function(){try{var k='ddm_last_visit',n=Date.now(),t=+localStorage.getItem(k);if(t&&n-t>=0&&n-t<9e5&&!/[?&]intro=1(&|$)/.test(location.search)){document.documentElement.classList.add('ddm-intro-seen');}else{localStorage.setItem(k,String(n));}}catch(e){}})();</script>
+	<?php
+}, 0 );
 
 /**
  * --djd-vw: the real viewport width in px, read from document.documentElement.

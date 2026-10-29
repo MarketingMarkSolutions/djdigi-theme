@@ -7,10 +7,13 @@
    Home v2, see CLAUDE.md for the full detail. drawBall()/cluster()
    themselves are unchanged from the v1.11.0 port.
 
-   v1.12.0 also removed the v1.11.0 "quick repeat visit" path entirely
-   (sessionStorage, djd-ball-noanim): the full entrance now plays on every
-   load of a hero page, Mark's call. ?intro=1 is accordingly a no-op now,
-   there is nothing left for it to force.
+   v1.12.0 removed the v1.11.0 "quick repeat visit" path (sessionStorage,
+   djd-ball-noanim). v1.15.2 brings a skip back, Mark's rule: the full
+   entrance plays at most once per 15 minutes. The inline wp_head script
+   (djdigi-theme.php) decides it and adds html.ddm-intro-seen; then play()
+   starts with every step already finished (see skipIntro below) and
+   hero.css shows the settled hero from the first paint. ?intro=1 always
+   plays it.
 
    v1.14.0: the ball itself is drawn in 3D (mirrorball-3d.js, three.js)
    once that module has loaded, after the page has; drawBall() below is
@@ -37,6 +40,8 @@
 	var docked = !hero;
 
 	var cfg = window.djdtMirrorBall || {};
+	// v1.15.2: the intro already played in the last 15 minutes.
+	var skipIntro = !docked && document.documentElement.classList.contains('ddm-intro-seen');
 	var BALL_X = typeof cfg.ballX === 'number' ? cfg.ballX : 86;
 	var BALL_Y = typeof cfg.ballY === 'number' ? cfg.ballY : 13.6;
 	var BALL_R = typeof cfg.ballR === 'number' ? cfg.ballR : 9.2;
@@ -438,8 +443,8 @@
 	}
 
 	/**
-	 * Schedules the whole entrance, every page load (v1.12.0, no more
-	 * sessionStorage skip): the drop, the hang and the landing flourish all
+	 * Schedules the whole entrance (v1.15.2: unless skipIntro): the drop,
+	 * the hang and the landing flourish all
 	 * live in frame() above, keyed off `start`; this just resets the state
 	 * and schedules the four djd-seq-* classes that reveal the logo
 	 * (djd-seq-1) and the slogan/buttons (djd-seq-3). djd-seq-2/4 currently
@@ -451,9 +456,21 @@
 		trans = null; ring = null; landed = false; flash = 0;
 		size(); makeSpecks();
 		var nowStart = performance.now();
+		var seq = ['djd-seq-1', 'djd-seq-2', 'djd-seq-3', 'djd-seq-4'];
+		if (skipIntro) {
+			// Settled from the first frame: start far enough back that every
+			// `t < ...` step in frame() has finished (overlay gone, ball at
+			// its slot, wire hidden, specks out, logo shown), no landing
+			// flash or ring (landed already), every djd-seq class on now,
+			// and the photos rotate on their normal 6s rhythm from here.
+			start = nowStart - 60000;
+			landed = true;
+			nextAt = nowStart + 6000;
+			seq.forEach(function (c) { document.body.classList.add(c); });
+			return;
+		}
 		start = nowStart;
 		nextAt = nowStart + 6600;
-		var seq = ['djd-seq-1', 'djd-seq-2', 'djd-seq-3', 'djd-seq-4'];
 		var steps = [2550, 2800, 3050, 3350];
 		seq.forEach(function (c, i) {
 			timers.push(setTimeout(function () { document.body.classList.add(c); }, steps[i]));
@@ -516,6 +533,13 @@
 
 	if (docked) {
 		size();
+		startLoop();
+		return;
+	}
+
+	// Nothing to time when the intro is skipped: start right away.
+	if (skipIntro) {
+		play();
 		startLoop();
 		return;
 	}

@@ -235,6 +235,34 @@ body.djd-seq-3 .djd-hero__slogan,
 body.djd-seq-3 .djd-hero__styles,
 body.djd-seq-3 .djd-hero__buttons { opacity: 1; transform: none; }
 
+/* v1.15.2: the intro already played in the last 15 minutes
+   (html.ddm-intro-seen, set by the inline wp_head script before the first
+   paint, see djdigi-theme.php). Every intro element starts in its end
+   state with no transition, so nothing fades, scales or drops in:
+   - the black overlay gone (!important: mirrorball.js sets its opacity
+     inline every frame; with the intro skipped that value is 0 anyway);
+   - the wire hidden;
+   - the logo at full opacity and scale (opacity stays a plain value here,
+     mirrorball.js's inline value takes over for the scroll docking fade);
+   - the slogan, the styles line and the button in place.
+   The ball, the specks and the photo are canvas/JS driven: mirrorball.js
+   starts them settled (skipIntro). The EQ bars and the record button keep
+   their perpetual motion, they are not part of the intro. */
+html.ddm-intro-seen .djd-hero__dark { opacity: 0 !important; }
+html.ddm-intro-seen #djd-wire { display: none; }
+html.ddm-intro-seen .djd-hero__logo {
+	opacity: 1;
+	transform: none;
+	transition: none;
+}
+html.ddm-intro-seen .djd-hero__slogan,
+html.ddm-intro-seen .djd-hero__styles,
+html.ddm-intro-seen .djd-hero__buttons {
+	opacity: 1;
+	transform: none;
+	transition: none;
+}
+
 /* Music styles line (v1.14.4): the "ticker" setting, one <li> per saved
    line, between the slogan and the button. Reveals with the slogan
    (above). margin is the brief's literal 10px 0 18px, as Mark previewed
