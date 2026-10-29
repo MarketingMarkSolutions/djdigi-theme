@@ -47,7 +47,7 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 
 ## Files
 - `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo halftone baking (Imagick assisted decode, GD for every pixel operation, see "Smoothness" below), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]` (`djdt_hero_shortcode()`) and the "Latest live set" player section it outputs right after itself (`djdt_player_section()`, v1.6.0, no separate shortcode), `[djdigi_venues]`. `require_once`s `includes/djdt-events.php` and (v1.11.0) `includes/djdt-logo.php` near the top, see below.
-- `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
+- `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. v1.15.1: residencies (recurring events shown once) and the `?djdt_ics=` series download, see "v1.15.1" below. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
 - `includes/djdt-inner.php` (v1.15.0): inner pages. The title banner (`djdt_banner_html()`, put before `<main id="main">` by the same output buffer as the logo swap), its "Banner title" / "Hide banner" fields (a "DigiMark banner" box on pages and posts), the featured image bake queue (`djdt_bake_banner` cron), and the leading emoji strip on content headings (`djdt_strip_heading_emoji()`). See "v1.15.0" below.
 - `includes/djdt-videos.php` (v1.14.0): `[djdigi_videos]`, the 4 newest remix videos through djdigi-library's own `[djdigi_newest]` renderer, styled by `assets/css/videos.css`. See "v1.14.0" below.
 - `assets/js/mirrorball-3d.js` (v1.14.0): the 3D mirror ball (ES module, imports the bundled `assets/vendor/three/three.module.min.js`, three.js r160, MIT). mirrorball.js loads it after the page has loaded and falls back to its own 2D `drawBall()`. See "v1.14.0" below.
@@ -421,6 +421,108 @@ hidden, show on scroll up, focus keeps it shown, no horizontal scroll, no errors
 old logo never requested. The PHP string functions (autop strip, logo swap, title split) were
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
+
+## v1.15.1: residencies, the menu highlight, headings
+Confirmed by Mark and built as specified (items 1 to 6, plus item 7, the heading split, added
+during the build).
+
+**Residencies (includes/djdt-events.php, "Residencies").**
+- `djdt_events_get_all_occurrences()` (new, cached per request) returns every occurrence, past
+  included; `djdt_events_get_upcoming_occurrences()` filters it. The `$limit` argument is no longer
+  used by the shortcode (the row needs every date to group them first).
+- `djdt_events_split()` groups upcoming occurrences by event post. A post is a residency if
+  `djdt_events_has_repeat_rule()` (MEC `mec_date['repeat']['status']` with any type except
+  `custom_days`, which is a hand picked list of dates, not a rule), or failing that if it has 3 or
+  more upcoming dates. The Edge's two custom days therefore stay two one-off CDs.
+- `djdt_events_recurrence()` words the rule from the dates themselves, not MEC's settings: the
+  smallest gap between display dates (the before 6 AM rule) is the base; every gap a multiple of it
+  and the base 1 or a multiple of 7 means a regular series (`interval`). 7: "Every Friday", label
+  "Weekly"; 14: "Every other Friday"; 1: "Every day"; anything else: "Fridays" or "Regular dates",
+  label "Residency", and no RRULE. One upcoming date falls back to MEC's repeat type. Then ", " and
+  `djdt_events_format_time_range()`: "Every Friday, 9 PM to 1 AM".
+- `djdt_events_residency_next_line()`: "Starts Fri, Nov 13" while no occurrence of that post has
+  started yet, else "Next: Fri, Nov 20"; the short form ("Starts Nov 13") is the CD's corner tag.
+
+**The .ics series (`?djdt_ics=<event id>`, `djdt_events_serve_ics()` on `template_redirect` at 1).**
+Behind `djdt_is_active()`. A regular series is one VEVENT from the next date: DTSTART/DTEND with
+`TZID` (local wall time), `RRULE:FREQ=WEEKLY;INTERVAL=n;BYDAY=<real start weekday>` (or DAILY),
+an EXDATE for every skipped date inside the series, and `UNTIL` (UTC, the last known date) unless
+MEC's `mec_repeat_end` is `never`. Irregular dates: one VEVENT each. A VTIMEZONE is built from PHP's
+own transitions (`djdt_events_ics_vtimezone()`, yearly RRULEs with nth or last weekday), so a 9 PM
+set stays 9 PM across daylight saving; a site set to a bare UTC offset gets UTC times instead.
+Text is escaped and lines folded at 75 octets, CRLF. Served as an attachment
+(`dj-digimark-<slug>.ics`); the links carry `download`.
+
+**Events page ([djdigi_events] with no limit, `djdt_events_render_page()`).** One featured card
+per residency (`djdt_events_render_residency()`, `article.djd-res`), then "More dates"
+(`.djd-events__more`, through `djdt_heading_html()`) and the one-off CDs in
+`.djd-events__track--page`: 4 columns from 1280px, 3 from 900, 2 from 600, 1 below (the homepage
+row keeps its auto-fill track). No one-offs: no "More dates"; no residencies: just the grid.
+- The card (events.css, "The featured residency card"): a case with the weekday (FRI) and its
+  label (Weekly), the photo and the venue logo, the disc (the CD's own `.djd-cd__disc-face` label
+  art) peeking 42% out to the right and turning further out on hover; then a cyan "Residency" tag,
+  the venue (Saira 800, `clamp(44px, 5.5vw, 84px)`), the rule (Saira 800 cyan), the starts/next
+  line, the cyan address block, and three pills (Add to calendar, the .ics; Directions; Share,
+  handled in events.js like the CD's). Side by side from 900px, stacked below. Text colors are
+  `!important` against site.css's content heading and link rules.
+
+**Homepage row (limit="5").** Every residency first, as one CD (`djdt_events_render_card()` with
+its new `$res` argument, class `djd-cd--residency`): "FRI" and "Weekly" in place of the date,
+"Starts Nov 13" in the corner, the time as usual; on the disc the rule, the starts/next line, the
+address and the .ics as Add to calendar. Then the next one-off dates up to the limit. JSON-LD lists
+what the row shows; the events page still lists every upcoming date.
+
+**CD cover photos.** Avada's own lazy loader rewrites images in the content to a placeholder and
+some covers never got their photo back (seen live). Both CD images (cover, venue logo) and the
+featured card's carry `skip-lazy` and `data-no-lazy="1"` now, like the venue logos; the browser's
+own `loading="lazy"` still defers the CD ones until they scroll near.
+
+**Menu highlight (menu.js).** Found: v1.13.0's ResizeObserver watched the bar's content box,
+which does not change when mirrorball.js grows the bar's left padding (the logo slot), so the
+highlight stayed put, under the logo, past the pill's left end. Now `measureNow()` runs straight
+from a ResizeObserver on the bar's border box and on the current link and a MutationObserver on the
+bar's `style`/`class` (the padding mirrorball.js sets inside its own animation frame), so it moves
+in the same frame, before paint; a first version that queued the re-measure for the next frame
+trailed one frame behind the whole way (caught in the harness). `transitionend`, `document.fonts`
+and `load` go through the once-per-frame `remeasure()`. It only moves when the link actually moved
+(over 0.5px), never mid click. Positions are measured from the bar's padding box now
+(`bar.clientLeft`), the box the highlight is placed in (it was 1px off on the bordered pill).
+
+**Headings (`djdt_heading_html()`, item 7).** "DJ DigiMark" (any case, any spacing) counts as one
+word, so "About DJ DigiMark" is ABOUT outline, DJ DIGIMARK cyan, and the two are joined by a
+no-break space so the name never wraps between them either. A "|" is a manual split: before it
+outline, after it cyan, never printed ("| Text" all cyan, "Text |" all outline, a second "|"
+becomes a space). Works everywhere the helper is used: the banner (Banner title field, its help
+text now says so), section headings, the venues heading setting. Every existing heading renders as
+before.
+
+**Verified.**
+- The PHP ran for real this time, not through a Python port: `@php-wasm/node` 1.0.29 (PHP 8.2 in
+  Node, scratchpad `phpwasm/`; on Windows its CommonJS build looks for the wasm under
+  `@php-wasm/nodeasyncify`, a copy of `node/asyncify` fixes that, and npm removes the copy on any
+  later install) with WordPress, `$wpdb` and MEC stubbed (`wpstub.php`): Midnight Sun weekly from
+  Nov 13 with Dec 25 skipped, The Edge's two custom days, four one-offs, one past date.
+- Grouping and wording: "Every Friday, 9 PM to 1 AM", "Weekly", "Starts Fri, Nov 13", and "Next:
+  Fri, Nov 20" with the clock set to Nov 15. Three biweekly dates on a post with no rule:
+  "Every other Saturday", `INTERVAL=2`.
+- The .ics: CRLF throughout, no line over 75 octets; expanded with ical.js it is Fri 9 PM to Sat
+  1 AM every week from Nov 13 with Dec 25 skipped; `UNTIL=20270227T050000Z` (Feb 26, 9 PM PST) when
+  the repeat has an end.
+- `djdt_heading_html()`: 14 cases including the existing headings, unchanged.
+- The rendered shortcode HTML went into the Home v2 and /upcoming-events/ harnesses (`test151.js`)
+  at 2000, 1280, 1024, 700 and 390, logged in and out, 246 checks: one featured card with the right
+  text, colors, pills and .ics link; side by side from 900px, stacked below, no overflow; MORE DATES
+  after it; 4/3/2/1 columns; only the 6 one-off CDs; every cover loaded after scrolling; Share
+  shares the residency; the row is Midnight Sun (FRI, Weekly, "Starts Nov 13") then The Edge, The
+  Edge, Badlands, The Lookout, and opening it shows the rule and the start on the disc with the
+  .ics; the highlight on the active item at every scroll step while the slot opens on Home v2 (Home
+  marked current in the harness; worst 0.3px, the old menu.js measured 45px off there) and on the
+  events page; no console errors from plugin files. test14, test143, test144 and test_inner (1280)
+  still pass.
+- **Not verified live:** the real MEC data (whether Midnight Sun is stored as a weekly rule or as
+  custom days, either works if it has 3 or more upcoming dates), the .ics opened in Apple/Google/
+  Outlook calendars (only parsed with ical.js), and whether Avada's lazy loader really honors
+  `skip-lazy` on these images (it does on the venue logos).
 
 ## v1.15.0: sitewide look (inner pages match the homepage)
 Confirmed by Mark (previewed live on /about/) and built as specified. Everything is still behind

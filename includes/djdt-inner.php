@@ -165,7 +165,7 @@ function djdt_banner_meta_box( $post ) {
 		<label for="djdt-banner-title"><strong>Banner title</strong></label><br>
 		<input type="text" id="djdt-banner-title" name="djdt_banner_title" value="<?php echo esc_attr( $title ); ?>" class="widefat" placeholder="<?php echo esc_attr( get_the_title( $post ) ); ?>">
 	</p>
-	<p class="description">Leave empty to use the page title. The last word shows in cyan.</p>
+	<p class="description">Leave empty to use the page title. The last word shows in cyan ("DJ DigiMark" counts as one word). Use | to choose where the cyan starts, e.g. About | DJ DigiMark</p>
 	<p>
 		<label><input type="checkbox" name="djdt_banner_hide" value="1" <?php checked( $hide ); ?>> Hide banner</label>
 	</p>

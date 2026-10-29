@@ -20,15 +20,20 @@
 				.filter(Boolean);
 		};
 
+		// Measured from the bar's padding box (inside its border), the box the
+		// absolutely positioned highlight is placed in (v1.15.1: was the
+		// border box, 1px off on the bordered night pill).
 		var rectWithin = function (el) {
 			var a = el.getBoundingClientRect();
 			var b = bar.getBoundingClientRect();
-			return { left: a.left - b.left, width: a.width };
+			return { left: a.left - b.left - bar.clientLeft, width: a.width };
 		};
 
+		var placed = { left: NaN, width: NaN };
 		var place = function (el, animate) {
 			if (!el) return;
 			var r = rectWithin(el);
+			placed = r;
 			if (!animate) pill.style.transition = 'none';
 			pill.style.transform = 'translateX(' + r.left.toFixed(1) + 'px)';
 			pill.style.width = r.width.toFixed(1) + 'px';
@@ -69,21 +74,54 @@
 			resizeTimer = setTimeout(function () { place(currentLink(), false); }, 150);
 		});
 
-		// v1.13.0: on hero pages mirrorball.js grows the bar's own left
-		// padding (the logo slot) as the logo docks, which shifts every link
-		// right while this highlight stays put. Re-place it whenever the
-		// bar's width actually changes, except mid click (the slide toward
-		// the clicked item is already running then).
+		// The highlight has to follow the current link whenever the bar's
+		// size or padding changes: on hero pages mirrorball.js grows the
+		// bar's left padding (the logo slot) every frame while the logo
+		// docks, and fonts loading or a resize change the link widths.
+		// v1.15.1, found live: v1.13.0 only watched the bar with a plain
+		// ResizeObserver, which reports the CONTENT box, and growing the
+		// padding leaves that unchanged, so the highlight stayed behind and
+		// ended up under the logo, past the pill's left end. Now any of
+		// these re-measures, once per frame at most, and moves it (no
+		// animation) only if the link actually moved: a ResizeObserver on
+		// the bar's border box and on the current link, a MutationObserver
+		// on the bar's style attribute (the padding mirrorball.js sets),
+		// transitionend on the bar, font loading and resize. Skipped mid
+		// click (the slide toward the clicked item is already running).
+		// The observers measure right away, in the same frame as the change
+		// and before it paints: the padding is set inside mirrorball.js's
+		// own animation frame, and a re-measure queued for the next frame
+		// left the highlight one frame behind the whole way (found in the
+		// harness). The other triggers, which have no such timing, go
+		// through remeasure(), at most once per frame.
 		var navigating = false;
+		var queued = false;
+		var measureNow = function () {
+			if (navigating) return;
+			var el = currentLink();
+			if (!el) return;
+			var r = rectWithin(el);
+			if (Math.abs(r.left - placed.left) > 0.5 || Math.abs(r.width - placed.width) > 0.5) place(el, false);
+		};
+		var remeasure = function () {
+			if (queued) return;
+			queued = true;
+			requestAnimationFrame(function () {
+				queued = false;
+				measureNow();
+			});
+		};
 		if (window.ResizeObserver) {
-			var lastBarW = bar.offsetWidth;
-			new ResizeObserver(function () {
-				var w = bar.offsetWidth;
-				if (w === lastBarW) return;
-				lastBarW = w;
-				if (!navigating) place(currentLink(), false);
-			}).observe(bar);
+			var ro = new ResizeObserver(measureNow);
+			try { ro.observe(bar, { box: 'border-box' }); } catch (e) { ro.observe(bar); }
+			if (current) ro.observe(current);
 		}
+		if (window.MutationObserver) {
+			new MutationObserver(measureNow).observe(bar, { attributes: true, attributeFilter: ['style', 'class'] });
+		}
+		bar.addEventListener('transitionend', remeasure);
+		if (document.fonts && document.fonts.ready) document.fonts.ready.then(remeasure);
+		window.addEventListener('load', remeasure);
 
 		topLevelLinks().forEach(function (a) {
 			a.addEventListener('click', function (e) {

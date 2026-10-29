@@ -124,4 +124,20 @@
 			io.observe( grid );
 		}
 	} );
+
+	// v1.15.1: the featured residency cards' Share pill, same behavior as
+	// the CD's.
+	document.querySelectorAll( '.djd-res__share' ).forEach( function ( share ) {
+		share.addEventListener( 'click', function ( e ) {
+			e.preventDefault();
+			var title = share.getAttribute( 'data-share-title' );
+			var url = share.getAttribute( 'data-share-url' );
+			if ( navigator.share ) {
+				navigator.share( { title: title, url: url } ).catch( function () {} );
+			} else if ( navigator.clipboard ) {
+				navigator.clipboard.writeText( title + ' ' + url );
+				share.querySelector( '.djd-cd__disc-pill-label' ).textContent = 'Copied';
+			}
+		} );
+	} );
 })();

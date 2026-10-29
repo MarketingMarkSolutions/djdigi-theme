@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, the inner page banner, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_player], [djdigi_events], [djdigi_videos] and [djdigi_venues] for djdigimark.com.
- * Version: 1.15.0
+ * Version: 1.15.1
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.15.0' );
+define( 'DJDT_VERSION', '1.15.1' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -2186,13 +2186,38 @@ function djdt_player_shortcode() {
  * plain space between them, so the visible text and the accessible text
  * are the same thing.
  */
+/*
+ * v1.15.1: "DJ DigiMark" (any case) counts as one word, so "About DJ
+ * DigiMark" is ABOUT outline, DJ DIGIMARK cyan, never DJ / DIGIMARK. A "|"
+ * in the text is a manual split: everything before it outline, everything
+ * after it cyan, the "|" itself never printed (the Banner title field, or
+ * any other text through this helper). Nothing before the "|": all cyan;
+ * nothing after it: all outline.
+ */
 function djdt_heading_html( $text ) {
-	$words = preg_split( '/\s+/', trim( (string) $text ), -1, PREG_SPLIT_NO_EMPTY );
-	if ( count( $words ) <= 1 ) {
-		return '<span class="djd-hw-solid">' . esc_html( $text ) . '</span>';
+	$text = trim( (string) $text );
+	if ( false !== strpos( $text, '|' ) ) {
+		$parts  = explode( '|', $text, 2 );
+		$before = trim( preg_replace( '/\s+/', ' ', $parts[0] ) );
+		$after  = trim( preg_replace( '/\s+/', ' ', str_replace( '|', ' ', $parts[1] ) ) );
+	} else {
+		$words = preg_split( '/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY );
+		$n     = count( $words );
+		$take  = ( $n >= 2 && 'dj' === strtolower( $words[ $n - 2 ] ) && 'digimark' === strtolower( $words[ $n - 1 ] ) ) ? 2 : 1;
+		$after  = implode( ' ', array_slice( $words, -$take ) );
+		$before = implode( ' ', array_slice( $words, 0, max( 0, $n - $take ) ) );
 	}
-	$last = array_pop( $words );
-	return '<span class="djd-hw-outline">' . esc_html( implode( ' ', $words ) ) . '</span> <span class="djd-hw-solid">' . esc_html( $last ) . '</span>';
+	// The name never wraps between "DJ" and "DigiMark" either (a no-break space).
+	$before = preg_replace( '/\b(DJ) (DigiMark)\b/i', "$1\u{00A0}$2", $before );
+	$after  = preg_replace( '/\b(DJ) (DigiMark)\b/i', "$1\u{00A0}$2", $after );
+	$out    = array();
+	if ( '' !== $before ) {
+		$out[] = '<span class="djd-hw-outline">' . esc_html( $before ) . '</span>';
+	}
+	if ( '' !== $after ) {
+		$out[] = '<span class="djd-hw-solid">' . esc_html( $after ) . '</span>';
+	}
+	return implode( ' ', $out );
 }
 
 /* -------------------------------------------------------------------------

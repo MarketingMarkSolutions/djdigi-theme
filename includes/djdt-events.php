@@ -235,19 +235,9 @@ function djdt_events_page_url() {
  * 0 means all.
  */
 function djdt_events_get_upcoming_occurrences( $limit = 0 ) {
-	$had_unparsed_rows = false;
-	$occurrences        = djdt_events_occurrences_from_mec_dates_table( $had_unparsed_rows );
-	if ( null === $occurrences || $had_unparsed_rows ) {
-		if ( $had_unparsed_rows ) {
-			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- deliberate, one line, see the v1.8.3 note on djdt_events_occurrences_from_mec_dates_table().
-			error_log( 'djdigi-theme: mec_dates returned rows but none parsed into a usable occurrence, falling back to postmeta.' );
-		}
-		$occurrences = djdt_events_occurrences_from_postmeta();
-	}
-
 	$now      = current_datetime();
 	$upcoming = array();
-	foreach ( $occurrences as $occ ) {
+	foreach ( djdt_events_get_all_occurrences() as $occ ) {
 		if ( $occ['end'] >= $now ) {
 			$upcoming[] = $occ;
 		}
@@ -262,6 +252,30 @@ function djdt_events_get_upcoming_occurrences( $limit = 0 ) {
 	}
 
 	return $upcoming;
+}
+
+/**
+ * Every occurrence, past ones included (v1.15.1: a residency needs to know
+ * whether its series has already started), from mec_dates or, failing
+ * that, postmeta. Cached for the request: the events grid, the residency
+ * check and the .ics endpoint all read it.
+ */
+function djdt_events_get_all_occurrences() {
+	static $cache = null;
+	if ( null !== $cache ) {
+		return $cache;
+	}
+	$had_unparsed_rows = false;
+	$occurrences        = djdt_events_occurrences_from_mec_dates_table( $had_unparsed_rows );
+	if ( null === $occurrences || $had_unparsed_rows ) {
+		if ( $had_unparsed_rows ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- deliberate, one line, see the v1.8.3 note on djdt_events_occurrences_from_mec_dates_table().
+			error_log( 'djdigi-theme: mec_dates returned rows but none parsed into a usable occurrence, falling back to postmeta.' );
+		}
+		$occurrences = djdt_events_occurrences_from_postmeta();
+	}
+	$cache = $occurrences;
+	return $cache;
 }
 
 /**
@@ -645,6 +659,324 @@ function djdt_events_format_single_time( $dt, $omit_meridiem ) {
 }
 
 /* -------------------------------------------------------------------------
+ * Residencies (v1.15.1)
+ *
+ * A recurring event (Midnight Sun, every Friday) used to show as one CD per
+ * date. Upcoming occurrences are grouped by event post now: a post whose
+ * dates come from a real MEC repeat rule (any repeat type except
+ * custom_days, which is a hand picked list of dates), or failing that any
+ * post with 3 or more upcoming dates, is a residency. Its dates leave the
+ * normal CD list and it shows once: as a featured card on the events page,
+ * and as one CD at the start of the homepage row.
+ * ---------------------------------------------------------------------- */
+
+/** True if the post's dates come from a MEC repeat rule (not custom_days). */
+function djdt_events_has_repeat_rule( $post ) {
+	$mec_date = get_post_meta( $post->ID, 'mec_date', true );
+	$repeat   = ( is_array( $mec_date ) && isset( $mec_date['repeat'] ) && is_array( $mec_date['repeat'] ) ) ? $mec_date['repeat'] : array();
+	if ( empty( $repeat['status'] ) ) {
+		return false;
+	}
+	$type = isset( $repeat['type'] ) ? (string) $repeat['type'] : (string) get_post_meta( $post->ID, 'mec_repeat_type', true );
+	return 'custom_days' !== $type;
+}
+
+/**
+ * Splits upcoming occurrences into residencies and one off occurrences.
+ * Returns array( 'residencies' => array of residency arrays, sorted by next
+ * date, 'singles' => occurrences, sorted by start ). A residency array:
+ * post, occs (its upcoming occurrences, sorted), next (the first of them),
+ * started (an earlier occurrence has already begun), rule (from
+ * djdt_events_recurrence()).
+ */
+function djdt_events_split( $upcoming ) {
+	$by_post = array();
+	foreach ( $upcoming as $occ ) {
+		$by_post[ $occ['post']->ID ][] = $occ;
+	}
+	$now         = current_datetime();
+	$residencies = array();
+	$res_ids     = array();
+	foreach ( $by_post as $post_id => $occs ) {
+		$post = $occs[0]['post'];
+		if ( ! djdt_events_has_repeat_rule( $post ) && count( $occs ) < 3 ) {
+			continue;
+		}
+		$started = false;
+		foreach ( djdt_events_get_all_occurrences() as $any ) {
+			if ( $any['post']->ID === $post_id && $any['start'] < $now ) {
+				$started = true;
+				break;
+			}
+		}
+		$residencies[]       = array(
+			'post'    => $post,
+			'occs'    => $occs,
+			'next'    => $occs[0],
+			'started' => $started,
+			'rule'    => djdt_events_recurrence( $post, $occs ),
+		);
+		$res_ids[ $post_id ] = true;
+	}
+	usort( $residencies, function ( $a, $b ) {
+		return $a['next']['start'] <=> $b['next']['start'];
+	} );
+	$singles = array();
+	foreach ( $upcoming as $occ ) {
+		if ( empty( $res_ids[ $occ['post']->ID ] ) ) {
+			$singles[] = $occ;
+		}
+	}
+	return array( 'residencies' => $residencies, 'singles' => $singles );
+}
+
+/**
+ * The recurrence in plain words, read from the dates themselves rather than
+ * from MEC's repeat settings, so it is right whichever repeat type was used.
+ * Returns array(
+ *   'text'     => 'Every Friday, 9 PM to 1 AM',
+ *   'day'      => 'Fri' (the weekday, by the before 6 AM rule),
+ *   'label'    => 'Weekly' (the CD cover's second line),
+ *   'interval' => 7 (days between dates, when every gap is a whole multiple
+ *                 of one base interval of 1 or 7 days, else 0: no RRULE),
+ * ).
+ * The base interval is the smallest gap; a longer gap (a skipped week)
+ * becomes an EXDATE in the .ics. With a single upcoming date, MEC's own
+ * repeat type decides.
+ */
+function djdt_events_recurrence( $post, $occs ) {
+	$first   = $occs[0];
+	$display = djdt_events_display_date( $first );
+	$weekday = $display->format( 'l' );
+	$time    = djdt_events_format_time_range( $first['start'], $first['end'] );
+
+	$gaps = array();
+	for ( $i = 1; $i < count( $occs ); $i++ ) {
+		$gaps[] = (int) round( ( djdt_events_display_date( $occs[ $i ] )->setTime( 0, 0 )->getTimestamp() - djdt_events_display_date( $occs[ $i - 1 ] )->setTime( 0, 0 )->getTimestamp() ) / DAY_IN_SECONDS );
+	}
+	$base = $gaps ? min( $gaps ) : 0;
+	if ( ! $gaps ) {
+		$mec_date = get_post_meta( $post->ID, 'mec_date', true );
+		$type     = ( is_array( $mec_date ) && isset( $mec_date['repeat']['type'] ) ) ? (string) $mec_date['repeat']['type'] : '';
+		$base     = ( 'daily' === $type ) ? 1 : ( in_array( $type, array( 'weekly', 'certain_weekdays' ), true ) ? 7 : 0 );
+	}
+	$regular = $base > 0;
+	foreach ( $gaps as $g ) {
+		if ( $base <= 0 || 0 !== $g % $base ) {
+			$regular = false;
+		}
+	}
+	$interval = ( $regular && ( 1 === $base || 0 === $base % 7 ) ) ? $base : 0;
+
+	if ( 1 === $interval ) {
+		$words = 'Every day';
+		$label = 'Daily';
+	} elseif ( 7 === $interval ) {
+		$words = 'Every ' . $weekday;
+		$label = 'Weekly';
+	} elseif ( 14 === $interval ) {
+		$words = 'Every other ' . $weekday;
+		$label = 'Every other week';
+	} elseif ( $interval > 14 ) {
+		$words = 'Every ' . ( $interval / 7 ) . ' weeks, ' . $weekday;
+		$label = 'Every ' . ( $interval / 7 ) . ' weeks';
+	} else {
+		$same_day = true;
+		foreach ( $occs as $o ) {
+			if ( djdt_events_display_date( $o )->format( 'l' ) !== $weekday ) {
+				$same_day = false;
+			}
+		}
+		$words = $same_day ? $weekday . 's' : 'Regular dates';
+		$label = 'Residency';
+	}
+
+	return array(
+		'text'     => $words . ', ' . $time,
+		'day'      => $display->format( 'D' ),
+		'label'    => $label,
+		'interval' => $interval,
+	);
+}
+
+/** "Starts Fri, Nov 13" before the series has begun, else "Next: Fri, Nov 20". $short drops the weekday (the CD's corner tag). */
+function djdt_events_residency_next_line( $res, $short = false ) {
+	$d = djdt_events_display_date( $res['next'] );
+	if ( $short ) {
+		return ( $res['started'] ? 'Next ' : 'Starts ' ) . $d->format( 'M j' );
+	}
+	return ( $res['started'] ? 'Next: ' : 'Starts ' ) . $d->format( 'D, M j' );
+}
+
+/** The residency's "Add to calendar" link: the .ics endpoint below. */
+function djdt_events_ics_url( $post_id ) {
+	return add_query_arg( 'djdt_ics', (int) $post_id, home_url( '/' ) );
+}
+
+/**
+ * ?djdt_ics=<event id>: an .ics file for a residency, so "Add to calendar"
+ * adds the whole series, not one date. A regular series (every gap a whole
+ * multiple of 1 or 7 days) is one VEVENT with an RRULE from the next date,
+ * BYDAY on the real start weekday, EXDATEs for skipped dates, and an UNTIL
+ * at the last known date unless MEC says the repeat never ends. Anything
+ * else is one VEVENT per upcoming date. Times are local with a TZID and a
+ * VTIMEZONE built from PHP's own transitions, so a 9 PM set stays 9 PM
+ * across daylight saving; on a site set to a plain UTC offset (no named
+ * zone) they are UTC instead. Behind djdt_is_active() like the rest.
+ */
+add_action( 'template_redirect', 'djdt_events_serve_ics', 1 );
+
+function djdt_events_serve_ics() {
+	if ( ! isset( $_GET['djdt_ics'] ) || ! djdt_is_active() ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a public read only download
+		return;
+	}
+	$post_id = absint( $_GET['djdt_ics'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	$post    = get_post( $post_id );
+	if ( ! $post || DJDT_EVENTS_MEC_POST_TYPE !== $post->post_type || 'publish' !== $post->post_status ) {
+		status_header( 404 );
+		exit;
+	}
+	$occs = array();
+	foreach ( djdt_events_get_upcoming_occurrences() as $occ ) {
+		if ( $occ['post']->ID === $post_id ) {
+			$occs[] = $occ;
+		}
+	}
+	if ( ! $occs ) {
+		status_header( 404 );
+		exit;
+	}
+	$ics = djdt_events_build_ics( $post, $occs );
+	nocache_headers();
+	header( 'Content-Type: text/calendar; charset=utf-8' );
+	header( 'Content-Disposition: attachment; filename="' . sanitize_file_name( 'dj-digimark-' . $post->post_name ) . '.ics"' );
+	echo $ics; // phpcs:ignore WordPress.Security.EscapeOutput -- a calendar file, escaped per RFC 5545 inside
+	exit;
+}
+
+/** Escapes a TEXT value per RFC 5545. */
+function djdt_events_ics_text( $s ) {
+	return str_replace( array( '\\', ';', ',', "\r\n", "\n" ), array( '\\\\', '\;', '\,', '\n', '\n' ), (string) $s );
+}
+
+/** Folds a content line at 75 octets per RFC 5545, without splitting a UTF-8 character. */
+function djdt_events_ics_fold( $line ) {
+	$out = '';
+	while ( strlen( $line ) > 75 ) {
+		$cut = 75;
+		while ( $cut > 0 && ( ord( $line[ $cut ] ) & 0xC0 ) === 0x80 ) {
+			$cut--;
+		}
+		$out  .= substr( $line, 0, $cut ) . "\r\n ";
+		$line  = substr( $line, $cut );
+	}
+	return $out . $line;
+}
+
+function djdt_events_build_ics( $post, $occs ) {
+	$tz      = wp_timezone();
+	$tzid    = $tz->getName();
+	$named   = (bool) preg_match( '#^[A-Za-z]+/#', $tzid ) || 'UTC' === $tzid;
+	$venue   = djdt_events_get_venue( $post->ID );
+	$name    = $venue ? $venue['name'] : get_the_title( $post );
+	$address = $venue ? $venue['address'] : '';
+	$host    = wp_parse_url( home_url(), PHP_URL_HOST );
+	$utc     = new DateTimeZone( 'UTC' );
+	$stamp   = gmdate( 'Ymd\THis\Z' );
+	$rule    = djdt_events_recurrence( $post, $occs );
+
+	$dt = function ( $d ) use ( $named, $tzid, $utc ) {
+		return $named ? ';TZID=' . $tzid . ':' . $d->format( 'Ymd\THis' ) : ':' . $d->setTimezone( $utc )->format( 'Ymd\THis\Z' );
+	};
+	$common = array(
+		'SUMMARY:' . djdt_events_ics_text( 'DJ DigiMark at ' . $name ),
+		'URL:' . djdt_events_page_url(),
+	);
+	if ( $address ) {
+		$common[] = 'LOCATION:' . djdt_events_ics_text( $address );
+	}
+
+	$lines = array( 'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//DJ DigiMark//djdigi-theme//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:' . djdt_events_ics_text( 'DJ DigiMark at ' . $name ) );
+	if ( $named && 'UTC' !== $tzid ) {
+		$lines = array_merge( $lines, djdt_events_ics_vtimezone( $tz, $occs[0]['start'] ) );
+	}
+
+	if ( $rule['interval'] > 0 ) {
+		$first = $occs[0];
+		$by    = strtoupper( substr( $first['start']->format( 'D' ), 0, 2 ) );
+		$rrule = 'RRULE:' . ( 1 === $rule['interval'] ? 'FREQ=DAILY' : 'FREQ=WEEKLY;INTERVAL=' . ( $rule['interval'] / 7 ) . ';BYDAY=' . $by );
+		if ( 'never' !== (string) get_post_meta( $post->ID, 'mec_repeat_end', true ) ) {
+			$rrule .= ';UNTIL=' . end( $occs )['start']->setTimezone( $utc )->format( 'Ymd\THis\Z' );
+		}
+		$event = array( 'BEGIN:VEVENT', 'UID:djdt-residency-' . $post->ID . '@' . $host, 'DTSTAMP:' . $stamp, 'DTSTART' . $dt( $first['start'] ), 'DTEND' . $dt( $first['end'] ), $rrule );
+		// Skipped dates inside the series.
+		for ( $i = 1; $i < count( $occs ); $i++ ) {
+			$cursor = $occs[ $i - 1 ]['start']->modify( '+' . $rule['interval'] . ' days' );
+			while ( $cursor->format( 'Y-m-d' ) < $occs[ $i ]['start']->format( 'Y-m-d' ) ) {
+				$event[] = 'EXDATE' . $dt( $cursor );
+				$cursor  = $cursor->modify( '+' . $rule['interval'] . ' days' );
+			}
+		}
+		$lines = array_merge( $lines, $event, $common, array( 'END:VEVENT' ) );
+	} else {
+		foreach ( $occs as $occ ) {
+			$lines = array_merge( $lines, array( 'BEGIN:VEVENT', 'UID:djdt-' . $post->ID . '-' . $occ['start']->format( 'Ymd' ) . '@' . $host, 'DTSTAMP:' . $stamp, 'DTSTART' . $dt( $occ['start'] ), 'DTEND' . $dt( $occ['end'] ) ), $common, array( 'END:VEVENT' ) );
+		}
+	}
+	$lines[] = 'END:VCALENDAR';
+	return implode( "\r\n", array_map( 'djdt_events_ics_fold', $lines ) ) . "\r\n";
+}
+
+/**
+ * A VTIMEZONE for $tz: the zone's standard and daylight rules, read from
+ * PHP's own transition table for the year around $around, each as a yearly
+ * RRULE (BYMONTH plus the nth or last weekday, the same shape as the US and
+ * EU rules). A zone without daylight saving gets one STANDARD block.
+ */
+function djdt_events_ics_vtimezone( $tz, $around ) {
+	$from  = $around->getTimestamp() - 400 * DAY_IN_SECONDS;
+	$trans = $tz->getTransitions( $from, $around->getTimestamp() + 400 * DAY_IN_SECONDS );
+	$out   = array( 'BEGIN:VTIMEZONE', 'TZID:' . $tz->getName() );
+	$fmt   = function ( $sec ) {
+		$sign = $sec < 0 ? '-' : '+';
+		$sec  = abs( $sec );
+		return $sign . sprintf( '%02d%02d', floor( $sec / 3600 ), ( $sec % 3600 ) / 60 );
+	};
+	$seen = array();
+	$prev = is_array( $trans ) && $trans ? $trans[0] : null;
+	if ( is_array( $trans ) ) {
+		for ( $i = 1; $i < count( $trans ); $i++ ) {
+			$t    = $trans[ $i ];
+			$kind = $t['isdst'] ? 'DAYLIGHT' : 'STANDARD';
+			if ( isset( $seen[ $kind ] ) ) {
+				$prev = $t;
+				continue;
+			}
+			$seen[ $kind ] = true;
+			$local         = ( new DateTimeImmutable( '@' . ( $t['ts'] + $prev['offset'] ) ) );
+			$day           = (int) $local->format( 'j' );
+			$nth           = ( $day + 7 > (int) $local->format( 't' ) ) ? -1 : (int) ceil( $day / 7 );
+			$out           = array_merge( $out, array(
+				'BEGIN:' . $kind,
+				'DTSTART:' . $local->format( 'Ymd\THis' ),
+				'TZOFFSETFROM:' . $fmt( $prev['offset'] ),
+				'TZOFFSETTO:' . $fmt( $t['offset'] ),
+				'TZNAME:' . $t['abbr'],
+				'RRULE:FREQ=YEARLY;BYMONTH=' . (int) $local->format( 'n' ) . ';BYDAY=' . $nth . strtoupper( substr( $local->format( 'D' ), 0, 2 ) ),
+				'END:' . $kind,
+			) );
+			$prev = $t;
+		}
+	}
+	if ( ! $seen ) {
+		$off = $tz->getOffset( $around );
+		$out = array_merge( $out, array( 'BEGIN:STANDARD', 'DTSTART:19700101T000000', 'TZOFFSETFROM:' . $fmt( $off ), 'TZOFFSETTO:' . $fmt( $off ), 'END:STANDARD' ) );
+	}
+	$out[] = 'END:VTIMEZONE';
+	return $out;
+}
+
+/* -------------------------------------------------------------------------
  * Rendering
  * ---------------------------------------------------------------------- */
 
@@ -656,17 +988,33 @@ function djdt_events_shortcode( $atts ) {
 	$limit  = (int) $atts['limit'];
 	$is_row = $limit > 0;
 
-	$occurrences = djdt_events_get_upcoming_occurrences( $limit );
+	// v1.15.1: residencies are grouped out of the date list (see
+	// "Residencies" above). The row puts each residency first as one CD,
+	// then the next one off dates up to the limit; the events page shows
+	// the residencies as featured cards, then "More dates".
+	$upcoming = djdt_events_get_upcoming_occurrences();
+	$split    = djdt_events_split( $upcoming );
 
 	wp_enqueue_style( 'djdt-events' );
 	wp_enqueue_script( 'djdt-events' );
 
 	ob_start();
-	if ( empty( $occurrences ) ) {
+	if ( empty( $upcoming ) ) {
 		djdt_events_render_empty_state();
+	} elseif ( $is_row ) {
+		$items = array();
+		foreach ( $split['residencies'] as $res ) {
+			$items[] = array( 'occ' => $res['next'], 'res' => $res );
+		}
+		foreach ( $split['singles'] as $occ ) {
+			$items[] = array( 'occ' => $occ, 'res' => null );
+		}
+		$items = array_slice( $items, 0, $limit );
+		djdt_events_render_grid( $items, true );
+		djdt_events_render_json_ld( wp_list_pluck( $items, 'occ' ) );
 	} else {
-		djdt_events_render_grid( $occurrences, $is_row );
-		djdt_events_render_json_ld( $occurrences );
+		djdt_events_render_page( $split );
+		djdt_events_render_json_ld( $upcoming );
 	}
 	return ob_get_clean();
 }
@@ -680,21 +1028,105 @@ function djdt_events_render_empty_state() {
 	<?php
 }
 
-function djdt_events_render_grid( $occurrences, $is_row ) {
+/** $items: array( 'occ' => occurrence, 'res' => residency or null ), see djdt_events_shortcode(). */
+function djdt_events_render_grid( $items, $is_row ) {
 	?>
 	<div class="djd-events">
 		<?php if ( $is_row ) : ?>
 			<h2 class="djd-section-heading"><?php echo djdt_heading_html( 'Upcoming events' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></h2>
 		<?php endif; ?>
 		<div class="djd-events__track">
-			<?php foreach ( $occurrences as $i => $occ ) : ?>
-				<?php djdt_events_render_card( $occ, $i ); ?>
+			<?php foreach ( $items as $i => $item ) : ?>
+				<?php djdt_events_render_card( $item['occ'], $i, $item['res'] ); ?>
 			<?php endforeach; ?>
 		</div>
 		<?php if ( $is_row ) : ?>
 			<a class="djd-seeall djd-events__seeall" href="<?php echo esc_url( djdt_events_page_url() ); ?>">See all dates <span class="djd-seeall__arrow" aria-hidden="true">→</span></a>
 		<?php endif; ?>
 	</div>
+	<?php
+}
+
+/**
+ * The events page (no limit, v1.15.1): one featured card per residency,
+ * then "More dates" and the one off dates as CDs in a 4/3/2/1 column grid
+ * (events.css, .djd-events__track--page). No residencies: just the grid.
+ * No one off dates: no "More dates".
+ */
+function djdt_events_render_page( $split ) {
+	?>
+	<div class="djd-events djd-events--page">
+		<?php if ( $split['residencies'] ) : ?>
+			<div class="djd-events__residencies">
+				<?php foreach ( $split['residencies'] as $res ) : ?>
+					<?php djdt_events_render_residency( $res ); ?>
+				<?php endforeach; ?>
+			</div>
+		<?php endif; ?>
+		<?php if ( $split['singles'] ) : ?>
+			<?php if ( $split['residencies'] ) : ?>
+				<h2 class="djd-section-heading djd-events__more"><?php echo djdt_heading_html( 'More dates' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></h2>
+			<?php endif; ?>
+			<div class="djd-events__track djd-events__track--page">
+				<?php foreach ( $split['singles'] as $i => $occ ) : ?>
+					<?php djdt_events_render_card( $occ, $i ); ?>
+				<?php endforeach; ?>
+			</div>
+		<?php endif; ?>
+	</div>
+	<?php
+}
+
+/**
+ * One residency's featured card (v1.15.1), in the CD case language: a case
+ * with the weekday in place of a date and the disc sliding out from behind
+ * it, then the venue, the recurrence, the starts/next line, the cyan
+ * address block and the three pills (the .ics series, directions, share).
+ */
+function djdt_events_render_residency( $res ) {
+	$post    = $res['post'];
+	$venue   = djdt_events_get_venue( $post->ID );
+	$name    = $venue ? $venue['name'] : get_the_title( $post );
+	$address = $venue ? $venue['address'] : '';
+	$logo    = $venue ? $venue['logo'] : '';
+	$img     = get_the_post_thumbnail_url( $post->ID, 'medium_large' );
+	$next    = djdt_events_residency_next_line( $res );
+	?>
+	<article class="djd-res" aria-label="<?php echo esc_attr( $name . ', ' . $res['rule']['text'] ); ?>">
+		<div class="djd-res__media" aria-hidden="true">
+			<div class="djd-res__disc"><div class="djd-cd__disc-face" <?php if ( $img ) : ?>style="--djd-cd-disc-img: url('<?php echo esc_url( $img ); ?>');"<?php endif; ?>></div></div>
+			<div class="djd-res__case">
+				<?php if ( $img ) : ?>
+					<img class="djd-cd__case-photo skip-lazy" src="<?php echo esc_url( $img ); ?>" alt="" data-no-lazy="1" decoding="async">
+				<?php endif; ?>
+				<div class="djd-cd__case-spine"></div>
+				<div class="djd-cd__case-inner">
+					<div class="djd-cd__case-date">
+						<span class="djd-cd__case-day-num"><?php echo esc_html( strtoupper( $res['rule']['day'] ) ); ?></span><span class="djd-cd__case-day-label"><?php echo esc_html( $res['rule']['label'] ); ?></span>
+					</div>
+					<?php if ( $logo ) : ?>
+						<img class="djd-cd__case-logo skip-lazy" src="<?php echo esc_url( $logo ); ?>" alt="" data-no-lazy="1" decoding="async">
+					<?php endif; ?>
+				</div>
+			</div>
+		</div>
+		<div class="djd-res__body">
+			<span class="djd-res__tag">Residency</span>
+			<h3 class="djd-res__venue"><?php echo esc_html( $name ); ?></h3>
+			<p class="djd-res__rule"><?php echo esc_html( $res['rule']['text'] ); ?></p>
+			<p class="djd-res__next"><?php echo esc_html( $next ); ?></p>
+			<?php if ( $address ) : ?>
+				<a class="djd-res__address" href="<?php echo esc_url( djdt_events_maps_search_url( $address ) ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $address ); ?></a>
+			<?php endif; ?>
+			<div class="djd-res__pills">
+				<a class="djd-res__pill" href="<?php echo esc_url( djdt_events_ics_url( $post->ID ) ); ?>" download><span class="djd-cd__disc-pill-num">01</span>Add to calendar</a>
+				<?php if ( $address ) : ?>
+					<a class="djd-res__pill" href="<?php echo esc_url( djdt_events_directions_url( $address ) ); ?>" target="_blank" rel="noopener"><span class="djd-cd__disc-pill-num">02</span>Directions</a>
+				<?php endif; ?>
+				<button type="button" class="djd-res__pill djd-res__share" data-share-title="<?php echo esc_attr( 'DJ DigiMark at ' . $name . ', ' . $res['rule']['text'] ); ?>" data-share-url="<?php echo esc_url( djdt_events_page_url() ); ?>"><span class="djd-cd__disc-pill-num">03</span><span class="djd-cd__disc-pill-label">Share with a friend</span></button>
+			</div>
+		</div>
+	</article>
 	<?php
 }
 
@@ -771,7 +1203,19 @@ function djdt_events_maps_search_url( $address ) {
  * blocks (events.css, top 9%/height 27%, bottom from 64%) never overlap
  * it, keeping the disc's own markup here unchanged, no new element.
  */
-function djdt_events_render_card( $occ, $i ) {
+/**
+ * v1.15.1: $res (a residency, djdt_events_split()) makes this the
+ * residency's one CD in the homepage row: the weekday ("FRI") and its
+ * label ("Weekly") in place of the date, "Starts Nov 13" / "Next Nov 20"
+ * in the corner, and on the disc the recurrence, the starts/next line and
+ * an "Add to calendar" that downloads the whole series (.ics).
+ * Both images carry skip-lazy / data-no-lazy (v1.15.1, found live: covers
+ * on the events page stayed empty): Avada's own lazy loader rewrites
+ * images in the content to a placeholder, and some covers never got their
+ * photo back. The browser's own loading="lazy" still defers them until
+ * they scroll near.
+ */
+function djdt_events_render_card( $occ, $i, $res = null ) {
 	$post        = $occ['post'];
 	$venue       = djdt_events_get_venue( $post->ID );
 	$venue_name  = $venue ? $venue['name'] : get_the_title( $post );
@@ -784,20 +1228,35 @@ function djdt_events_render_card( $occ, $i ) {
 	$play_label  = sprintf( 'Show details for %s, %s', $venue_name, $display->format( 'M j' ) );
 	$glow_dur    = array( '2.6s', '2.9s', '3.2s' )[ $i % 3 ];
 	$share_title = sprintf( 'DJ DigiMark at %s, %s %s, %s', $venue_name, $display->format( 'D' ), $display->format( 'M j' ), $time_line );
+	$day_num     = $display->format( 'j' );
+	$day_label   = $display->format( 'D' ) . ' · ' . $display->format( 'M' );
+	$disc_when   = $display->format( 'D M j' ) . ' · ' . $time_line;
+	$disc_next   = '';
+	$cal_url     = djdt_events_calendar_url( $venue_name, $occ['start'], $occ['end'], $address );
+	if ( $res ) {
+		$day_num     = strtoupper( $res['rule']['day'] );
+		$day_label   = $res['rule']['label'];
+		$when        = djdt_events_residency_next_line( $res, true );
+		$disc_when   = $res['rule']['text'];
+		$disc_next   = djdt_events_residency_next_line( $res );
+		$cal_url     = djdt_events_ics_url( $post->ID );
+		$play_label  = sprintf( 'Show details for %s, %s', $venue_name, $res['rule']['text'] );
+		$share_title = sprintf( 'DJ DigiMark at %s, %s', $venue_name, $res['rule']['text'] );
+	}
 	?>
-	<div class="djd-cd" style="--djd-cd-glow-dur: <?php echo esc_attr( $glow_dur ); ?>;">
+	<div class="djd-cd<?php echo $res ? ' djd-cd--residency' : ''; ?>" style="--djd-cd-glow-dur: <?php echo esc_attr( $glow_dur ); ?>;">
 		<div class="djd-cd__case">
 			<?php if ( $img ) : ?>
-				<img class="djd-cd__case-photo" src="<?php echo esc_url( $img ); ?>" alt="" loading="lazy" decoding="async">
+				<img class="djd-cd__case-photo skip-lazy" src="<?php echo esc_url( $img ); ?>" alt="" data-no-lazy="1" loading="lazy" decoding="async">
 			<?php endif; ?>
 			<div class="djd-cd__case-spine" aria-hidden="true"></div>
 			<div class="djd-cd__case-inner">
 				<div class="djd-cd__case-date" aria-hidden="true">
-					<span class="djd-cd__case-day-num"><?php echo esc_html( $display->format( 'j' ) ); ?></span><span class="djd-cd__case-day-label"><?php echo esc_html( $display->format( 'D' ) . ' · ' . $display->format( 'M' ) ); ?></span>
+					<span class="djd-cd__case-day-num"><?php echo esc_html( $day_num ); ?></span><span class="djd-cd__case-day-label"><?php echo esc_html( $day_label ); ?></span>
 				</div>
 				<div>
 					<?php if ( $logo ) : ?>
-						<img class="djd-cd__case-logo" src="<?php echo esc_url( $logo ); ?>" alt="" loading="lazy" decoding="async">
+						<img class="djd-cd__case-logo skip-lazy" src="<?php echo esc_url( $logo ); ?>" alt="" data-no-lazy="1" loading="lazy" decoding="async">
 					<?php endif; ?>
 					<div class="djd-cd__case-venue"><?php echo esc_html( $venue_name ); ?></div>
 					<div class="djd-cd__case-time"><?php echo esc_html( $time_line ); ?></div>
@@ -818,13 +1277,16 @@ function djdt_events_render_card( $occ, $i ) {
 			<div class="djd-cd__disc-text">
 				<div class="djd-cd__disc-top">
 					<div class="djd-cd__disc-venue"><?php echo esc_html( $venue_name ); ?></div>
-					<div class="djd-cd__disc-when"><?php echo esc_html( $display->format( 'D M j' ) . ' · ' . $time_line ); ?></div>
+					<div class="djd-cd__disc-when"><?php echo esc_html( $disc_when ); ?></div>
+					<?php if ( $disc_next ) : ?>
+						<div class="djd-cd__disc-when"><?php echo esc_html( $disc_next ); ?></div>
+					<?php endif; ?>
 					<?php if ( $address ) : ?>
 						<a class="djd-cd__disc-address" href="<?php echo esc_url( djdt_events_maps_search_url( $address ) ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $address ); ?></a>
 					<?php endif; ?>
 				</div>
 				<div class="djd-cd__disc-bottom">
-					<a href="<?php echo esc_url( djdt_events_calendar_url( $venue_name, $occ['start'], $occ['end'], $address ) ); ?>" target="_blank" rel="noopener"><span class="djd-cd__disc-pill-num">01</span>Add to calendar</a>
+					<a href="<?php echo esc_url( $cal_url ); ?>"<?php echo $res ? ' download' : ' target="_blank" rel="noopener"'; ?>><span class="djd-cd__disc-pill-num">01</span>Add to calendar</a>
 					<?php if ( $address ) : ?>
 						<a href="<?php echo esc_url( djdt_events_directions_url( $address ) ); ?>" target="_blank" rel="noopener"><span class="djd-cd__disc-pill-num">02</span>Directions</a>
 					<?php endif; ?>
