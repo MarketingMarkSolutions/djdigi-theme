@@ -973,8 +973,14 @@ body.djdigi-theme .fusion-main-menu .sub-menu li:hover > a {
 	background-color: rgba(36, 169, 224, 0.2) !important;
 	color: var(--djd-paper) !important;
 }
+/* v1.16.2, Mark's call: solid with a blur, so the hero and page do not show
+   through the phone pill (this rule made it transparent until now). The one
+   backdrop-filter in the plugin; the desktop pill stays without one, see
+   the note on .fusion-main-menu above. */
 body.djdigi-theme .fusion-mobile-selector {
-	background-color: transparent !important;
+	background-color: rgba(11, 8, 32, 0.88) !important;
+	-webkit-backdrop-filter: blur(10px);
+	backdrop-filter: blur(10px);
 	border-color: rgba(241, 236, 226, 0.5) !important;
 	color: var(--djd-paper) !important;
 }

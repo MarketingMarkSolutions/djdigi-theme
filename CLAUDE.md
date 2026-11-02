@@ -423,6 +423,14 @@ old logo never requested. The PHP string functions (autop strip, logo swap, titl
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
 
+## v1.16.2: solid mobile menu pill
+The phone pill (`.fusion-mobile-selector`) was fully transparent: a later rule in site.css forced
+`background-color: transparent !important` over the earlier 0.82 fill. It is now `rgba(11, 8, 32, .88)`
+with `backdrop-filter: blur(10px)` (plus -webkit-), border and 999px radius unchanged. This is a
+deliberate exception, Mark's call, to the "no backdrop-filter near animated elements" lesson in
+"Venues": the pill sits over the animated hero, so if phones stutter there, remove the blur first; at
+.88 the fill alone nearly hides what is behind it. Checked at 390 in the Home v2 snapshot harness.
+
 ## v1.16.1: pop-up form fix, centered sleeve
 Two bugs from Mark's v1.16.0 live check.
 
