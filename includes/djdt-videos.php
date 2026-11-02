@@ -30,20 +30,22 @@ add_action( 'wp_enqueue_scripts', function () {
 	wp_register_style( 'djdt-videos', DJDT_URL . 'assets/css/videos.css', array( 'djdt-site' ), djdt_ver( 'assets/css/videos.css' ) );
 }, 20 );
 
-function djdt_videos_shortcode() {
-	if ( ! djdt_is_active() ) {
-		return '';
-	}
+/**
+ * The library's 4 newest video cards, split from the lightbox and VIP modal
+ * it prints after them: array( cards, overlays ), or null when the library
+ * is inactive or has nothing. Shared with [djdigi_about] (v1.16.0).
+ */
+function djdt_videos_cards() {
 	if ( ! class_exists( 'DjDigi_Library_Plugin' ) || ! method_exists( 'DjDigi_Library_Plugin', 'instance' ) ) {
-		return '';
+		return null;
 	}
 	$library = DjDigi_Library_Plugin::instance();
 	if ( ! method_exists( $library, 'render_shortcode_newest' ) ) {
-		return '';
+		return null;
 	}
 	$cards = (string) $library->render_shortcode_newest( array( 'count' => 4 ) );
 	if ( '' === trim( $cards ) ) {
-		return '';
+		return null;
 	}
 
 	// The library prints its lightbox and VIP modal (each once per request)
@@ -63,6 +65,18 @@ function djdt_videos_shortcode() {
 		$overlays = substr( $cards, $cut );
 		$cards    = substr( $cards, 0, $cut );
 	}
+	return array( $cards, $overlays );
+}
+
+function djdt_videos_shortcode() {
+	if ( ! djdt_is_active() ) {
+		return '';
+	}
+	$got = djdt_videos_cards();
+	if ( ! $got ) {
+		return '';
+	}
+	list( $cards, $overlays ) = $got;
 
 	wp_enqueue_style( 'djdt-videos' );
 

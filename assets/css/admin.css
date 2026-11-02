@@ -157,3 +157,54 @@
 	padding: 4px 6px;
 }
 .djdt-venue-item__remove:hover { color: #dc3232; }
+
+/* v1.16.0: the row editor (Story residencies and moments, About FAQ). */
+
+.djdt-rows {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	max-width: 860px;
+	margin-bottom: 12px;
+}
+.djdt-row {
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	background: #fff;
+	padding: 10px 12px 12px;
+}
+.djdt-row__head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 8px;
+}
+.djdt-row__head strong { flex: 1 1 auto; font-size: 14px; }
+.djdt-row__grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	gap: 10px 14px;
+	align-items: start;
+}
+.djdt-row__field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.djdt-row__field.is-wide { grid-column: 1 / -1; }
+.djdt-row__field label { font-size: 12px; color: #50575e; }
+.djdt-row__field.is-check { flex-direction: row; align-items: center; gap: 6px; padding-top: 22px; }
+.djdt-row__field textarea { width: 100%; }
+.djdt-row__photo {
+	width: 96px;
+	height: 64px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	border: 1px dashed #c3c4c7;
+	border-radius: 3px;
+	background: #f0f0f1;
+	cursor: pointer;
+	font-size: 11px;
+	color: #50575e;
+	padding: 0;
+}
+.djdt-row__photo img { width: 100%; height: 100%; object-fit: cover; }
+.djdt-row__clear { align-self: flex-start; color: #a00 !important; font-size: 12px; }

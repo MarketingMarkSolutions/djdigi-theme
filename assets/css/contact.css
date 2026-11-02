@@ -1,0 +1,260 @@
+/* The Contact / Book me pop-up (v1.16.0), every themed page. A record
+   sleeve (#efe6d2 paper, a light noise texture) slides up from the bottom,
+   translateY(118%) to 0 over .55s cubic-bezier(.2,.9,.25,1), carrying the
+   vinyl, which then rises out of its top, translate(-50%,10%) to
+   (-50%,-44%), its conic sheen turning slowly. The slide is on the panel
+   that holds both, since the sleeve scrolls and would clip the vinyl.
+   Markup in includes/djdt-contact.php, behavior in assets/js/contact.js.
+   Always animated (the motion-always-on policy). */
+
+.djx-pop[hidden] { display: none !important; }
+.djx-pop {
+	position: fixed;
+	inset: 0;
+	z-index: 100000;
+	font-family: var(--djd-sans);
+}
+.djx-pop *,
+.djx-pop *::before,
+.djx-pop *::after { box-sizing: border-box; }
+
+.djx-pop__backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgba(5, 3, 18, 0.74);
+	opacity: 0;
+	transition: opacity 0.4s ease;
+}
+.djx-pop.is-open .djx-pop__backdrop { opacity: 1; }
+
+.djx-pop__panel {
+	--djx-vinyl: min(300px, 62vw);
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	width: min(580px, calc(100vw - 32px));
+	margin: 0 auto;
+	transform: translateY(118%);
+	transition: transform 0.55s cubic-bezier(0.2, 0.9, 0.25, 1) 0.15s;
+	pointer-events: none;
+}
+.djx-pop.is-open .djx-pop__panel {
+	transform: translateY(0);
+	transition-delay: 0s;
+}
+
+/* The vinyl: grooves, a cyan label, a paper spindle hole; the sheen above
+   it turns. Behind the sleeve, so it shows only once it has risen. */
+.djx-pop__vinyl {
+	position: absolute;
+	left: 50%;
+	top: 0;
+	z-index: 0;
+	width: var(--djx-vinyl);
+	height: var(--djx-vinyl);
+	border-radius: 50%;
+	background:
+		radial-gradient(circle, #efe6d2 0 2.4%, transparent 2.6%),
+		radial-gradient(circle, transparent 0 5%, rgba(239, 230, 210, 0.85) 5.2% 5.8%, transparent 6%),
+		radial-gradient(circle, #24a9e0 0 17%, #0b0910 17.4% 19%, transparent 19.2%),
+		repeating-radial-gradient(circle, #0b0910 0 1.6px, #17121f 1.6px 3px),
+		#0b0910;
+	box-shadow: 0 -6px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 2px rgba(241, 236, 226, 0.06);
+	transform: translate(-50%, 10%);
+	transition: transform 0.35s ease-in;
+}
+.djx-pop.is-open .djx-pop__vinyl {
+	transform: translate(-50%, -44%);
+	transition: transform 0.75s cubic-bezier(0.2, 0.9, 0.25, 1) 0.4s;
+}
+.djx-pop__sheen {
+	position: absolute;
+	inset: 0;
+	border-radius: 50%;
+	background: conic-gradient(from 0deg, transparent 0deg 20deg, rgba(255, 255, 255, 0.2) 40deg, transparent 62deg 180deg, rgba(255, 255, 255, 0.16) 220deg, transparent 242deg 360deg);
+	-webkit-mask: radial-gradient(circle, transparent 0 19%, #000 19.5%);
+	mask: radial-gradient(circle, transparent 0 19%, #000 19.5%);
+	animation: djx-pop-sheen 9s linear infinite;
+}
+@keyframes djx-pop-sheen { to { transform: rotate(360deg); } }
+
+/* The sleeve itself: the paper, scrolling when the form is taller than
+   the room left under the risen vinyl. */
+.djx-pop__sleeve {
+	position: relative;
+	z-index: 1;
+	max-height: calc(100vh - var(--djx-vinyl) * 0.44 - 12px);
+	max-height: calc(100dvh - var(--djx-vinyl) * 0.44 - 12px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: 26px clamp(20px, 5vw, 44px) 34px;
+	border-radius: 18px 18px 0 0;
+	background-color: #efe6d2;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .27 0 0 0 0 .2 0 0 0 .55 -.18'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+	box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+	color: #2a1a3d;
+	pointer-events: auto;
+	outline: none;
+}
+.djx-pop__sleeve{scrollbar-width:thin;scrollbar-color:#5a2e91 transparent}
+.djx-pop__sleeve::-webkit-scrollbar{width:12px}
+.djx-pop__sleeve::-webkit-scrollbar-track{background:transparent;margin:18px 0}
+.djx-pop__sleeve::-webkit-scrollbar-thumb{background:#5a2e91;border-radius:999px;border:4px solid #efe6d2;background-image:radial-gradient(circle at 50% 50%,#24a9e0 0 2px,transparent 2.5px)}
+.djx-pop__sleeve::-webkit-scrollbar-thumb:hover{background-color:#24a9e0;background-image:radial-gradient(circle at 50% 50%,#0b0820 0 2px,transparent 2.5px)}
+
+.djx-pop .djx-pop__close {
+	position: sticky;
+	top: 0;
+	float: right;
+	z-index: 2;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 42px;
+	height: 42px;
+	margin: -8px -12px 0 12px;
+	padding: 0;
+	border: 0 !important;
+	border-radius: 50%;
+	background: #5a2e91 !important;
+	color: #efe6d2 !important;
+	cursor: pointer;
+	box-shadow: none !important;
+	transition: background-color 0.2s ease, color 0.2s ease;
+}
+.djx-pop .djx-pop__close:hover,
+.djx-pop .djx-pop__close:focus-visible {
+	background: #24a9e0 !important;
+	color: #0b0820 !important;
+}
+.djx-pop .djx-pop__close:focus-visible { outline: 3px solid #5a2e91; outline-offset: 2px; }
+
+.djx-pop .djx-pop__title {
+	margin: 6px 0 10px !important;
+	padding: 0 !important;
+	font-family: var(--djd-display) !important;
+	font-weight: 800 !important;
+	font-size: clamp(36px, 7vw, 52px) !important;
+	line-height: 0.95 !important;
+	letter-spacing: 0.01em !important;
+	text-transform: uppercase !important;
+	color: #5a2e91 !important;
+	text-shadow: 3px 3px 0 #24a9e0;
+}
+.djx-pop .djx-pop__sub {
+	margin: 0 0 22px !important;
+	font-size: 16px !important;
+	line-height: 1.55 !important;
+	color: #3b2a52 !important;
+}
+
+/* The Avada form on the paper. Its builder rows and columns lose their
+   own backgrounds and side padding; fields are light paper with a violet
+   rule, labels Saira, the submit a violet pill. */
+.djx-pop .djx-pop__form .fusion-form,
+.djx-pop .djx-pop__form .fusion-fullwidth,
+.djx-pop .djx-pop__form .fusion-column-wrapper {
+	--awb-background-color: transparent;
+	--awb-background-image: none;
+	background: transparent !important;
+}
+.djx-pop .djx-pop__form .fusion-fullwidth {
+	padding-left: 0 !important;
+	padding-right: 0 !important;
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+}
+.djx-pop .djx-pop__form .fusion-form-form-wrapper { margin: 0 !important; }
+/* One column on the sleeve, whatever columns the form was built with. */
+.djx-pop .djx-pop__form .fusion-builder-row {
+	width: 100% !important;
+	max-width: 100% !important;
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+}
+.djx-pop .djx-pop__form .fusion-layout-column {
+	flex: 0 0 100% !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+}
+.djx-pop .djx-pop__form .fusion-column-wrapper {
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+	padding-left: 0 !important;
+	padding-right: 0 !important;
+	border: 0 !important;
+	box-shadow: none !important;
+}
+.djx-pop .djx-pop__form label,
+.djx-pop .djx-pop__form .fusion-form-label {
+	font-family: var(--djd-display) !important;
+	font-weight: 700 !important;
+	font-size: 16px !important;
+	letter-spacing: 0.05em !important;
+	text-transform: uppercase !important;
+	color: #5a2e91 !important;
+}
+.djx-pop .djx-pop__form :is(input:not([type]), input[type="text"], input[type="email"], input[type="tel"], input[type="url"], input[type="number"], select, textarea) {
+	width: 100%;
+	padding: 12px 14px !important;
+	border: 2px solid rgba(90, 46, 145, 0.35) !important;
+	border-radius: 10px !important;
+	background: #fbf7ee !important;
+	color: #0b0820 !important;
+	font-family: var(--djd-sans) !important;
+	font-size: 16px !important;
+	box-shadow: none !important;
+	color-scheme: light;
+}
+.djx-pop .djx-pop__form :is(input, select, textarea):focus {
+	border-color: #24a9e0 !important;
+	box-shadow: 0 0 0 3px rgba(36, 169, 224, 0.25) !important;
+	outline: none !important;
+}
+.djx-pop .djx-pop__form ::placeholder { color: rgba(42, 26, 61, 0.45) !important; }
+.djx-pop .djx-pop__form :is(button[type="submit"], input[type="submit"], .fusion-button) {
+	display: inline-flex !important;
+	align-items: center;
+	justify-content: center;
+	width: auto !important;
+	min-height: 52px;
+	padding: 14px 30px !important;
+	border: 0 !important;
+	border-radius: 999px !important;
+	background: #5a2e91 !important;
+	color: #efe6d2 !important;
+	font-family: var(--djd-display) !important;
+	font-weight: 800 !important;
+	font-size: 18px !important;
+	letter-spacing: 0.05em !important;
+	text-transform: uppercase !important;
+	cursor: pointer;
+	box-shadow: none !important;
+	transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+.djx-pop .djx-pop__form :is(button[type="submit"], input[type="submit"], .fusion-button) * { color: inherit !important; }
+.djx-pop .djx-pop__form :is(button[type="submit"], input[type="submit"], .fusion-button):is(:hover, :focus-visible) {
+	background: #24a9e0 !important;
+	color: #0b0820 !important;
+	transform: translateY(-2px);
+}
+.djx-pop .djx-pop__form .fusion-alert {
+	border-radius: 10px !important;
+	color: #2a1a3d !important;
+}
+
+/* Page scroll locked while open (contact.js). */
+html.djx-pop-lock,
+html.djx-pop-lock body { overflow: hidden !important; }
+
+/* Phones: the sleeve runs full width. */
+@media (max-width: 599.98px) {
+	.djx-pop__panel {
+		--djx-vinyl: min(240px, 60vw);
+		width: 100vw;
+	}
+	.djx-pop__sleeve { border-radius: 16px 16px 0 0; }
+}

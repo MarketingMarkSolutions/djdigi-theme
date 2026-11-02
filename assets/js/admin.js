@@ -3,7 +3,9 @@
    reorder, remove, logo, name, details, link, logo color, on/off, on the
    Venues screen). Two independent pieces in one file; each only looks for
    its own DOM ids and returns early if they are not on the current page,
-   so loading this file on either screen (or both, it is small) is fine. */
+   so loading this file on either screen (or both, it is small) is fine.
+   v1.16.0: plus the About intro photo, and one shared row editor
+   (rowsEditor) for the Story residencies and moments and the About FAQ. */
 (function ($) {
 	'use strict';
 
@@ -430,5 +432,282 @@
 	render();
 
 	})();
+
+
+	// v1.16.0: the About screen's intro photo, same single picker pattern.
+	(function aboutPhoto() {
+
+	var wrap = document.getElementById('djdt-about-photo');
+	var hidden = document.getElementById('djdt-about-photo-id');
+	var pickBtn = document.getElementById('djdt-about-photo-pick');
+	var removeBtn = document.getElementById('djdt-about-photo-remove');
+	if (!wrap || !hidden || !pickBtn || !removeBtn) return;
+
+	var current = (window.djdtAdmin && window.djdtAdmin.aboutPhoto) || { id: 0, url: '' };
+
+	function render() {
+		wrap.innerHTML = '';
+		if (!current.id) {
+			var hint = document.createElement('p');
+			hint.className = 'description';
+			hint.textContent = 'No photo picked, using the default photo.';
+			wrap.appendChild(hint);
+			return;
+		}
+		var img = document.createElement('img');
+		img.src = current.url;
+		img.alt = '';
+		img.style.maxHeight = '120px';
+		img.style.display = 'block';
+		wrap.appendChild(img);
+	}
+
+	pickBtn.addEventListener('click', function (e) {
+		e.preventDefault();
+		var frame = wp.media({ title: 'Choose the intro photo', multiple: false, library: { type: 'image' } });
+		frame.on('select', function () {
+			var attachment = frame.state().get('selection').first();
+			current.id = attachment.get('id');
+			var sizes = attachment.get('sizes');
+			current.url = (sizes && sizes.thumbnail && sizes.thumbnail.url) || attachment.get('url') || '';
+			hidden.value = current.id;
+			render();
+		});
+		frame.open();
+	});
+
+	removeBtn.addEventListener('click', function (e) {
+		e.preventDefault();
+		current = { id: 0, url: '' };
+		hidden.value = '0';
+		render();
+	});
+
+	render();
+
+	})();
+
+	/* v1.16.0: a small row editor shared by the Story screen (residencies,
+	   moments) and the About screen (FAQ). Each list is a hidden field
+	   holding JSON (the same pattern as Venues); rows are cards of labeled
+	   fields, moved with the arrow buttons, removed with the x. Field types:
+	   text, year, textarea, check, photo (a wp.media picker; the thumbnail
+	   URL is shown but only the id is saved), and select (options from a
+	   function, read again on every render). opts.onChange runs after any
+	   edit, so one list can refresh another (the moments' residency menu). */
+	function rowsEditor(opts) {
+		var box = document.getElementById(opts.box);
+		var hidden = document.getElementById(opts.hidden);
+		var addBtn = document.getElementById(opts.add);
+		if (!box || !hidden || !addBtn) return null;
+		var rows = [];
+		try { rows = JSON.parse(hidden.value || '[]') || []; } catch (e) { rows = []; }
+		var uid = 0;
+
+		function persist() {
+			hidden.value = JSON.stringify(rows.map(function (r) {
+				var out = {};
+				Object.keys(r).forEach(function (k) { if (k !== 'photo_url') out[k] = r[k]; });
+				return out;
+			}));
+			if (opts.onChange) opts.onChange(rows);
+		}
+
+		function field(row, f) {
+			var id = 'djdt-row-' + opts.box + '-' + (uid++);
+			var wrap = document.createElement('div');
+			wrap.className = 'djdt-row__field is-' + f.type + (f.wide ? ' is-wide' : '');
+			var label = document.createElement('label');
+			label.htmlFor = id;
+			label.textContent = f.label;
+			var input;
+			if (f.type === 'check') {
+				input = document.createElement('input');
+				input.type = 'checkbox';
+				input.id = id;
+				input.checked = !!row[f.key];
+				input.addEventListener('change', function () {
+					row[f.key] = input.checked ? 1 : 0;
+					persist();
+					if (f.rerender) render();
+				});
+				wrap.appendChild(input);
+				wrap.appendChild(label);
+				return wrap;
+			}
+			if (f.type === 'photo') {
+				var pick = document.createElement('button');
+				pick.type = 'button';
+				pick.className = 'djdt-row__photo';
+				pick.id = id;
+				if (row.photo_url) {
+					var img = document.createElement('img');
+					img.src = row.photo_url;
+					img.alt = '';
+					pick.appendChild(img);
+				} else {
+					pick.textContent = row[f.key] ? 'Photo set' : 'Add photo';
+				}
+				pick.addEventListener('click', function (e) {
+					e.preventDefault();
+					var frame = wp.media({ title: 'Choose a photo', multiple: false, library: { type: 'image' } });
+					frame.on('select', function () {
+						var a = frame.state().get('selection').first();
+						var sizes = a.get('sizes');
+						row[f.key] = a.get('id');
+						row.photo_url = (sizes && sizes.thumbnail && sizes.thumbnail.url) || a.get('url') || '';
+						persist();
+						render();
+					});
+					frame.open();
+				});
+				wrap.appendChild(label);
+				wrap.appendChild(pick);
+				if (row[f.key]) {
+					var clear = document.createElement('button');
+					clear.type = 'button';
+					clear.className = 'button-link djdt-row__clear';
+					clear.textContent = 'Remove photo';
+					clear.addEventListener('click', function () { row[f.key] = 0; row.photo_url = ''; persist(); render(); });
+					wrap.appendChild(clear);
+				}
+				return wrap;
+			}
+			if (f.type === 'textarea') {
+				input = document.createElement('textarea');
+				input.rows = f.rows || 3;
+				input.value = row[f.key] || '';
+			} else if (f.type === 'select') {
+				input = document.createElement('select');
+				f.options().forEach(function (o) {
+					var opt = document.createElement('option');
+					opt.value = o[0];
+					opt.textContent = o[1];
+					if (String(row[f.key] || '') === String(o[0])) opt.selected = true;
+					input.appendChild(opt);
+				});
+			} else {
+				input = document.createElement('input');
+				input.type = f.type === 'year' ? 'number' : 'text';
+				if (f.type === 'year') { input.min = 1900; input.max = 2100; input.step = 1; }
+				input.value = row[f.key] ? row[f.key] : '';
+				if (f.disabled && f.disabled(row)) input.disabled = true;
+			}
+			input.id = id;
+			if (f.placeholder) input.placeholder = f.placeholder;
+			input.addEventListener(f.type === 'select' ? 'change' : 'input', function () {
+				row[f.key] = f.type === 'year' ? (parseInt(input.value, 10) || 0) : input.value;
+				persist();
+			});
+			wrap.appendChild(label);
+			wrap.appendChild(input);
+			return wrap;
+		}
+
+		function render() {
+			box.innerHTML = '';
+			rows.forEach(function (row, i) {
+				var card = document.createElement('div');
+				card.className = 'djdt-row';
+				var head = document.createElement('div');
+				head.className = 'djdt-row__head';
+				var title = document.createElement('strong');
+				title.textContent = opts.title(row, i);
+				head.appendChild(title);
+				[['↑', 'Move up', -1], ['↓', 'Move down', 1]].forEach(function (m) {
+					var b = document.createElement('button');
+					b.type = 'button';
+					b.className = 'button button-small';
+					b.textContent = m[0];
+					b.setAttribute('aria-label', m[1]);
+					b.disabled = (m[2] < 0 && i === 0) || (m[2] > 0 && i === rows.length - 1);
+					b.addEventListener('click', function () {
+						var j = i + m[2];
+						var tmp = rows[j]; rows[j] = rows[i]; rows[i] = tmp;
+						persist();
+						render();
+					});
+					head.appendChild(b);
+				});
+				var rm = document.createElement('button');
+				rm.type = 'button';
+				rm.className = 'djdt-venue-item__remove';
+				rm.textContent = '×';
+				rm.setAttribute('aria-label', 'Remove');
+				rm.addEventListener('click', function () {
+					if (!window.confirm('Remove "' + opts.title(row, i) + '"?')) return;
+					rows.splice(i, 1);
+					persist();
+					render();
+				});
+				head.appendChild(rm);
+				card.appendChild(head);
+				var grid = document.createElement('div');
+				grid.className = 'djdt-row__grid';
+				opts.fields.forEach(function (f) { grid.appendChild(field(row, f)); });
+				card.appendChild(grid);
+				box.appendChild(card);
+			});
+		}
+
+		addBtn.addEventListener('click', function (e) {
+			e.preventDefault();
+			rows.push(opts.blank());
+			persist();
+			render();
+			var last = box.lastElementChild;
+			if (last) { var first = last.querySelector('input, textarea'); if (first) first.focus(); }
+		});
+
+		render();
+		return { rows: function () { return rows; }, render: render };
+	}
+
+	(function storyScreen() {
+		var moments = null;
+		var residencies = rowsEditor({
+			box: 'djdt-story-res', hidden: 'djdt-story-res-json', add: 'djdt-story-res-add',
+			title: function (r) { return r.name || 'New residency'; },
+			blank: function () { return { id: 'r' + Date.now().toString(36), name: '', location: '', start: 0, end: 0, present: 0, p2_label: '', p2_start: 0, p2_end: 0, text: '', photo: 0 }; },
+			fields: [
+				{ key: 'name', label: 'Venue name', type: 'text' },
+				{ key: 'location', label: 'Location', type: 'text', placeholder: 'Grand Rapids, MI' },
+				{ key: 'start', label: 'Start year', type: 'year' },
+				{ key: 'end', label: 'End year', type: 'year', disabled: function (r) { return !!r.present; } },
+				{ key: 'present', label: 'Present (still going)', type: 'check', rerender: true },
+				{ key: 'p2_label', label: 'Second phase label (optional)', type: 'text', placeholder: 'DJ rotation' },
+				{ key: 'p2_start', label: 'Second phase from', type: 'year' },
+				{ key: 'p2_end', label: 'Second phase to', type: 'year' },
+				{ key: 'text', label: 'Short text', type: 'textarea', rows: 3, wide: true },
+				{ key: 'photo', label: 'Photo (optional)', type: 'photo' }
+			],
+			onChange: function () { if (moments) moments.render(); }
+		});
+		if (!residencies) return;
+		moments = rowsEditor({
+			box: 'djdt-story-mom', hidden: 'djdt-story-mom-json', add: 'djdt-story-mom-add',
+			title: function (m) { return m.title || 'New moment'; },
+			blank: function () { return { title: '', text: '', photo: 0, year: 0, res: '' }; },
+			fields: [
+				{ key: 'title', label: 'Title', type: 'text' },
+				{ key: 'year', label: 'Year (optional)', type: 'year' },
+				{ key: 'res', label: 'Residency', type: 'select', options: function () {
+					return [['', 'None']].concat(residencies.rows().filter(function (r) { return r.name; }).map(function (r) { return [r.id, r.name]; }));
+				} },
+				{ key: 'text', label: 'Short text', type: 'textarea', rows: 3, wide: true },
+				{ key: 'photo', label: 'Photo (optional)', type: 'photo' }
+			]
+		});
+	})();
+
+	rowsEditor({
+		box: 'djdt-about-faq', hidden: 'djdt-about-faq-json', add: 'djdt-about-faq-add',
+		title: function (r, i) { return (i + 1) + '. ' + (r.q || 'New question'); },
+		blank: function () { return { q: '', a: '' }; },
+		fields: [
+			{ key: 'q', label: 'Question', type: 'text', wide: true },
+			{ key: 'a', label: 'Answer', type: 'textarea', rows: 4, wide: true }
+		]
+	});
 
 })(jQuery);

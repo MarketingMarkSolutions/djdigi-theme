@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: DJ DigiMark Theme
- * Description: Site styling, the inner page banner, Avada menu restyle, the [djdigi_hero] homepage hero, [djdigi_player], [djdigi_events], [djdigi_videos] and [djdigi_venues] for djdigimark.com.
- * Version: 1.15.2
+ * Description: Site styling, the inner page banner, Avada menu restyle, the Contact / Book me pop-up, the [djdigi_hero] homepage hero, [djdigi_player], [djdigi_events], [djdigi_videos], [djdigi_venues], [djdigi_story] and [djdigi_about] for djdigimark.com.
+ * Version: 1.16.0
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.15.2' );
+define( 'DJDT_VERSION', '1.16.0' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -64,6 +64,15 @@ require_once DJDT_DIR . 'includes/djdt-videos.php';
  * ---------------------------------------------------------------------- */
 
 require_once DJDT_DIR . 'includes/djdt-inner.php';
+
+/* -------------------------------------------------------------------------
+ * v1.16.0: the Story timeline ([djdigi_story], DigiMark > Story), the About
+ * page ([djdigi_about], DigiMark > About) and the sitewide Contact / Book
+ * me pop-up. See CLAUDE.md, "v1.16.0".
+ * ---------------------------------------------------------------------- */
+require_once DJDT_DIR . 'includes/djdt-story.php';
+require_once DJDT_DIR . 'includes/djdt-about.php';
+require_once DJDT_DIR . 'includes/djdt-contact.php';
 
 /* -------------------------------------------------------------------------
  * Settings
@@ -123,6 +132,13 @@ function djdt_defaults() {
 		// baked to the hero halftone look) for pages with no featured image.
 		// 0 means use the first hero photo instead.
 		'banner_photo'   => 0,
+		// v1.16.0: the Contact / Book me pop-up's line under its title.
+		'popup_sub'      => "Bookings, collabs, remix requests or just saying hi, drop me a message and I'll get back to you.",
+		// v1.16.0: the Story timeline (seeded from the live About page's
+		// Residencies list) and the About page copy (djdt_about() fills in
+		// its own defaults, so an empty array means "all defaults").
+		'story'          => djdt_story_seed(),
+		'about'          => array(),
 	);
 }
 
@@ -206,6 +222,8 @@ add_action( 'admin_menu', function () {
 		add_submenu_page( 'djdigi-theme', 'Theme Settings', 'Theme Settings', 'manage_options', 'djdigi-theme', 'djdt_render_settings_theme' ),
 		add_submenu_page( 'djdigi-theme', 'Hero Photos', 'Hero Photos', 'manage_options', 'djdigi-theme-photos', 'djdt_render_settings_photos' ),
 		add_submenu_page( 'djdigi-theme', 'Venues', 'Venues', 'manage_options', 'djdigi-theme-venues', 'djdt_render_settings_venues' ),
+		add_submenu_page( 'djdigi-theme', 'Story', 'Story', 'manage_options', 'djdigi-theme-story', 'djdt_render_settings_story' ),
+		add_submenu_page( 'djdigi-theme', 'About', 'About', 'manage_options', 'djdigi-theme-about', 'djdt_render_settings_about' ),
 	);
 } );
 
@@ -258,6 +276,8 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 	wp_enqueue_script( 'djdt-admin', DJDT_URL . 'assets/js/admin.js', array( 'jquery' ), djdt_ver( 'assets/js/admin.js' ), true );
 	$logo_id   = (int) djdt_get( 'logo_override' );
 	$banner_id = (int) djdt_get( 'banner_photo' );
+	$about     = djdt_about();
+	$about_id  = (int) $about['photo'];
 	wp_localize_script( 'djdt-admin', 'djdtAdmin', array(
 		'photos'   => array_values( djdt_get( 'hero_photos' ) ),
 		'venues'   => array_values( array_map( 'djdt_venue_admin_row', djdt_get( 'venues' ) ) ),
@@ -270,6 +290,11 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 		'bannerPhoto' => array(
 			'id'  => $banner_id,
 			'url' => $banner_id ? (string) wp_get_attachment_thumb_url( $banner_id ) : '',
+		),
+		// v1.16.0: the About intro photo picker.
+		'aboutPhoto'  => array(
+			'id'  => $about_id,
+			'url' => $about_id ? (string) wp_get_attachment_thumb_url( $about_id ) : '',
 		),
 	) );
 } );
@@ -445,6 +470,7 @@ function djdt_sanitize( $in ) {
 		$out['book_url']      = sanitize_text_field( isset( $in['book_url'] ) ? trim( $in['book_url'] ) : $d['book_url'] );
 		$out['newsletter_url'] = sanitize_text_field( isset( $in['newsletter_url'] ) ? trim( $in['newsletter_url'] ) : $d['newsletter_url'] );
 		$out['ticker']        = sanitize_textarea_field( isset( $in['ticker'] ) ? $in['ticker'] : $d['ticker'] );
+		$out['popup_sub']     = sanitize_text_field( isset( $in['popup_sub'] ) ? $in['popup_sub'] : $d['popup_sub'] );
 
 		// v1.14.0: wp_attachment_is_image() rejects SVGs, which dropped an
 		// SVG override on save; same explicit mime check as the read side
@@ -470,7 +496,7 @@ function djdt_sanitize( $in ) {
 		// points). Each row is re-validated here rather than trusted, same
 		// as anything else arriving by POST.
 		$out['hero_photos'] = array();
-		$raw = isset( $in['hero_photos_json'] ) ? json_decode( wp_unslash( $in['hero_photos_json'] ), true ) : array();
+		$raw = isset( $in['hero_photos_json'] ) ? json_decode( $in['hero_photos_json'], true ) : array();
 		if ( is_array( $raw ) ) {
 			foreach ( array_slice( $raw, 0, 20 ) as $row ) {
 				$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
@@ -501,7 +527,7 @@ function djdt_sanitize( $in ) {
 		// logo is optional (a row can be name/details and link only),
 		// unlike a hero photo, which is why id is not required here.
 		$out['venues'] = array();
-		$raw = isset( $in['venues_json'] ) ? json_decode( wp_unslash( $in['venues_json'] ), true ) : array();
+		$raw = isset( $in['venues_json'] ) ? json_decode( $in['venues_json'], true ) : array();
 		if ( is_array( $raw ) ) {
 			foreach ( array_slice( $raw, 0, 60 ) as $row ) {
 				$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
@@ -527,6 +553,14 @@ function djdt_sanitize( $in ) {
 		}
 	}
 
+	if ( 'story' === $page ) {
+		$out['story'] = djdt_story_sanitize( $in );
+	}
+
+	if ( 'about' === $page ) {
+		$out['about'] = djdt_about_sanitize( $in );
+	}
+
 	delete_transient( 'djdt_mix' );
 	delete_transient( 'djdt_mixes' );
 	return $out;
@@ -546,6 +580,8 @@ function djdt_render_settings_page( $active_slug, $page_key, $render_fields ) {
 		'djdigi-theme'        => 'Theme Settings',
 		'djdigi-theme-photos' => 'Hero Photos',
 		'djdigi-theme-venues' => 'Venues',
+		'djdigi-theme-story'  => 'Story',
+		'djdigi-theme-about'  => 'About',
 	);
 	?>
 	<div class="wrap">
@@ -609,7 +645,14 @@ function djdt_render_settings_theme() {
 			<th scope="row"><label for="djdt-book">"Book me" link</label></th>
 			<td>
 				<input id="djdt-book" class="regular-text" name="<?php echo esc_attr( $n ); ?>[book_url]" value="<?php echo esc_attr( $s['book_url'] ); ?>">
-				<p class="description">The "Contact / Book me" button in the hero and in the footer, one link for both. Leave empty to hide both.
+				<p class="description">The "Contact / Book me" button in the hero and in the footer, one link for both. Leave empty to hide both. Every Contact / Book me button opens the contact pop-up; this link is only used if the pop-up cannot open (no contact form found).</p>
+			</td>
+		</tr>
+		<tr>
+			<th scope="row"><label for="djdt-popup-sub">Contact pop-up text</label></th>
+			<td>
+				<input id="djdt-popup-sub" class="large-text" name="<?php echo esc_attr( $n ); ?>[popup_sub]" value="<?php echo esc_attr( $s['popup_sub'] ); ?>">
+				<p class="description">The line under "Contact / Book me" in the pop-up, above the contact form. Leave empty to hide it.</p>
 			</td>
 		</tr>
 		<tr>
@@ -747,12 +790,12 @@ add_action( 'wp_enqueue_scripts', function () {
 
 	wp_enqueue_script( 'djdt-dock', DJDT_URL . 'assets/js/dock.js', array(), djdt_ver( 'assets/js/dock.js' ), true );
 
-	// v1.15.0: inner pages get the mirror ball too, docked in the pill logo
-	// from the start (no hero, so no drop, wire or specks; mirrorball.js).
-	// It reflects the banner photo. The canvas is printed in wp_footer.
+	// The pill logo and its small ball on every page (v1.15.0 inner pages,
+	// v1.16.0 every page): mirrorball.js. Hero pages enqueue it from
+	// [djdigi_hero] with the same config.
 	if ( ! djdt_is_hero_page() ) {
 		wp_enqueue_script( 'djdt-mirrorball' );
-		wp_add_inline_script( 'djdt-mirrorball', 'window.djdtMirrorBall = ' . wp_json_encode( djdt_mirrorball_config( array( 'envUrl' => djdt_banner_photo_url() ) ) ) . ';', 'before' );
+		wp_add_inline_script( 'djdt-mirrorball', 'window.djdtMirrorBall = ' . wp_json_encode( djdt_mirrorball_config() ) . ';', 'before' );
 	}
 	wp_add_inline_script( 'djdt-dock', 'window.djdtDock = ' . wp_json_encode( array(
 		'mixcloudUrl'   => 'https://www.mixcloud.com/' . rawurlencode( djdt_get( 'mixcloud_user' ) ) . '/',
@@ -774,14 +817,6 @@ function djdt_mirrorball_config( $extra = array() ) {
 		'ball3dUrl' => add_query_arg( 'ver', djdt_ver( 'assets/js/mirrorball-3d.js' ), DJDT_URL . 'assets/js/mirrorball-3d.js' ),
 	), $extra );
 }
-
-/** v1.15.0: the docked ball's canvas on inner pages, before the footer scripts run. Hero pages print theirs in [djdigi_hero]. */
-add_action( 'wp_footer', function () {
-	if ( djdt_is_inner_page() ) {
-		echo '<canvas id="djd-ball-canvas" aria-hidden="true"></canvas>' . "
-";
-	}
-}, 5 );
 
 /**
  * The "mini record" call to action (v1.14.2): a paper pill with a small
@@ -895,7 +930,7 @@ add_action( 'wp_footer', function () {
 	<script>
 	(function () {
 		function djdFixBreakout() {
-			document.querySelectorAll( '.djd-hero, .djd-player-section, .djd-events, .djd-videos, .djd-venues' ).forEach( function ( el ) {
+			document.querySelectorAll( '.djd-hero, .djd-player-section, .djd-events, .djd-videos:not(.djd-videos--inline), .djd-venues' ).forEach( function ( el ) {
 				el.style.marginLeft = '0px';
 				var left = el.getBoundingClientRect().left;
 				el.style.marginLeft = ( -left ) + 'px';

@@ -1,0 +1,260 @@
+/* [djdigi_story] (v1.16.0): the Story timeline. A compact strip (a canvas
+   waveform split into one chapter per residency, labeled by venue, the
+   lane bars under it, a playhead on the active chapter) above a snap
+   scrolling track of cards. Markup in includes/djdt-story.php, behavior in
+   assets/js/story.js. No year axis anywhere: years only show small inside
+   the cards. Two class selectors throughout, so Avada's .post-content
+   heading and paragraph rules (one class plus an element) never win. */
+
+.djd-story {
+	--djd-story-wave: 64px;
+	--djd-story-label: 46px;
+	--djd-story-lane: 9px;
+	position: relative;
+	color: var(--djd-paper);
+	font-family: var(--djd-sans);
+}
+.djd-story *,
+.djd-story *::before,
+.djd-story *::after { box-sizing: border-box; }
+
+/* The strip: scrolls sideways on narrow screens (each chapter keeps at
+   least 112px), never wraps. */
+.djd-story .djd-story__strip {
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+	padding-top: 10px;
+}
+.djd-story .djd-story__strip::-webkit-scrollbar { display: none; }
+.djd-story .djd-story__stage {
+	position: relative;
+	min-width: calc(var(--djd-story-n) * 112px);
+	height: calc(var(--djd-story-wave) + var(--djd-story-label) + 10px + var(--djd-story-lanes) * var(--djd-story-lane));
+}
+.djd-story .djd-story__wave {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: var(--djd-story-wave);
+	display: block;
+}
+
+/* One button per chapter, over its slice of the waveform and its label. */
+.djd-story .djd-story__chapters {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	height: calc(var(--djd-story-wave) + var(--djd-story-label));
+}
+.djd-story .djd-story__chapter {
+	position: absolute;
+	top: 0;
+	height: 100%;
+	display: flex;
+	align-items: flex-end;
+	margin: 0;
+	padding: 0 8px 4px 2px;
+	border: 0;
+	border-radius: 6px;
+	background: transparent !important;
+	color: rgba(241, 236, 226, 0.55) !important;
+	text-align: left;
+	cursor: pointer;
+	box-shadow: none !important;
+}
+.djd-story .djd-story__chapter-name {
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	max-height: 2.4em;
+	font-family: var(--djd-display);
+	font-weight: 700;
+	font-size: 15px;
+	line-height: 1.2;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	transition: color 0.25s ease;
+}
+.djd-story .djd-story__chapter:hover { color: var(--djd-paper) !important; }
+.djd-story .djd-story__chapter.is-active { color: var(--djd-cyan) !important; }
+.djd-story .djd-story__chapter:focus-visible { outline: 2px solid var(--djd-cyan); outline-offset: 2px; }
+
+/* The lanes: one thin bar per residency from its chapter to where it
+   ended, overlapping residencies on parallel lanes. A second phase is a
+   lighter bar continuing the same lane. */
+.djd-story .djd-story__lanes {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: calc(var(--djd-story-wave) + var(--djd-story-label) + 10px);
+	height: calc(var(--djd-story-lanes) * var(--djd-story-lane));
+}
+.djd-story .djd-story__bar {
+	position: absolute;
+	height: 4px;
+	border-radius: 2px;
+	opacity: 0.45;
+	transition: opacity 0.3s ease;
+}
+.djd-story .djd-story__bar.is-c0 { background: #24a9e0; }
+.djd-story .djd-story__bar.is-c1 { background: #9a6cff; }
+.djd-story .djd-story__bar.is-c2 { background: #f1ece2; }
+.djd-story .djd-story__bar.is-phase2 { opacity: 0.18; }
+.djd-story .djd-story__bar.is-active { opacity: 1; }
+.djd-story .djd-story__bar.is-phase2.is-active { opacity: 0.45; }
+
+/* The playhead: a thin cyan line with a small glowing cap, moved to the
+   active chapter's middle by story.js. */
+.djd-story .djd-story__playhead {
+	position: absolute;
+	top: -4px;
+	height: calc(var(--djd-story-wave) + 4px);
+	left: 0;
+	width: 2px;
+	margin-left: -1px;
+	background: var(--djd-cyan);
+	box-shadow: 0 0 8px rgba(36, 169, 224, 0.75);
+	pointer-events: none;
+	transition: left 0.6s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+.djd-story .djd-story__cap {
+	position: absolute;
+	top: -5px;
+	left: 50%;
+	width: 11px;
+	height: 11px;
+	margin-left: -5.5px;
+	border-radius: 50%;
+	background: var(--djd-cyan);
+	box-shadow: 0 0 10px 3px rgba(36, 169, 224, 0.7), 0 0 22px 6px rgba(36, 169, 224, 0.3);
+}
+
+/* Arrows */
+.djd-story .djd-story__nav {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	margin: 22px 0 14px;
+}
+.djd-story .djd-story__arrow {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 46px;
+	height: 46px;
+	margin: 0;
+	padding: 0;
+	border: 2px solid rgba(241, 236, 226, 0.35) !important;
+	border-radius: 50%;
+	background: transparent !important;
+	color: var(--djd-paper) !important;
+	cursor: pointer;
+	box-shadow: none !important;
+	transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.djd-story .djd-story__arrow:hover:not(:disabled),
+.djd-story .djd-story__arrow:focus-visible {
+	border-color: var(--djd-cyan) !important;
+	background: var(--djd-cyan) !important;
+	color: var(--djd-night) !important;
+}
+.djd-story .djd-story__arrow:focus-visible { outline: 3px solid var(--djd-cyan); outline-offset: 3px; }
+.djd-story .djd-story__arrow:disabled { opacity: 0.3; cursor: default; }
+
+/* The card track */
+.djd-story .djd-story__track {
+	display: flex;
+	align-items: flex-start;
+	gap: 16px;
+	overflow-x: auto;
+	overflow-y: hidden;
+	scroll-snap-type: x mandatory;
+	overscroll-behavior-x: contain;
+	padding: 2px 2px 16px;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(241, 236, 226, 0.25) transparent;
+	cursor: grab;
+}
+.djd-story .djd-story__track:focus-visible { outline: 2px solid var(--djd-cyan); outline-offset: 4px; }
+.djd-story .djd-story__track.is-drag {
+	scroll-snap-type: none;
+	cursor: grabbing;
+	user-select: none;
+}
+.djd-story .djd-story__track.is-drag * { pointer-events: none; }
+
+.djd-story .djd-story__card {
+	position: relative;
+	flex: 0 0 auto;
+	scroll-snap-align: start;
+	overflow: hidden;
+	border-radius: 14px;
+	background: #160d2e;
+	cursor: inherit;
+}
+.djd-story .djd-story__card::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	box-shadow: inset 0 0 0 1px rgba(241, 236, 226, 0.08);
+	pointer-events: none;
+	transition: box-shadow 0.25s ease;
+}
+.djd-story .djd-story__card.is-active::after { box-shadow: inset 0 0 0 2px var(--djd-cyan); }
+.djd-story .djd-story__card.is-residency { width: min(440px, 86%); }
+.djd-story .djd-story__card.is-moment { width: min(280px, 70%); background: #120b27; }
+
+.djd-story .djd-story__photo {
+	display: block;
+	width: 100%;
+	aspect-ratio: 16 / 10;
+	object-fit: cover;
+	margin: 0;
+	border-radius: 0 !important;
+	-webkit-user-drag: none;
+}
+.djd-story .djd-story__body { padding: 20px 22px 24px; }
+.djd-story .is-moment .djd-story__body { padding: 16px 18px 20px; }
+
+.djd-story .djd-story__venue,
+.djd-story .djd-story__title {
+	margin: 0 0 6px !important;
+	padding: 0 !important;
+	font-family: var(--djd-display) !important;
+	font-weight: 800 !important;
+	line-height: 1 !important;
+	letter-spacing: 0.01em !important;
+	text-transform: uppercase !important;
+	color: var(--djd-paper) !important;
+}
+.djd-story .djd-story__venue { font-size: clamp(26px, 2.4vw, 32px) !important; }
+.djd-story .djd-story__title { font-size: 21px !important; }
+.djd-story .djd-story__card.is-active .djd-story__venue { color: var(--djd-cyan) !important; }
+
+.djd-story .djd-story__meta {
+	margin: 0 0 4px !important;
+	font-size: 13px !important;
+	line-height: 1.4 !important;
+	letter-spacing: 0.03em;
+	color: rgba(241, 236, 226, 0.6) !important;
+}
+.djd-story .djd-story__meta.is-phase2 { color: rgba(36, 169, 224, 0.85) !important; }
+.djd-story .djd-story__text {
+	margin: 12px 0 0 !important;
+	font-size: 15.5px !important;
+	line-height: 1.55 !important;
+	color: rgba(241, 236, 226, 0.86) !important;
+}
+.djd-story .is-moment .djd-story__text { font-size: 14.5px !important; }
+
+/* Phone: cards full width, one at a time. */
+@media (max-width: 599.98px) {
+	.djd-story .djd-story__card.is-residency,
+	.djd-story .djd-story__card.is-moment { width: 100%; }
+	.djd-story .djd-story__nav { margin-top: 16px; }
+}

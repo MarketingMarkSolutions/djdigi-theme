@@ -49,8 +49,7 @@ function djdt_banner_title() {
  * The banner photo, first match wins: the page's featured image, the Theme
  * Settings "Default banner photo", the first hero photo. The first two are
  * served baked (djdt_banner_baked_url()); a photo not baked yet is skipped
- * for this page load while it bakes in the background. Cached per request,
- * since both the banner and the mirror ball's reflection read it.
+ * for this page load while it bakes in the background. Cached per request.
  */
 function djdt_banner_photo_url() {
 	static $url = null;

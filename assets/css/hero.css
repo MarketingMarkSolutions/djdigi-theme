@@ -24,8 +24,8 @@
    v1.12.0 (see CLAUDE.md, "Homepage polish"): the hero is shorter and the
    logo smaller, the entrance plays on every page load (not just the first
    visit in a session) on a new, slower timeline with a spotlight and a
-   landing glow ring, and the header docking handoff is driven by the hero
-   logo's own position passing under the header, not a scroll fraction.
+   landing glow ring. (v1.16.0: the header docking handoff v1.12.0 also
+   added is gone; the pill logo has its own ball on every page.)
    The numbers below (heights, timings, z-index) are current as of
    v1.12.0; the rest of this file's own structure is unchanged from
    v1.11.0. */
@@ -199,9 +199,8 @@
    query below.
 
    Opacity is NOT CSS/class driven any more (v1.12.0): mirrorball.js sets
-   it directly every frame, combining this same entrance fade with the
-   header docking crossfade (one driver owning the property, not two
-   fighting over it, see mirrorball.js, frame()). Only the transform
+   it directly every frame for this same entrance fade (see mirrorball.js,
+   frame(); v1.16.0, no docking crossfade any more). Only the transform
    (the scale-in) is still class driven here.
 
    align-self: flex-start (v1.12.1, found live): .djd-hero__inner is a
@@ -242,8 +241,8 @@ body.djd-seq-3 .djd-hero__buttons { opacity: 1; transform: none; }
    - the black overlay gone (!important: mirrorball.js sets its opacity
      inline every frame; with the intro skipped that value is 0 anyway);
    - the wire hidden;
-   - the logo at full opacity and scale (opacity stays a plain value here,
-     mirrorball.js's inline value takes over for the scroll docking fade);
+   - the logo at full opacity and scale (a plain value, mirrorball.js
+     sets the same 1 inline);
    - the slogan, the styles line and the button in place.
    The ball, the specks and the photo are canvas/JS driven: mirrorball.js
    starts them settled (skipIntro). The EQ bars and the record button keep
@@ -372,8 +371,8 @@ body.djdigi-theme .djd-hero ul.djd-hero__styles li + li::before {
 	pointer-events: none;
 	opacity: 0;
 }
-/* #djd-ball-canvas and #djd-ball-3d moved to site.css in v1.15.0: inner
-   pages have the docked ball too, and this file only loads on hero pages. */
+/* #djd-ball-canvas and #djd-ball-3d are in site.css (since v1.15.0), next
+   to the pill ball's canvas. */
 
 /* ---------------------------------------------------------------------
    The "Latest live set" section (v1.6.0, moved out of the hero itself,

@@ -49,6 +49,7 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 - `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo halftone baking (Imagick assisted decode, GD for every pixel operation, see "Smoothness" below), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]` (`djdt_hero_shortcode()`) and the "Latest live set" player section it outputs right after itself (`djdt_player_section()`, v1.6.0, no separate shortcode), `[djdigi_venues]`. `require_once`s `includes/djdt-events.php` and (v1.11.0) `includes/djdt-logo.php` near the top, see below.
 - `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. v1.15.1: residencies (recurring events shown once) and the `?djdt_ics=` series download, see "v1.15.1" below. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
 - `includes/djdt-inner.php` (v1.15.0): inner pages. The title banner (`djdt_banner_html()`, put before `<main id="main">` by the same output buffer as the logo swap), its "Banner title" / "Hide banner" fields (a "DigiMark banner" box on pages and posts), the featured image bake queue (`djdt_bake_banner` cron), and the leading emoji strip on content headings (`djdt_strip_heading_emoji()`). See "v1.15.0" below.
+- `includes/djdt-story.php`, `includes/djdt-about.php`, `includes/djdt-contact.php` (v1.16.0): the Story timeline, the About page and the sitewide Contact / Book me pop-up, each with its own CSS and JS in assets. See "v1.16.0" below.
 - `includes/djdt-videos.php` (v1.14.0): `[djdigi_videos]`, the 4 newest remix videos through djdigi-library's own `[djdigi_newest]` renderer, styled by `assets/css/videos.css`. See "v1.14.0" below.
 - `assets/js/mirrorball-3d.js` (v1.14.0): the 3D mirror ball (ES module, imports the bundled `assets/vendor/three/three.module.min.js`, three.js r160, MIT). mirrorball.js loads it after the page has loaded and falls back to its own 2D `drawBall()`. See "v1.14.0" below.
 - `reference/mirrorball-3d-reference.js` (v1.14.0): the approved 3D ball demo, source of truth for the look. Excluded from the zip.
@@ -421,6 +422,77 @@ hidden, show on scroll up, focus keeps it shown, no horizontal scroll, no errors
 old logo never requested. The PHP string functions (autop strip, logo swap, title split) were
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
+
+## v1.16.0: menu logo everywhere, About page, Story timeline, Contact / Book me pop-up
+Confirmed by Mark and built from his brief, with his answers on the seed data. Ships the unreleased
+v1.15.2 intro skip too. Supersedes the docking described in "Homepage polish (v1.12.0)", "Homepage
+cleanup (v1.13.0)" and "v1.15.0" ("Logo slot", "The ball on inner pages").
+
+**Menu logo (mirrorball.js, site.css).** The logo is in the pill on every page at every scroll
+position. The slot is always open in CSS on `body.djdigi-theme` (52px desktop, 62px phone);
+`placeLogo()` moves the logo into it, right away and every frame, and shows it (site.css hides it
+only until then). The logo has its own ball, `#djd-pill-ball` (made by mirrorball.js, z-index 60,
+above the header), drawn with the 2D `drawBall()`, which now takes its canvas and flash.
+- **Why 2D for the pill ball:** at radius 9.6% of a 30px wide logo it is about 6px across, too small
+  for the 3D tiles to show. 3D would mean a second WebGL context on the homepage and the 670 KB
+  three.js on every inner page. This was decided from those numbers, not a frame time measurement.
+- The hero ball stays in the hero logo and scrolls with it. No `q`, no crossfade. It is z-index 45
+  now, under the header (50), so it passes under the pill like the logo does, and it is not drawn
+  while the hero is off screen. three.js only loads on hero pages. `envUrl` and the inner page footer
+  canvas are gone.
+
+**Story (`includes/djdt-story.php`, `assets/css/story.css`, `assets/js/story.js`).** DigiMark > Story,
+`[djdigi_story]`. Saved under `story` in the main option. The default is `djdt_story_seed()`, so it is
+written to the database the first time any DigiMark screen is saved, and the saved copy wins after
+that. Moments start empty.
+- Residency: id, name, location, start, end, present, p2_label, p2_start, p2_end, text, photo. Moment:
+  title, text, photo, year, res. "Order" is the list order (arrow buttons); the strip sorts by start
+  year and the list order breaks ties (Diversions before Metro, both 2010).
+- `djdt_story_layout()`: chapters are equal width, never scaled by years. Chapter k covers the years
+  from its start to the next chapter's start, so a bar can end part way into a later chapter. Year
+  values are boundaries; start = end draws half a year; "present" runs to the strip's end. First free
+  lane wins. With the seed: 3 lanes, Metro on lane 2 with its rotation from 2014 lighter.
+- Moments with no residency go after the residency they fall in by year; no year, at the end.
+- story.js: seeded waveform, active card, playhead (over the waveform only, not the labels), arrows,
+  chapter clicks, arrow keys, mouse drag with snap, opens on the newest residency. The last cards
+  cannot reach the left edge, so arrows and clicks set the active card directly.
+
+**About (`includes/djdt-about.php`, `assets/css/about.css`).** DigiMark > About, `[djdigi_about]`.
+Saved under `about`; `djdt_about()` fills in defaults per key. Order: intro, stats (hidden while
+empty), video, where it started, remixes and mashups, my story, guest spots and on the radio, the
+`.djx-cta` strip, FAQ. "Meet DJ DigiMark" is dropped, Mark's call: the new intro covers it. Copy is
+from the live page word for word, except the intro (Mark's text). In the guest and remix lists the text
+before the first colon is bold. The FAQ is native details/summary with `name`, so keyboard and one
+open at a time need no script. Video cards come from `djdt_videos_cards()`, split out of
+`[djdigi_videos]`; `.djd-videos--inline` drops the full bleed box and is skipped by `djdFixBreakout`.
+
+**Pop-up (`includes/djdt-contact.php`, `assets/css/contact.css`, `assets/js/contact.js`).** Every
+`.djd-rec-btn` opens it; click delegation, so dock.js's footer button works. The sub line is
+`popup_sub`, Theme Settings. The slide transform is on `.djx-pop__panel`, which holds the vinyl and the
+sleeve, because the scrolling sleeve would clip the vinyl.
+- Form 63559 is rendered with `[fusion_form form_post_id="63559" /]` at `template_redirect` 20, before
+  wp_head, so assets Avada enqueues on render can still print, and output in wp_footer.
+- A page whose content has that form gets no second copy: contact.js moves the page's form into the
+  sleeve while open and back on close. No form at all: buttons stay links to `book_url`.
+- Inside the sleeve the form's rows are forced to one column, with no column border or background.
+
+**Also fixed:** `djdt_sanitize()` called `wp_unslash()` on the hidden JSON fields, but options.php has
+already unslashed them, so a double quote in a venue name broke the whole list on save. Removed for
+photos and venues too.
+
+**Verified.** The scratchpad was lost partway through, including the cached live pages and the Avada
+asset cache, and the live site's firewall answered 403 to a single HTML request, so the old harnesses
+could not be rebuilt.
+- PHP 8.2 (`@php-wasm/node`) loads the whole plugin with WordPress stubbed: seeds, layout, save round
+  trips through `djdt_sanitize()` including quotes, moment placement, admin screens render.
+- Playwright on the saved Home v2 snapshot (real Avada header, CSS and scripts, Avada building its own
+  phone menu) with the plugin's working copy and the real PHP output: home, new About, a page with its
+  own form, a plain page, at 2000, 1280 and 390, logged in and out.
+- **Not verified:** the real Avada form (a stand-in with Avada's class names was used, so real
+  submission, reCAPTCHA, whether `[fusion_form]` renders outside page content, and whether Avada's form
+  CSS and JS load on other pages), real library video cards, the admin screens' JavaScript in wp-admin,
+  and any other inner page content. The "Where it started" and "Remixes" seeds come from the page as
+  cached Oct 27; bold in the remix list is assumed to match the page's other lists. Check live.
 
 ## v1.15.2: the hero intro plays at most once per 15 minutes
 Mark's rule (with his follow-up correction). Supersedes "Entrance: every page load" in "Homepage

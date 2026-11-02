@@ -853,8 +853,7 @@ body.djdigi-theme .fusion-logo {
 	   slot as the slot grows and while the header hides and shows. Above
 	   the pill (z-index) so the pill's own background never covers it:
 	   Avada gives .fusion-main-menu z-index 200 of its own.
-	   Not clickable while it is faded out (mirrorball.js turns pointer
-	   events back on once docked). */
+	   Not clickable until mirrorball.js has placed it in the slot. */
 	position: absolute !important;
 	top: 0;
 	left: 0;
@@ -902,13 +901,9 @@ body.djdigi-theme .fusion-logo img {
 	height: 36px !important;
 	width: auto !important;
 	max-height: none !important;
-	/* Starts hidden (v1.11.0): mirrorball.js swaps this image's own src to
-	   the generated night logo and then drives its opacity every frame
-	   from scroll position (0 at the top of the page, 1 once the ball has
-	   docked into it), the same reference numbers as the hero's own logo
-	   fade. Starting hidden here means there is nothing to flash, whatever
-	   image Avada itself would otherwise show here first, before that
-	   script runs; a plain inline style from JS always overrides this. */
+	/* Hidden only until mirrorball.js has moved it into the pill's slot
+	   (v1.16.0: then it shows at all times, on every page), so it never
+	   shows for a moment at the row's top left first. */
 	opacity: 0;
 }
 
@@ -1113,20 +1108,24 @@ body.djdigi-has-hero .post-content > br {
 }
 
 /* =========================================================================
-   v1.15.0: the mirror ball canvases (moved here from hero.css, since inner
-   pages have the docked ball too). Fixed position, placed every frame by
-   mirrorball.js. z-index above the header (50), so the ball is never
-   hidden behind it.
+   The mirror ball canvases, fixed position, placed every frame by
+   mirrorball.js. v1.16.0: the hero ball (#djd-ball-canvas, #djd-ball-3d)
+   no longer docks into the header, it scrolls away with the hero logo, so
+   it sits below the header (50) and passes under the pill like the logo
+   does. The pill ball (#djd-pill-ball, every page) sits above the header,
+   in the pill logo's dot.
    ====================================================================== */
 #djd-ball-canvas,
-#djd-ball-3d {
+#djd-ball-3d,
+#djd-pill-ball {
 	position: fixed;
 	left: 0;
 	top: 0;
-	z-index: 60;
+	z-index: 45;
 	pointer-events: none;
 	opacity: 0;
 }
+#djd-pill-ball { z-index: 60; }
 /* v1.14.0: the 3D ball's canvas (mirrorball-3d.js) is CSS scaled from its
    top left corner to the exact size each frame. */
 #djd-ball-3d { transform-origin: 0 0; }
@@ -1138,12 +1137,12 @@ body.djdigi-has-hero .post-content > br {
    styles below. Nothing scoped to djdigi-inner touches hero pages.
    ====================================================================== */
 
-/* The logo slot on the pill is always open: the hero pages' fully docked
-   padding (6 + 46px desktop, 16 + 46px phone) from the first paint.
+/* The logo slot on the pill is always open (v1.15.0 inner pages, v1.16.0
+   every page): 6 + 46px desktop, 16 + 46px phone, from the first paint.
    mirrorball.js reads this padding and puts the logo in the slot. */
-body.djdigi-inner .fusion-main-menu { padding-left: 52px !important; }
+body.djdigi-theme .fusion-main-menu { padding-left: 52px !important; }
 @media (max-width: 800px) {
-	body.djdigi-inner .fusion-mobile-selector { padding-left: 62px !important; }
+	body.djdigi-theme .fusion-mobile-selector { padding-left: 62px !important; }
 }
 
 /* Avada's own page title bar: the banner below replaces it. */

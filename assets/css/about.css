@@ -1,0 +1,198 @@
+/* [djdigi_about] (v1.16.0): the About page, top to bottom: intro (photo,
+   text, the record button), stats, video, where it started, remixes and
+   mashups, my story, guest spots and radio,
+   the Contact / Book me strip (.djx-cta), the FAQ. Markup in
+   includes/djdt-about.php; the story's own styles are story.css. Inside
+   .djd-about, so site.css's inner page content rules (which skip anything
+   inside a djd- class) leave it alone; two class selectors throughout so
+   Avada's .post-content rules (one class plus an element) never win. */
+
+.djd-about {
+	max-width: 1200px;
+	margin: 0 auto;
+	color: rgba(241, 236, 226, 0.86);
+	font-family: var(--djd-sans);
+}
+.djd-about *,
+.djd-about *::before,
+.djd-about *::after { box-sizing: border-box; }
+.djd-about > section + section { margin-top: clamp(72px, 9vw, 120px); }
+
+.djd-about p {
+	margin: 0 0 1em !important;
+	font-size: 17px !important;
+	line-height: 1.65 !important;
+	color: rgba(241, 236, 226, 0.86) !important;
+}
+.djd-about .djd-about__heading { margin-bottom: 22px !important; }
+.djd-about .djd-section-heading { line-height: 1 !important; }
+
+/* Intro: photo beside the text, stacked under 900px. */
+.djd-about .djd-about__intro {
+	display: grid;
+	grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+	gap: clamp(28px, 5vw, 72px);
+	align-items: center;
+}
+.djd-about .djd-about__photo { margin: 0; }
+.djd-about .djd-about__photo img {
+	display: block;
+	width: 100%;
+	height: auto;
+	border-radius: 18px !important;
+	box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(241, 236, 226, 0.1);
+}
+.djd-about .djd-about__lede p {
+	font-size: clamp(18px, 1.5vw, 21px) !important;
+	line-height: 1.6 !important;
+	color: rgba(241, 236, 226, 0.92) !important;
+}
+.djd-about .djd-about__book { margin-top: 30px; }
+@media (max-width: 899.98px) {
+	.djd-about .djd-about__intro { grid-template-columns: 1fr; }
+	.djd-about .djd-about__photo { max-width: 520px; }
+}
+
+/* Stats: three number and label pairs, hidden while all are empty (PHP). */
+.djd-about .djd-about__stats {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 24px;
+	padding: 28px 0;
+	border-top: 1px solid rgba(241, 236, 226, 0.12);
+	border-bottom: 1px solid rgba(241, 236, 226, 0.12);
+}
+.djd-about .djd-about__stat { display: flex; flex-direction: column; gap: 6px; }
+.djd-about .djd-about__stat-number {
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: clamp(48px, 5vw, 72px);
+	line-height: 0.95;
+	color: var(--djd-cyan);
+}
+.djd-about .djd-about__stat-label {
+	font-size: 14px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: rgba(241, 236, 226, 0.7);
+}
+
+/* Video: text, then the library's cards through videos.css, minus the
+   full bleed section box it has on the homepage. */
+.djd-about .djd-about__video > p,
+.djd-about .djd-about__started > p,
+.djd-about .djd-about__remixes > p,
+.djd-about .djd-about__remixes > ul { max-width: 760px; }
+.djd-about .djd-videos--inline {
+	width: auto;
+	margin: 30px 0 0 !important;
+	padding: 0;
+	background: transparent;
+}
+.djd-about .djd-videos--inline .djd-videos__cards { margin-top: 0; }
+
+/* Guest spots and On the radio: two columns, one under 800px. */
+.djd-about .djd-about__cols {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: clamp(32px, 5vw, 72px);
+}
+@media (max-width: 799.98px) {
+	.djd-about .djd-about__cols { grid-template-columns: 1fr; }
+}
+.djd-about .djd-about__subhead {
+	margin: 0 0 18px !important;
+	font-family: var(--djd-display) !important;
+	font-weight: 800 !important;
+	font-size: clamp(26px, 2.4vw, 34px) !important;
+	line-height: 1 !important;
+	letter-spacing: 0.01em !important;
+	text-transform: uppercase !important;
+	color: var(--djd-paper) !important;
+}
+.djd-about .djd-about__subhead .djd-hw-outline,
+.djd-about .djd-about__subhead .djd-hw-solid { text-transform: uppercase !important; }
+.djd-about .djd-about__remixes ul,
+.djd-about .djd-about__cols ul {
+	margin: 0 !important;
+	padding: 0 !important;
+	list-style: none !important;
+}
+.djd-about .djd-about__remixes li,
+.djd-about .djd-about__cols li {
+	margin: 0 !important;
+	padding: 12px 0 !important;
+	border-bottom: 1px solid rgba(241, 236, 226, 0.09);
+	font-size: 16px !important;
+	line-height: 1.5 !important;
+	color: rgba(241, 236, 226, 0.82) !important;
+	list-style: none !important;
+}
+.djd-about .djd-about__remixes li::marker,
+.djd-about .djd-about__cols li::marker { content: none; }
+.djd-about .djd-about__remixes li strong,
+.djd-about .djd-about__cols li strong { color: var(--djd-paper) !important; font-weight: 600; }
+
+/* The Contact / Book me strip. */
+.djd-about .djx-cta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px 40px;
+	padding: clamp(28px, 4vw, 52px);
+	border-radius: 20px;
+	background:
+		radial-gradient(120% 140% at 100% 0%, rgba(36, 169, 224, 0.18), transparent 55%),
+		radial-gradient(120% 140% at 0% 100%, rgba(154, 108, 255, 0.2), transparent 55%),
+		#160d2e;
+	box-shadow: inset 0 0 0 1px rgba(241, 236, 226, 0.1);
+}
+.djd-about .djx-cta__text { flex: 1 1 420px; min-width: 0; }
+.djd-about .djx-cta__heading { margin: 0 0 12px !important; }
+.djd-about .djx-cta p { margin: 0 !important; max-width: 640px; }
+
+/* FAQ: native details/summary, so it works from the keyboard and with a
+   screen reader with no script; one open at a time where the browser
+   supports the name attribute. */
+.djd-about .djd-faq { max-width: 880px; }
+.djd-about .djd-faq__item {
+	margin: 0 0 10px;
+	border: 1px solid rgba(241, 236, 226, 0.12);
+	border-radius: 12px;
+	background: #160d2e;
+	overflow: hidden;
+	transition: border-color 0.25s ease;
+}
+.djd-about .djd-faq__item[open] { border-color: var(--djd-cyan); }
+.djd-about .djd-faq__q {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 18px 20px;
+	font-family: var(--djd-sans);
+	font-weight: 600;
+	font-size: 17px;
+	line-height: 1.35;
+	color: var(--djd-paper);
+	cursor: pointer;
+	list-style: none;
+	transition: background-color 0.2s ease;
+}
+.djd-about .djd-faq__q::-webkit-details-marker { display: none; }
+.djd-about .djd-faq__q::marker { content: none; }
+.djd-about .djd-faq__q:hover { background: #1d1238; }
+.djd-about .djd-faq__q:focus-visible { outline: 2px solid var(--djd-cyan); outline-offset: -2px; }
+.djd-about .djd-faq__chevron {
+	flex: 0 0 auto;
+	color: var(--djd-cyan);
+	transition: transform 0.3s ease;
+}
+.djd-about .djd-faq__item[open] .djd-faq__chevron { transform: rotate(180deg); }
+.djd-about .djd-faq__a { padding: 0 20px 6px; }
+.djd-about .djd-faq__a p {
+	font-size: 16px !important;
+	line-height: 1.7 !important;
+	color: rgba(241, 236, 226, 0.82) !important;
+}
