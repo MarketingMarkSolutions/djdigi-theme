@@ -423,6 +423,47 @@ old logo never requested. The PHP string functions (autop strip, logo swap, titl
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
 
+## v1.16.1: pop-up form fix, centered sleeve
+Two bugs from Mark's v1.16.0 live check.
+
+**Form submit gave a 404 on every page except About.** Found live: the form printed, but Avada's form
+script was not in that page's compiled bundle, so submit fell through to a native GET and the "name"
+field became WordPress's query var.
+- **Likely cause (Avada 7.12 source; the live site is 7.16.1, so not confirmed there):** the
+  `[fusion_form]` render does queue `fusion-form-js` and `formCreatorConfig` through `Fusion_Dynamic_JS`,
+  compiled at `wp_footer` 10. But `Fusion_Dynamic_JS_File::get_filename()` reuses a page URL's name from
+  the transient `fusion_dynamic_js_filenames` without looking at the scripts, and each new URL rewrites
+  that transient, restarting its hour. So pages kept their old bundle. A post save also clears it, which
+  is why a page can look fine after an edit.
+- **Fix (`includes/djdt-contact.php`):** the transient is cleared once per plugin version on `init`, and
+  whenever the settings save. A backstop at `wp_footer` 9 queues Avada's own files by handle if the
+  form's script is still missing from the list, and skips the name lookup for that request.
+- **reCAPTCHA:** nothing to change. `AWB_Google_Recaptcha` enqueues Google's script and its callback
+  when the field renders, which the early render covers.
+- **Safety net (`contact.js`):** a capture phase submit listener. No `formCreatorConfig`: preventDefault
+  and go to `/about/` (`data-fallback`), so a visitor never lands on a 404. What they typed is lost.
+
+**Centered sleeve (`contact.css`).** `.djx-pop` is a flex center, the panel has top padding equal to the
+vinyl's overhang (44% of its size, `--djx-overhang`), and the vinyl starts at that offset. The sleeve's
+max height is the viewport minus twice the margin (24px, 12px under 600px) minus the overhang, and it
+scrolls inside past that. The slide starts at `translateY(calc(50vh + 100%))`, always below the screen
+from a centered position, and ends at 0. All corners are rounded now. Phones stay full width.
+
+**Verified.**
+- Avada's real `get_filename()` and `add_script()` (7.12 source) under PHP 8.2: queuing the form leaves
+  the cached bundle name unchanged, clearing the transient gives a new one.
+- Avada's real `fusion-form.js` and `fusion-form-logics.js` (7.12, from a local backup of another site)
+  on a page without the form in its content, the form in the pop-up, with a stand-in admin-ajax and the
+  live page's data-config and notices: the submit posts `fusion_form_submit_ajax` with the fields and
+  the reCAPTCHA response, Avada shows its confirmation, no page load, no page errors. Script removed:
+  the submit goes to `/about/`.
+- The sleeve at 1440x900, 1280x720, 1057x929, 390x844, plus 390x560 and 1280x500: equal space above the
+  vinyl and below the sleeve, at least the margin, Send reachable, scrolling inside when needed.
+- **Not verified:** Avada 7.16.1 itself (the cause is from 7.12's source), a real send through the live
+  admin-ajax, real reCAPTCHA (a stand-in response field and token). Check live.
+- On the confirmation, Avada's green text on its green alert is low contrast on the paper. Left alone,
+  not part of this brief.
+
 ## v1.16.0: menu logo everywhere, About page, Story timeline, Contact / Book me pop-up
 Confirmed by Mark and built from his brief, with his answers on the seed data. Ships the unreleased
 v1.15.2 intro skip too. Supersedes the docking described in "Homepage polish (v1.12.0)", "Homepage

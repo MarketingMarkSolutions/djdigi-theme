@@ -134,6 +134,17 @@
 		}
 	});
 
+	// Safety net (v1.16.1): with no Avada form script on the page, submitting
+	// would be a native GET, its "name" field a WordPress query var, and a 404.
+	// Capture phase, ahead of everything else.
+	document.addEventListener('submit', function (e) {
+		var f = e.target;
+		if (window.formCreatorConfig || !f.classList || !f.classList.contains('fusion-form-' + id)) return;
+		e.preventDefault();
+		e.stopImmediatePropagation();
+		window.location.href = pop.getAttribute('data-fallback') || '/about/';
+	}, true);
+
 	// Screen readers: these buttons open a dialog now.
 	function mark() {
 		if (!hasForm()) return;

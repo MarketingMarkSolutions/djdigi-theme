@@ -66,6 +66,58 @@ add_action( 'template_redirect', function () {
 	}
 }, 20 );
 
+/*
+ * Avada's form script in every page's bundle (v1.16.1). Rendering the form
+ * above enqueues fusion-form-js and formCreatorConfig through
+ * Fusion_Dynamic_JS, compiled at wp_footer 10. But Avada remembers each URL's
+ * bundle file name in the transient fusion_dynamic_js_filenames and every new
+ * URL rewrites that transient, restarting its hour, so a page can keep its old
+ * bundle (no form script) long after it started printing the form. Submitting
+ * then falls through to a native GET and a 404. So the transient is cleared
+ * once per plugin version, and whenever these settings save ("Live" changes
+ * which pages print the form).
+ */
+function djdt_contact_reset_js_names() {
+	delete_transient( 'fusion_dynamic_js_filenames' );
+}
+add_action( 'init', function () {
+	if ( DJDT_VERSION !== get_option( 'djdt_js_names_reset' ) ) {
+		djdt_contact_reset_js_names();
+		update_option( 'djdt_js_names_reset', DJDT_VERSION );
+	}
+} );
+add_action( 'update_option_' . DJDT_OPTION, 'djdt_contact_reset_js_names' );
+
+/**
+ * Backstop, just before the compiler runs: a form is on this page but Avada
+ * did not queue its script (written against Avada 7.12's source, in case a
+ * later version gates it). Queues Avada's own files by handle, the same
+ * arguments as its on_first_render(), and skips the file name lookup for this
+ * request. Does nothing if any of Avada's parts are not there.
+ */
+add_action( 'wp_footer', function () {
+	if ( ! djdt_is_active() || is_feed() || is_embed() || ( '' === djdt_contact_form_html() && ! djdt_contact_form_in_content() ) ) {
+		return;
+	}
+	if ( ! class_exists( 'Fusion_Dynamic_JS' ) || ! class_exists( 'FusionBuilder' ) || ! function_exists( 'fusion_library' ) || empty( FusionBuilder::$js_folder_url ) ) {
+		return;
+	}
+	$library = fusion_library();
+	if ( ! isset( $library->dynamic_js ) || ! method_exists( $library->dynamic_js, 'get_scripts' ) ) {
+		return;
+	}
+	foreach ( (array) $library->dynamic_js->get_scripts( false ) as $script ) {
+		if ( isset( $script['handle'] ) && 'fusion-form-js' === $script['handle'] ) {
+			return;
+		}
+	}
+	$ver = defined( 'FUSION_BUILDER_VERSION' ) ? FUSION_BUILDER_VERSION : false;
+	Fusion_Dynamic_JS::enqueue_script( 'fusion-form-js', FusionBuilder::$js_folder_url . '/general/fusion-form.js', FusionBuilder::$js_folder_path . '/general/fusion-form.js', array( 'jquery' ), $ver, true );
+	Fusion_Dynamic_JS::enqueue_script( 'fusion-form-logics', FusionBuilder::$js_folder_url . '/general/fusion-form-logics.js', FusionBuilder::$js_folder_path . '/general/fusion-form-logics.js', array( 'jquery', 'fusion-form-js' ), $ver, true );
+	Fusion_Dynamic_JS::localize_script( 'fusion-form-js', 'formCreatorConfig', array( 'ajaxurl' => admin_url( 'admin-ajax.php' ) ) );
+	add_filter( 'pre_transient_fusion_dynamic_js_filenames', '__return_empty_array' );
+}, 9 );
+
 add_action( 'wp_footer', function () {
 	if ( djdt_is_active() && ! is_feed() && ! is_embed() ) {
 		echo djdt_contact_popup_html(); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside
@@ -78,7 +130,7 @@ function djdt_contact_popup_html() {
 	$sub  = trim( (string) djdt_get( 'popup_sub' ) );
 	ob_start();
 	?>
-	<div class="djx-pop" id="djx-pop" hidden data-form-id="<?php echo (int) DJDT_CONTACT_FORM_ID; ?>">
+	<div class="djx-pop" id="djx-pop" hidden data-form-id="<?php echo (int) DJDT_CONTACT_FORM_ID; ?>" data-fallback="<?php echo esc_url( home_url( '/about/' ) ); ?>">
 		<div class="djx-pop__backdrop" data-djx-close></div>
 		<div class="djx-pop__panel" role="dialog" aria-modal="true" aria-labelledby="djx-pop-title">
 			<div class="djx-pop__vinyl" aria-hidden="true"><span class="djx-pop__sheen"></span></div>
