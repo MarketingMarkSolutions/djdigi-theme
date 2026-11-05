@@ -220,9 +220,13 @@
 	background: var(--djd-paper);
 	cursor: pointer;
 	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-	transition: transform 0.2s ease;
+	transition: transform 0.2s ease, opacity 0.35s ease;
 }
-.djd-cd__play svg { margin-left: 3px; }
+/* v1.16.4: the eject symbol (centered, so no optical nudge like the old
+   play triangle's). It flips 180deg as the CD opens, over the same .35s as
+   the button's fade, and back as it closes. */
+.djd-cd__play svg { display: block; transition: transform 0.35s ease; }
+.djd-cd.is-open .djd-cd__play svg { transform: rotate(180deg); }
 @media (hover: hover) {
 	.djd-cd:hover .djd-cd__play { transform: scale(1.08); }
 }
@@ -534,147 +538,40 @@
 @media (min-width: 1280px) { .djd-events__track--page { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
 /* The events page sits under the inner page banner, not after another
-   section: a short top gap. "More dates" follows the featured cards. */
+   section: a short top gap. v1.16.4: the featured residency card and the
+   "More dates" heading are gone, the residency is the first item. */
 .djd-events--page { padding-top: 40px; }
-body.djdigi-theme .djd-events__more { margin-top: var(--djd-section-gap); }
 
-/* The residency CD in the homepage row: the weekday in the date's place. */
-.djd-cd--residency .djd-cd__case-day-num { letter-spacing: 0.01em; }
-
-/* ----- The featured residency card ----------------------------------------
-   The case with the weekday on it and the disc sliding out from behind it
-   on the left, the details on the right; stacked under 900px. The disc
-   reuses the CD's label art (.djd-cd__disc-face). Every text color is
-   !important, same reason as the disc's (events.css top: site.css's link
-   and heading rules outrank a plain class). */
-.djd-events__residencies { display: grid; gap: 34px; }
-.djd-res {
-	position: relative;
-	display: grid;
-	grid-template-columns: minmax(0, 1fr);
-	gap: 28px;
-	padding: 28px;
-	border-radius: 14px;
-	background: linear-gradient(135deg, rgba(90, 46, 145, 0.38), rgba(36, 169, 224, 0.08) 55%, rgba(11, 8, 32, 0) 80%), #120b2a;
-	box-shadow: inset 0 0 0 1px rgba(241, 236, 226, 0.1);
-	overflow: hidden;
+/* ----- v1.16.4: the pinned residency tile ---------------------------------
+   Same size as every other CD; a 1.5px cyan edge (an inset shadow on
+   ::after, over the photo, which would cover one on the case itself;
+   Chromium floors a 1.5px border to 1px, a shadow keeps the half pixel),
+   a soft cyan glow, and the
+   "Friday Residency" label at the top of the bottom text block, above the
+   venue, clear of the date and the countdown tag. */
+.djd-cd--pinned .djd-cd__case {
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 0 18px rgba(36, 169, 224, 0.18), 0 10px 30px rgba(0, 0, 0, 0.35);
 }
-@media (min-width: 900px) {
-	.djd-res {
-		grid-template-columns: auto minmax(0, 1fr);
-		align-items: center;
-		gap: clamp(32px, 4vw, 64px);
-		padding: clamp(28px, 3vw, 44px);
-	}
-}
-.djd-res__media {
-	position: relative;
-	width: min(100%, 420px);
-	aspect-ratio: 1.42 / 1;
-}
-@media (min-width: 900px) { .djd-res__media { width: clamp(340px, 30vw, 460px); } }
-.djd-res__case,
-.djd-res__disc {
+.djd-cd--pinned .djd-cd__case::after {
+	content: "";
 	position: absolute;
-	top: 0;
-	left: 0;
-	height: 100%;
-	aspect-ratio: 1 / 1;
+	inset: 0;
+	z-index: 5;
+	border-radius: inherit;
+	box-shadow: inset 0 0 0 1.5px #24a9e0;
+	pointer-events: none;
 }
-.djd-res__case {
-	z-index: 2;
-	overflow: hidden;
-	border-radius: 6px;
-	background: #160f33;
-	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 10px 30px rgba(0, 0, 0, 0.35);
-}
-.djd-res__case .djd-cd__case-inner { justify-content: space-between; }
-.djd-res__case .djd-cd__case-day-num { font-size: clamp(72px, 9vw, 112px); }
-.djd-res__case .djd-cd__case-day-label { font-size: 20px; color: #f1ece2; }
-.djd-res__case .djd-cd__case-logo { max-height: 56px; margin: 0; }
-/* The disc: same size as the case, peeking out 42% on the right, a quarter
-   turn more and a little further out on hover. */
-.djd-res__disc {
-	z-index: 1;
-	border-radius: 50%;
-	transform: translateX(42%) scale(0.94) rotate(-20deg);
-	transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.djd-res:hover .djd-res__disc { transform: translateX(47%) scale(0.94) rotate(70deg); }
-
-.djd-res__body { min-width: 0; color: #f1ece2; }
-.djd-res__tag {
-	display: inline-block;
-	padding: 5px 11px;
-	border-radius: 999px;
-	background: #24a9e0;
-	color: #06121a;
-	font: 700 12px/1 var(--djd-sans);
-	letter-spacing: 0.04em;
+.djd-cd__pin {
+	display: block;
+	margin-bottom: 6px;
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: 12px;
+	line-height: 1.1;
+	letter-spacing: 0.14em;
 	text-transform: uppercase;
+	color: #24a9e0;
 }
-body.djdigi-theme .djd-res__venue {
-	margin: 14px 0 0 !important;
-	font-family: var(--djd-display) !important;
-	font-weight: 800 !important;
-	font-size: clamp(44px, 5.5vw, 84px) !important;
-	line-height: 0.92 !important;
-	letter-spacing: 0.005em !important;
-	text-transform: uppercase !important;
-	color: #f1ece2 !important;
-}
-body.djdigi-theme .djd-res__rule {
-	margin: 12px 0 0 !important;
-	font-family: var(--djd-display) !important;
-	font-weight: 800 !important;
-	font-size: clamp(22px, 2.2vw, 30px) !important;
-	line-height: 1.1 !important;
-	letter-spacing: 0.03em;
-	text-transform: uppercase;
-	color: #24a9e0 !important;
-}
-body.djdigi-theme .djd-res__next {
-	margin: 6px 0 0 !important;
-	font: 600 17px/1.4 var(--djd-sans) !important;
-	color: rgba(241, 236, 226, 0.86) !important;
-}
-body.djdigi-theme a.djd-res__address {
-	display: inline-block;
-	margin-top: 16px;
-	padding: 8px 12px;
-	border-radius: 8px;
-	background: #24a9e0;
-	color: #06121a !important;
-	font: 700 15px/1.3 var(--djd-sans);
-	text-decoration: none !important;
-}
-body.djdigi-theme a.djd-res__address:hover,
-body.djdigi-theme a.djd-res__address:focus-visible { outline: 2px solid #f1ece2; outline-offset: 2px; }
-.djd-res__pills { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
-body.djdigi-theme .djd-res__pill {
-	display: inline-flex;
-	align-items: center;
-	min-height: 44px;
-	padding: 10px 18px !important;
-	border: 0 !important;
-	border-radius: 999px !important;
-	background: rgba(11, 8, 32, 0.72) !important;
-	box-shadow: 0 0 0 1px rgba(241, 236, 226, 0.25) !important;
-	color: #f1ece2 !important;
-	font: 700 15px/1 var(--djd-sans) !important;
-	letter-spacing: normal !important;
-	text-transform: none !important;
-	text-decoration: none !important;
-	white-space: nowrap;
-	cursor: pointer;
-	transform: none !important;
-}
-body.djdigi-theme .djd-res__pill:hover,
-body.djdigi-theme .djd-res__pill:focus-visible {
-	background: #f1ece2 !important;
-	color: #06121a !important;
-}
-body.djdigi-theme .djd-res__pill:focus-visible { outline: 3px solid #24a9e0; outline-offset: 3px; }
 
 /* =======================================================================
    v1.16.3: phones get compact rows, not CD tiles (Mark's approved mockup)
@@ -845,7 +742,8 @@ body.djdigi-theme .djd-row__head:focus-visible { outline: 3px solid #24a9e0 !imp
 	color: rgba(241, 236, 226, 0.68);
 }
 
-/* Col 4, the toggle: .djd-cd__play's look at 38px, pointing down, up when open. */
+/* Col 4, the toggle: .djd-cd__play's look at 38px. v1.16.4: the eject
+   symbol, flipped 180deg when open. */
 .djd-row__toggle {
 	display: flex;
 	align-items: center;
@@ -915,3 +813,25 @@ body.djdigi-theme .djd-row__pill:focus-visible {
 	color: #06121a !important;
 }
 body.djdigi-theme .djd-row__pill:focus-visible { outline: 3px solid #24a9e0; outline-offset: 2px; }
+
+/* ----- v1.16.4: the pinned residency row ----------------------------------
+   The 1.5px cyan edge is an inset shadow, not a border: Chromium floors a
+   1.5px border to 1px. 1px of padding stands in for the other rows' 1px
+   border, so the header inside sits exactly where theirs does. */
+.djd-row--pinned {
+	border: 0;
+	padding: 1px;
+	background: linear-gradient(180deg, rgba(36, 169, 224, 0.14), rgba(36, 169, 224, 0.05)), #1b1038;
+	box-shadow: inset 0 0 0 1.5px #24a9e0, 0 0 18px rgba(36, 169, 224, 0.18);
+}
+.djd-row__pin {
+	display: block;
+	padding: 8px 12px 0;
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: 12px;
+	line-height: 1.1;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: #24a9e0;
+}

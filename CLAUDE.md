@@ -423,6 +423,51 @@ old logo never requested. The PHP string functions (autop strip, logo swap, titl
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
 
+## v1.16.4: the residency is a pinned regular event, eject buttons
+From Mark's brief. Supersedes the residency display in "v1.15.1" (the weekday CD and the featured card).
+
+**Next real date.** A residency (`djdt_events_split()`: a MEC repeat rule, or 3+ upcoming dates) shows
+its next occurrence like any other event: day number, "FRI · NOV", the countdown tag, a Google
+Calendar link for that date, directions, a share title with that date (`djdt_events_item()`). Its only
+extra is `pin`, "Friday Residency", from the new `weekday` key of `djdt_events_recurrence()` (empty
+when the dates fall on different weekdays or the series is daily: then just "Residency"). No upcoming
+date left: it is not in the list at all. `djdt_events_residency_next_line()` and the `started` flag
+are gone. The `?djdt_ics=` series endpoint stays but nothing links to it now.
+
+**MEC's excluded days.** MEC 6.5.6 (read from its source) saves "Exclude certain days" in the post meta
+`mec_not_in_days`, a comma separated string of Y-m-d dates. MEC leaves them out when it fills
+`mec_dates`, but its own views still filter them again at display time (skins.php against
+`mec_events.not_in_days`), so a table built before a day was excluded can still hold it.
+`djdt_events_drop_excluded()` runs on every occurrence in `djdt_events_get_all_occurrences()` (both the
+mec_dates and the postmeta source) and drops any whose start date is listed; entries not in Y-m-d go
+through strtotime() like MEC's own .ics export. The date compared is the start date (the Friday for a
+Friday 10 PM to 2 AM set), the same one MEC stores.
+
+**Pinned look.** Homepage and events page share one list (`djdt_events_items()`): residencies first,
+then one off dates by date. The events page's featured card (`djdt_events_render_residency()`, all
+`.djd-res` CSS) and its "More dates" heading are gone. Rows: `.djd-row--pinned` and `.djd-row__pin`
+above the header. Tiles: `.djd-cd--pinned`, same size, the cyan edge on the case's ::after, the glow on
+the case, `.djd-cd__pin` above the venue (clear of the date, the countdown and the button). The 1.5px
+edge is an inset box-shadow in both, not a border: Chromium floors a 1.5px border to 1px at every
+pixel density (checked at 1, 2 and 3). The pinned row's 1px padding replaces the other rows' 1px
+border, so its header lines up exactly.
+
+**Eject.** `djdt_events_eject_svg()` on `.djd-cd__play` and `.djd-row__toggle`. Rows: the toggle turns
+180deg open, as before. Tiles: the button still hides while the CD is open (the put-back x takes over),
+so it now fades over .35s and the icon flips during that fade, and flips back as it returns. The
+aria-labels did not change: "Show details for ..." on tiles, the event's name and date on rows, with
+aria-expanded giving the state (there was no "Hide details" label before).
+
+**Verified.** PHP 8.2 (php-wasm), the real pipeline from stubbed mec_dates rows through
+`djdt_events_shortcode()`, 44 checks: before the series starts (Nov 13, "In 9 days", the calendar link
+for that date), the first Friday excluded (Nov 20), under way with the next excluded (Nov 27), during
+the set and after midnight ("Tonight"), an m/d/Y entry, every Friday excluded and the series ended
+(hidden). Playwright on the Home v2 snapshot at 375, 390, 768, 1280, home and events page, 72 checks:
+pinned first and only once, same size, label position and style, edge and glow, eject on every tile
+and row, the flip open and closed, calendar and share for the next date. **Not verified:** a live MEC
+event with real excluded days (the meta format is from MEC 6.5.6's source, the live version was not
+checked), real photos, a real phone.
+
 ## v1.16.3: compact event rows on phones, "#contact" menu links
 Built from Mark's brief and his approved mockup.
 

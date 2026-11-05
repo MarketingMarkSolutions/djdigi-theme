@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, the inner page banner, Avada menu restyle, the Contact / Book me pop-up, the [djdigi_hero] homepage hero, [djdigi_player], [djdigi_events], [djdigi_videos], [djdigi_venues], [djdigi_story] and [djdigi_about] for djdigimark.com.
- * Version: 1.16.3
+ * Version: 1.16.4
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.16.3' );
+define( 'DJDT_VERSION', '1.16.4' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );

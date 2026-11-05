@@ -139,9 +139,9 @@
 		} );
 	} );
 
-	// v1.15.1: the featured residency cards' Share pill, same behavior as
-	// the CD's. v1.16.3: the phone rows' Share pill too.
-	document.querySelectorAll( '.djd-res__share, .djd-row__share' ).forEach( function ( share ) {
+	// The phone rows' Share pill (v1.16.3), same behavior as the CD's.
+	// v1.16.4: the featured residency card it was first written for is gone.
+	document.querySelectorAll( '.djd-row__share' ).forEach( function ( share ) {
 		share.addEventListener( 'click', function ( e ) {
 			e.preventDefault();
 			var title = share.getAttribute( 'data-share-title' );
