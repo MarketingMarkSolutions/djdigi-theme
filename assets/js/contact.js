@@ -4,7 +4,9 @@
    click outside the sleeve; focus moves into it on open (the sleeve itself,
    so a phone keyboard does not pop up) and back to the button on close,
    and Tab stays inside while it is open; the page does not scroll behind
-   it. The form is the real Avada form 63559: printed inside the pop-up by
+   it. v1.16.3: any link whose href ends in "#contact" or "#djx-pop" (a
+   Custom Link in Appearance > Menus, desktop or phone menu, or a link in a
+   page) opens it too, and closes the phone menu first. The form is the real Avada form 63559: printed inside the pop-up by
    PHP, or, on a page whose own content already has it, borrowed from the
    page while open and put back on close (includes/djdt-contact.php). No
    form anywhere: the buttons stay plain links. */
@@ -29,6 +31,7 @@
 		return !!slot.querySelector('.fusion-form-' + id) || !!pageForm();
 	}
 
+	var LINKS = 'a[href$="#contact"], a[href$="#djx-pop"]';
 	var opener = null, isOpen = false, closeTimer = 0;
 	var borrowed = null, home = null;
 
@@ -43,6 +46,24 @@
 		slot.appendChild(f);
 		borrowed = f;
 	}
+	// Where a "#contact" link goes when there is no form to show, the same
+	// place the record buttons link to (book_url).
+	function fallbackUrl() {
+		return pop.getAttribute('data-book') || pop.getAttribute('data-fallback') || '/about/';
+	}
+
+	// A link in Avada's phone menu: close the menu with Avada's own button
+	// (its click handler keeps aria-expanded and the slide in step), and
+	// send focus back to that button when the pop-up closes, since the link
+	// is hidden by then.
+	function closePhoneMenu(link) {
+		var holder = link.closest('.fusion-mobile-nav-holder, .fusion-mobile-sticky-nav-holder');
+		if (!holder) return null;
+		var btn = holder.querySelector('.fusion-mobile-selector');
+		if (btn && btn.getAttribute('aria-expanded') === 'true') btn.click();
+		return btn;
+	}
+
 	function giveBack() {
 		if (borrowed && home && home.parentNode) {
 			home.parentNode.insertBefore(borrowed, home);
@@ -89,6 +110,22 @@
 			try { opener.focus({ preventScroll: true }); } catch (e) { opener.focus(); }
 		}
 	}
+
+	// Capture phase, and the click stops here: Avada's own hash link
+	// scrolling and menu.js's sliding highlight never see it.
+	document.addEventListener('click', function (e) {
+		var a = e.target.closest ? e.target.closest(LINKS) : null;
+		if (!a || pop.contains(a)) return;
+		if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+		e.preventDefault();
+		e.stopPropagation();
+		var menuBtn = closePhoneMenu(a);
+		if (!hasForm()) {
+			window.location.href = fallbackUrl();
+			return;
+		}
+		open(menuBtn || a);
+	}, true);
 
 	document.addEventListener('click', function (e) {
 		var t = e.target;
@@ -148,12 +185,14 @@
 	// Screen readers: these buttons open a dialog now.
 	function mark() {
 		if (!hasForm()) return;
-		Array.prototype.forEach.call(document.querySelectorAll('.djd-rec-btn'), function (b) {
+		Array.prototype.forEach.call(document.querySelectorAll('.djd-rec-btn, ' + LINKS), function (b) {
+			if (pop.contains(b)) return;
 			b.setAttribute('aria-haspopup', 'dialog');
 			b.setAttribute('aria-controls', 'djx-pop');
 		});
 	}
 	mark();
-	// The footer's button is built by dock.js, which may run after this.
+	// The footer's button is built by dock.js, and Avada copies the menu
+	// into the phone menu, both possibly after this runs.
 	if (document.readyState !== 'complete') window.addEventListener('load', mark, { once: true });
 })();

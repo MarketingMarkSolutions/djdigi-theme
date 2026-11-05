@@ -130,7 +130,7 @@ function djdt_contact_popup_html() {
 	$sub  = trim( (string) djdt_get( 'popup_sub' ) );
 	ob_start();
 	?>
-	<div class="djx-pop" id="djx-pop" hidden data-form-id="<?php echo (int) DJDT_CONTACT_FORM_ID; ?>" data-fallback="<?php echo esc_url( home_url( '/about/' ) ); ?>">
+	<div class="djx-pop" id="djx-pop" hidden data-form-id="<?php echo (int) DJDT_CONTACT_FORM_ID; ?>" data-fallback="<?php echo esc_url( home_url( '/about/' ) ); ?>" data-book="<?php echo esc_url( trim( (string) djdt_get( 'book_url' ) ) ); ?>">
 		<div class="djx-pop__backdrop" data-djx-close></div>
 		<div class="djx-pop__panel" role="dialog" aria-modal="true" aria-labelledby="djx-pop-title">
 			<div class="djx-pop__vinyl" aria-hidden="true"><span class="djx-pop__sheen"></span></div>

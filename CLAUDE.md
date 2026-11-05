@@ -423,6 +423,44 @@ old logo never requested. The PHP string functions (autop strip, logo swap, titl
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
 
+## v1.16.3: compact event rows on phones, "#contact" menu links
+Built from Mark's brief and his approved mockup.
+
+**Phone rows (`includes/djdt-events.php`, `events.css`, `events.js`).** Under 768px the CD tiles
+become one compact row per event. PHP prints both lists, the tiles (`.djd-events__track`) and the
+rows (`.djd-events__rows`, `djdt_events_render_rows()` / `djdt_events_render_row()`), and events.css
+shows one or the other, so desktop and tablet are untouched. Both read `djdt_events_item()`, split out
+of `djdt_events_render_card()`, so a row and a tile never say different things. Homepage: same items
+as the tiles, the residency first. Events page: the "More dates" one-offs only; the featured residency
+card is unchanged.
+- The header is one `<button aria-expanded aria-controls>`, grid 92 | 50 | 1fr | 38, about 90px tall.
+  The mini CD: a 68px case (photo, 7px spine, inset highlight) in front of a 64px disc at left 26px,
+  spinning 6s. Opening slides the disc 10px further out (a transform on `.djd-row__slide`, so it never
+  fights the spin), turns the toggle 180deg and opens the panel (grid rows 0fr to 1fr, .4s). The panel
+  is `visibility: hidden` once closed, so its links are never tabbed into while collapsed.
+- The photo is a `--djd-row-img` custom property, a background, so neither list downloads images
+  while it is hidden (the tiles' `<img loading="lazy">` is not fetched under `display: none` either).
+- Rows open and close independently (the tiles open one at a time).
+- The panel pills have no 01/02/03. Share uses the same handler as the featured card's.
+
+**"#contact" links (`contact.js`).** Any `a[href$="#contact"]` or `a[href$="#djx-pop"]` opens the pop-up,
+so a Custom Link with URL `#contact` in Appearance > Menus works in the desktop menu, the phone menu
+(Avada copies it there) and page content. The listener is in the capture phase and stops the click,
+so Avada's hash link scrolling and menu.js's sliding highlight never see it. A link in the phone menu
+closes the menu through Avada's own `.fusion-mobile-selector` click (its handler keeps aria-expanded
+and the slide in step), and focus goes back to that button on close. No form: the link goes to
+`book_url` (new `data-book` on `#djx-pop`), then `/about/`, the same place the record buttons go.
+
+**Verified** (php-wasm render of the real PHP with stubbed MEC data, the Home v2 snapshot in
+Playwright): 375 and 390 on home and events, five rows 490px collapsed, rows 90px, open/close by
+click, Enter and Space, disc 26 to 36px, toggle 180deg, panel links, Share, Tab skipping a closed
+panel. Desktop 1280 and tablet 768: the events section's height and pixels match v1.16.2's. "#contact"
+from the desktop menu, the phone menu at 375 and 390, and page content, with Escape and the close
+button and focus return; the no-form fallback. **Not verified:** real event photos (the snapshot's
+placeholder images stood in), real MEC data, a real phone, Avada's own menu screen.
+The featured Midnight Sun card is 664px tall at 375 and 674px at 390, under one screen on 812px+
+phones, about one full screen on a 667px phone (iPhone SE). Left as is.
+
 ## v1.16.2: solid mobile menu pill
 The phone pill (`.fusion-mobile-selector`) was fully transparent: a later rule in site.css forced
 `background-color: transparent !important` over the earlier 0.82 fill. It is now `rgba(11, 8, 32, .88)`

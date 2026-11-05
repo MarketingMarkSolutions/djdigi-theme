@@ -675,3 +675,243 @@ body.djdigi-theme .djd-res__pill:focus-visible {
 	color: #06121a !important;
 }
 body.djdigi-theme .djd-res__pill:focus-visible { outline: 3px solid #24a9e0; outline-offset: 3px; }
+
+/* =======================================================================
+   v1.16.3: phones get compact rows, not CD tiles (Mark's approved mockup)
+   Under 768px each tile was a full width square, so five events took about
+   1,800px of scrolling. includes/djdt-events.php prints both lists, the
+   tiles (.djd-events__track) and the rows (.djd-events__rows); this shows
+   one or the other, so desktop and tablet never see a row. Every color,
+   font and button reset is !important for the same reason as the disc's
+   (site.css's link and button rules outrank a plain class).
+   ====================================================================== */
+.djd-events__rows { display: none; }
+@media (max-width: 767px) {
+	.djd-events .djd-events__track { display: none; }
+	.djd-events .djd-events__rows { display: grid; gap: 10px; }
+}
+
+.djd-row {
+	position: relative;
+	background: #160d2e;
+	border: 1px solid rgba(241, 236, 226, 0.12);
+	border-radius: 14px;
+}
+
+/* The header: one button, 92px | 50px | 1fr | 38px. */
+body.djdigi-theme .djd-row__head {
+	display: grid !important;
+	grid-template-columns: 92px 50px minmax(0, 1fr) 38px;
+	gap: 12px;
+	align-items: center;
+	width: 100% !important;
+	min-height: 0 !important;
+	margin: 0 !important;
+	padding: 10px 12px 10px 10px !important;
+	border: 0 !important;
+	border-radius: 13px !important;
+	background: transparent !important;
+	box-shadow: none !important;
+	color: #f1ece2 !important;
+	font: inherit !important;
+	letter-spacing: normal !important;
+	text-transform: none !important;
+	text-align: left !important;
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+}
+body.djdigi-theme .djd-row__head:focus { outline: none; }
+body.djdigi-theme .djd-row__head:focus-visible { outline: 3px solid #24a9e0 !important; outline-offset: 2px; }
+
+/* Col 1, the mini CD: a 68px case in front, a 64px disc behind it peeking
+   out to the right (left 26px), spinning, sliding 10px further out (left
+   36px) when the row opens. The slide is a transform on a wrapper so it
+   never fights the spin. No photo: the case is the tile's plain #160f33
+   and the disc keeps only its wash and hub, same as the tile's fallback. */
+.djd-row__cd {
+	position: relative;
+	display: block;
+	width: 92px;
+	height: 68px;
+}
+.djd-row__case {
+	position: absolute;
+	left: 0;
+	top: 0;
+	z-index: 2;
+	width: 68px;
+	height: 68px;
+	border-radius: 6px;
+	background:
+		linear-gradient(90deg, rgba(6, 4, 18, 0.55) 0 7px, rgba(255, 255, 255, 0.16) 7px 8px, transparent 8px),
+		linear-gradient(to top, rgba(11, 8, 32, 0.35), rgba(11, 8, 32, 0) 60%),
+		var(--djd-row-img, none) center / cover,
+		#160f33;
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+.djd-row__slide {
+	position: absolute;
+	left: 26px;
+	top: 2px;
+	z-index: 1;
+	width: 64px;
+	height: 64px;
+	transition: transform 0.5s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+.djd-row.is-open .djd-row__slide { transform: translateX(10px); }
+.djd-row__disc {
+	display: block;
+	width: 100%;
+	height: 100%;
+	border-radius: 50%;
+	background:
+		radial-gradient(circle closest-side, #0b0820 0 15%, rgba(235, 240, 248, 0.92) 16% 21%, rgba(255, 255, 255, 0.12) 22% 30%, transparent 31%),
+		conic-gradient(from 210deg, rgba(255, 80, 160, 0), rgba(255, 80, 160, 0.28), rgba(255, 220, 90, 0.22), rgba(80, 230, 160, 0.22), rgba(60, 170, 255, 0.3), rgba(170, 90, 255, 0.28), rgba(255, 80, 160, 0) 60%, rgba(255, 255, 255, 0)),
+		linear-gradient(160deg, rgba(90, 46, 145, 0.55), rgba(36, 169, 224, 0.25)),
+		var(--djd-row-img, none) center / cover;
+	background-blend-mode: normal, screen, multiply, normal;
+	box-shadow: 0 0 0 1.5px rgba(235, 240, 248, 0.85), 0 4px 12px rgba(0, 0, 0, 0.5);
+	animation: djd-row-spin 6s linear infinite;
+}
+@keyframes djd-row-spin { to { transform: rotate(360deg); } }
+
+/* Col 2, the date. */
+.djd-row__date {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	min-width: 0;
+}
+.djd-row__day {
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: 34px;
+	line-height: 0.9;
+	color: #24a9e0;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+.djd-row__daylabel {
+	margin-top: 4px;
+	font: 700 12px/1.1 var(--djd-sans);
+	font-stretch: 80%;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	color: rgba(241, 236, 226, 0.82);
+}
+
+/* Col 3, the text: when tag, venue, time. */
+.djd-row__text {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	min-width: 0;
+}
+.djd-row__when {
+	max-width: 100%;
+	margin-bottom: 5px;
+	padding: 3px 8px;
+	border-radius: 999px;
+	background: #24a9e0;
+	color: #06121a;
+	font: 700 11px/1.1 var(--djd-sans);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.djd-row__venue {
+	display: block;
+	max-width: 100%;
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: 18px;
+	line-height: 1.05;
+	text-transform: uppercase;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: #f1ece2;
+}
+.djd-row__time {
+	display: block;
+	max-width: 100%;
+	margin-top: 3px;
+	font: 600 13px/1.25 var(--djd-sans);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: rgba(241, 236, 226, 0.68);
+}
+
+/* Col 4, the toggle: .djd-cd__play's look at 38px, pointing down, up when open. */
+.djd-row__toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 38px;
+	height: 38px;
+	border-radius: 50%;
+	background: #f1ece2;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+	transition: transform 0.35s ease;
+}
+.djd-row__toggle svg { display: block; }
+.djd-row.is-open .djd-row__toggle { transform: rotate(180deg); }
+
+/* The panel: 0fr to 1fr. Hidden (so nothing in it takes focus) once the
+   close has finished, visible from the start of the open. */
+.djd-row__panel {
+	display: grid;
+	grid-template-rows: 0fr;
+	visibility: hidden;
+	transition: grid-template-rows 0.4s ease, visibility 0s linear 0.4s;
+}
+.djd-row.is-open .djd-row__panel {
+	grid-template-rows: 1fr;
+	visibility: visible;
+	transition: grid-template-rows 0.4s ease, visibility 0s linear 0s;
+}
+.djd-row__panel-in { min-height: 0; overflow: hidden; }
+.djd-row__panel-body {
+	margin: 0 12px 0 10px;
+	padding: 12px 0 14px;
+	border-top: 1px solid rgba(241, 236, 226, 0.1);
+}
+body.djdigi-theme a.djd-row__address {
+	display: inline-block;
+	color: #24a9e0 !important;
+	font: 600 14px/1.35 var(--djd-sans) !important;
+	text-decoration: underline !important;
+	text-decoration-color: rgba(36, 169, 224, 0.45) !important;
+	text-underline-offset: 3px;
+}
+body.djdigi-theme a.djd-row__address:focus-visible { outline: 2px solid #f1ece2; outline-offset: 2px; }
+.djd-row__pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.djd-row__panel-body > .djd-row__pills:first-child { margin-top: 0; }
+body.djdigi-theme .djd-row__pill {
+	display: inline-flex;
+	align-items: center;
+	min-height: 36px;
+	margin: 0 !important;
+	padding: 8px 14px !important;
+	border: 0 !important;
+	border-radius: 999px !important;
+	background: rgba(11, 8, 32, 0.72) !important;
+	box-shadow: 0 0 0 1px rgba(241, 236, 226, 0.25) !important;
+	color: #f1ece2 !important;
+	font: 700 13px/1 var(--djd-sans) !important;
+	letter-spacing: normal !important;
+	text-transform: none !important;
+	text-decoration: none !important;
+	white-space: nowrap;
+	cursor: pointer;
+	transform: none !important;
+}
+body.djdigi-theme .djd-row__pill:hover,
+body.djdigi-theme .djd-row__pill:focus-visible {
+	background: #f1ece2 !important;
+	color: #06121a !important;
+}
+body.djdigi-theme .djd-row__pill:focus-visible { outline: 3px solid #24a9e0; outline-offset: 2px; }

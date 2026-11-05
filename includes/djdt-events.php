@@ -1040,6 +1040,7 @@ function djdt_events_render_grid( $items, $is_row ) {
 				<?php djdt_events_render_card( $item['occ'], $i, $item['res'] ); ?>
 			<?php endforeach; ?>
 		</div>
+		<?php djdt_events_render_rows( $items ); ?>
 		<?php if ( $is_row ) : ?>
 			<a class="djd-seeall djd-events__seeall" href="<?php echo esc_url( djdt_events_page_url() ); ?>">See all dates <span class="djd-seeall__arrow" aria-hidden="true">→</span></a>
 		<?php endif; ?>
@@ -1072,6 +1073,16 @@ function djdt_events_render_page( $split ) {
 					<?php djdt_events_render_card( $occ, $i ); ?>
 				<?php endforeach; ?>
 			</div>
+			<?php
+			djdt_events_render_rows(
+				array_map(
+					function ( $occ ) {
+						return array( 'occ' => $occ, 'res' => null );
+					},
+					$split['singles']
+				)
+			);
+			?>
 		<?php endif; ?>
 	</div>
 	<?php
@@ -1172,6 +1183,114 @@ function djdt_events_maps_search_url( $address ) {
 }
 
 /**
+ * Everything one event shows, shared by the CD tile (djdt_events_render_card())
+ * and the phone row (djdt_events_render_row(), v1.16.3), so both always say
+ * the same thing. $res (a residency, djdt_events_split()) swaps in the
+ * weekday, the starts/next line and the series .ics.
+ */
+function djdt_events_item( $occ, $res = null ) {
+	$post       = $occ['post'];
+	$venue      = djdt_events_get_venue( $post->ID );
+	$venue_name = $venue ? $venue['name'] : get_the_title( $post );
+	$display    = djdt_events_display_date( $occ );
+	$time_line  = djdt_events_format_time_range( $occ['start'], $occ['end'] );
+	$address    = $venue ? $venue['address'] : '';
+	$d          = array(
+		'post'        => $post,
+		'venue_name'  => $venue_name,
+		'address'     => $address,
+		'logo'        => $venue ? $venue['logo'] : '',
+		'time_line'   => $time_line,
+		'when'        => djdt_events_when_tag( $display ),
+		'img'         => get_the_post_thumbnail_url( $post->ID, 'medium_large' ),
+		'label'       => sprintf( 'Show details for %s, %s', $venue_name, $display->format( 'M j' ) ),
+		'share_title' => sprintf( 'DJ DigiMark at %s, %s %s, %s', $venue_name, $display->format( 'D' ), $display->format( 'M j' ), $time_line ),
+		'day_num'     => $display->format( 'j' ),
+		'day_label'   => $display->format( 'D' ) . ' · ' . $display->format( 'M' ),
+		'disc_when'   => $display->format( 'D M j' ) . ' · ' . $time_line,
+		'disc_next'   => '',
+		'cal_url'     => djdt_events_calendar_url( $venue_name, $occ['start'], $occ['end'], $address ),
+		'is_ics'      => false,
+	);
+	if ( $res ) {
+		$d['day_num']     = strtoupper( $res['rule']['day'] );
+		$d['day_label']   = $res['rule']['label'];
+		$d['when']        = djdt_events_residency_next_line( $res, true );
+		$d['disc_when']   = $res['rule']['text'];
+		$d['disc_next']   = djdt_events_residency_next_line( $res );
+		$d['cal_url']     = djdt_events_ics_url( $post->ID );
+		$d['is_ics']      = true;
+		$d['label']       = sprintf( 'Show details for %s, %s', $venue_name, $res['rule']['text'] );
+		$d['share_title'] = sprintf( 'DJ DigiMark at %s, %s', $venue_name, $res['rule']['text'] );
+	}
+	return $d;
+}
+
+/**
+ * Phones (v1.16.3, Mark's approved mockup): under 768px each event is one
+ * compact row instead of a full width CD tile (events.css shows one list or
+ * the other). The header is one button: a mini CD (case plus a spinning disc
+ * peeking out on the right), the date, the when tag / venue / time, and the
+ * round toggle. It opens a panel under it with the address and the disc's
+ * three actions. Same data as the tile (djdt_events_item()). events.js does
+ * the toggling and Share.
+ */
+function djdt_events_render_rows( $items ) {
+	?>
+	<div class="djd-events__rows">
+		<?php foreach ( $items as $item ) : ?>
+			<?php djdt_events_render_row( $item['occ'], $item['res'] ); ?>
+		<?php endforeach; ?>
+	</div>
+	<?php
+}
+
+function djdt_events_render_row( $occ, $res = null ) {
+	static $n = 0;
+	$n++;
+	$d     = djdt_events_item( $occ, $res );
+	$id    = 'djd-row-' . $n;
+	$style = $d['img'] ? ' style="--djd-row-img: url(\'' . esc_url( $d['img'] ) . '\');"' : '';
+	$label = $d['venue_name'] . ', ' . ( $res ? $res['rule']['text'] : $d['disc_when'] ) . ', ' . $d['when'];
+	?>
+	<div class="djd-row<?php echo $res ? ' djd-row--residency' : ''; ?>">
+		<button type="button" class="djd-row__head" aria-expanded="false" aria-controls="<?php echo esc_attr( $id ); ?>" aria-label="<?php echo esc_attr( $label ); ?>">
+			<span class="djd-row__cd" aria-hidden="true"<?php echo $style; // phpcs:ignore WordPress.Security.EscapeOutput ?>>
+				<span class="djd-row__slide"><span class="djd-row__disc"></span></span>
+				<span class="djd-row__case"></span>
+			</span>
+			<span class="djd-row__date" aria-hidden="true">
+				<span class="djd-row__day"><?php echo esc_html( $d['day_num'] ); ?></span>
+				<span class="djd-row__daylabel"><?php echo esc_html( $d['day_label'] ); ?></span>
+			</span>
+			<span class="djd-row__text" aria-hidden="true">
+				<span class="djd-row__when"><?php echo esc_html( $d['when'] ); ?></span>
+				<span class="djd-row__venue"><?php echo esc_html( $d['venue_name'] ); ?></span>
+				<span class="djd-row__time"><?php echo esc_html( $d['time_line'] ); ?></span>
+			</span>
+			<span class="djd-row__toggle" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" focusable="false"><path d="M4 6 L20 6 L12 20 Z" fill="<?php echo esc_attr( djdt_events_ink_on_cyan() ); ?>"/></svg></span>
+		</button>
+		<div class="djd-row__panel" id="<?php echo esc_attr( $id ); ?>">
+			<div class="djd-row__panel-in">
+				<div class="djd-row__panel-body">
+					<?php if ( $d['address'] ) : ?>
+						<a class="djd-row__address" href="<?php echo esc_url( djdt_events_maps_search_url( $d['address'] ) ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $d['address'] ); ?></a>
+					<?php endif; ?>
+					<div class="djd-row__pills">
+						<a class="djd-row__pill" href="<?php echo esc_url( $d['cal_url'] ); ?>"<?php echo $d['is_ics'] ? ' download' : ' target="_blank" rel="noopener"'; ?>>Add to calendar</a>
+						<?php if ( $d['address'] ) : ?>
+							<a class="djd-row__pill" href="<?php echo esc_url( djdt_events_directions_url( $d['address'] ) ); ?>" target="_blank" rel="noopener">Directions</a>
+						<?php endif; ?>
+						<button type="button" class="djd-row__pill djd-row__share" data-share-title="<?php echo esc_attr( $d['share_title'] ); ?>" data-share-url="<?php echo esc_url( djdt_events_page_url() ); ?>"><span class="djd-cd__disc-pill-label">Share with a friend</span></button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<?php
+}
+
+/**
  * v1.9.1: rebuilt to match reference/events-cd-reference.html exactly, the
  * file Mark approved live on Home v2 (see that file's own top comment).
  * v1.9.0 reimplemented the same idea from the written brief alone and got
@@ -1216,33 +1335,21 @@ function djdt_events_maps_search_url( $address ) {
  * they scroll near.
  */
 function djdt_events_render_card( $occ, $i, $res = null ) {
-	$post        = $occ['post'];
-	$venue       = djdt_events_get_venue( $post->ID );
-	$venue_name  = $venue ? $venue['name'] : get_the_title( $post );
-	$address     = $venue ? $venue['address'] : '';
-	$logo        = $venue ? $venue['logo'] : '';
-	$display     = djdt_events_display_date( $occ );
-	$time_line   = djdt_events_format_time_range( $occ['start'], $occ['end'] );
-	$when        = djdt_events_when_tag( $display );
-	$img         = get_the_post_thumbnail_url( $post->ID, 'medium_large' );
-	$play_label  = sprintf( 'Show details for %s, %s', $venue_name, $display->format( 'M j' ) );
+	$d           = djdt_events_item( $occ, $res );
+	$address     = $d['address'];
+	$logo        = $d['logo'];
+	$venue_name  = $d['venue_name'];
+	$time_line   = $d['time_line'];
+	$when        = $d['when'];
+	$img         = $d['img'];
+	$play_label  = $d['label'];
 	$glow_dur    = array( '2.6s', '2.9s', '3.2s' )[ $i % 3 ];
-	$share_title = sprintf( 'DJ DigiMark at %s, %s %s, %s', $venue_name, $display->format( 'D' ), $display->format( 'M j' ), $time_line );
-	$day_num     = $display->format( 'j' );
-	$day_label   = $display->format( 'D' ) . ' · ' . $display->format( 'M' );
-	$disc_when   = $display->format( 'D M j' ) . ' · ' . $time_line;
-	$disc_next   = '';
-	$cal_url     = djdt_events_calendar_url( $venue_name, $occ['start'], $occ['end'], $address );
-	if ( $res ) {
-		$day_num     = strtoupper( $res['rule']['day'] );
-		$day_label   = $res['rule']['label'];
-		$when        = djdt_events_residency_next_line( $res, true );
-		$disc_when   = $res['rule']['text'];
-		$disc_next   = djdt_events_residency_next_line( $res );
-		$cal_url     = djdt_events_ics_url( $post->ID );
-		$play_label  = sprintf( 'Show details for %s, %s', $venue_name, $res['rule']['text'] );
-		$share_title = sprintf( 'DJ DigiMark at %s, %s', $venue_name, $res['rule']['text'] );
-	}
+	$share_title = $d['share_title'];
+	$day_num     = $d['day_num'];
+	$day_label   = $d['day_label'];
+	$disc_when   = $d['disc_when'];
+	$disc_next   = $d['disc_next'];
+	$cal_url     = $d['cal_url'];
 	?>
 	<div class="djd-cd<?php echo $res ? ' djd-cd--residency' : ''; ?>" style="--djd-cd-glow-dur: <?php echo esc_attr( $glow_dur ); ?>;">
 		<div class="djd-cd__case">

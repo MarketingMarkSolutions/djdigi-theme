@@ -125,9 +125,23 @@
 		}
 	} );
 
+	// v1.16.3: the phone rows (events.css shows them under 768px). The
+	// header button opens and closes its own row; each row is independent.
+	document.querySelectorAll( '.djd-row' ).forEach( function ( row ) {
+		var head = row.querySelector( '.djd-row__head' );
+		if ( ! head ) {
+			return;
+		}
+		head.addEventListener( 'click', function () {
+			var open = ! row.classList.contains( 'is-open' );
+			row.classList.toggle( 'is-open', open );
+			head.setAttribute( 'aria-expanded', open ? 'true' : 'false' );
+		} );
+	} );
+
 	// v1.15.1: the featured residency cards' Share pill, same behavior as
-	// the CD's.
-	document.querySelectorAll( '.djd-res__share' ).forEach( function ( share ) {
+	// the CD's. v1.16.3: the phone rows' Share pill too.
+	document.querySelectorAll( '.djd-res__share, .djd-row__share' ).forEach( function ( share ) {
 		share.addEventListener( 'click', function ( e ) {
 			e.preventDefault();
 			var title = share.getAttribute( 'data-share-title' );
