@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, the inner page banner, Avada menu restyle, the Contact / Book me pop-up, the [djdigi_hero] homepage hero, [djdigi_player], [djdigi_events], [djdigi_videos], [djdigi_venues], [djdigi_story] and [djdigi_about] for djdigimark.com.
- * Version: 1.16.5
+ * Version: 1.16.6
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.16.5' );
+define( 'DJDT_VERSION', '1.16.6' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -1189,9 +1189,19 @@ function djdt_halftone_set_build( $id ) {
 	$upload_dir = wp_upload_dir();
 	$base_rel   = (string) get_post_meta( $id, '_djdt_halftone_file', true );
 	$base_abs   = trailingslashit( $upload_dir['basedir'] ) . $base_rel;
-	if ( '' === $base_rel || ! file_exists( $base_abs ) || ! function_exists( 'imagecreatefromjpeg' ) ) {
-		return false;
+	if ( '' === $base_rel || ! file_exists( $base_abs ) ) {
+		return djdt_halftone_set_fail( $id, 'no baked halftone file to resize' );
 	}
+	if ( ! function_exists( 'imagecreatefromjpeg' ) ) {
+		return djdt_halftone_set_fail( $id, 'GD has no JPEG support on this server' );
+	}
+	// v1.16.6: stamped before the work starts and cleared when it ends, so
+	// a run the server kills partway (a time or memory limit, which no
+	// catch can see) shows up as "did not finish" instead of nothing, and
+	// is not retried on every admin page load (djdt_halftone_set_due()).
+	$tries = (int) get_post_meta( $id, '_djdt_set_tries', true );
+	update_post_meta( $id, '_djdt_set_tries', $tries + 1 );
+	update_post_meta( $id, '_djdt_set_try', time() );
 	if ( function_exists( 'ini_set' ) ) {
 		@ini_set( 'memory_limit', '512M' );
 	}
@@ -1200,7 +1210,7 @@ function djdt_halftone_set_build( $id ) {
 	}
 	$full = @imagecreatefromjpeg( $base_abs );
 	if ( ! $full ) {
-		return false;
+		return djdt_halftone_set_fail( $id, 'could not open the baked file with GD' );
 	}
 	$w      = imagesx( $full );
 	$h      = imagesy( $full );
@@ -1246,12 +1256,83 @@ function djdt_halftone_set_build( $id ) {
 	}
 	imagedestroy( $full );
 	if ( ! $items ) {
-		return false;
+		return djdt_halftone_set_fail( $id, 'no size could be written to the uploads folder' );
 	}
-	$set = array( 'ver' => DJDT_HALFTONE_SET_VER, 'base' => $base_rel, 'w' => $w, 'h' => $h, 'items' => $items );
+	$set = array( 'ver' => DJDT_HALFTONE_SET_VER, 'base' => $base_rel, 'w' => $w, 'h' => $h, 'items' => $items, 'imagick' => class_exists( 'Imagick' ), 'webp' => $webp, 'time' => time() );
 	update_post_meta( $id, '_djdt_halftone_set', $set );
+	delete_post_meta( $id, '_djdt_set_error' );
+	delete_post_meta( $id, '_djdt_set_try' );
+	delete_post_meta( $id, '_djdt_set_tries' );
 	return $set;
 }
+
+/** Records why a photo's responsive set was not built (v1.16.6), shown on the Hero Photos screen. */
+function djdt_halftone_set_fail( $id, $reason ) {
+	update_post_meta( (int) $id, '_djdt_set_error', array( 'reason' => $reason, 'time' => time() ) );
+	delete_post_meta( (int) $id, '_djdt_set_try' );
+	return false;
+}
+
+/**
+ * Whether admin_init should try building this photo's set now (v1.16.6):
+ * not after a failure in the last hour, and not after three runs that never
+ * finished (the server stopped them), so a photo that cannot be resized on
+ * this host never slows every admin page down.
+ */
+function djdt_halftone_set_due( $id ) {
+	$err = get_post_meta( (int) $id, '_djdt_set_error', true );
+	if ( is_array( $err ) && ! empty( $err['time'] ) && time() - (int) $err['time'] < HOUR_IN_SECONDS ) {
+		return false;
+	}
+	$try = (int) get_post_meta( (int) $id, '_djdt_set_try', true );
+	if ( $try && (int) get_post_meta( (int) $id, '_djdt_set_tries', true ) >= 3 ) {
+		return false;
+	}
+	return true;
+}
+
+/** One line per hero photo: its responsive set's state (v1.16.6). */
+function djdt_halftone_set_status( $id ) {
+	$set = djdt_halftone_set( $id );
+	if ( $set ) {
+		return 'ready: ' . implode( ', ', array_map( function ( $it ) { return (int) $it[0]; }, $set['items'] ) ) . 'px, '
+			. ( ! empty( $set['webp'] ) ? 'JPEG and WebP' : 'JPEG only (GD on this server has no WebP)' ) . ', '
+			. ( ! empty( $set['imagick'] ) ? 'resized with Imagick' : 'resized with GD (no Imagick on this server, slightly softer)' );
+	}
+	if ( ! get_post_meta( (int) $id, '_djdt_halftone_file', true ) ) {
+		return 'not built: the halftone copy itself is not baked yet';
+	}
+	$err = get_post_meta( (int) $id, '_djdt_set_error', true );
+	if ( is_array( $err ) && ! empty( $err['reason'] ) ) {
+		return 'not built: ' . $err['reason'] . ' (retried after an hour)';
+	}
+	if ( get_post_meta( (int) $id, '_djdt_set_try', true ) ) {
+		$n = (int) get_post_meta( (int) $id, '_djdt_set_tries', true );
+		return 'not built: the last ' . ( $n > 1 ? $n . ' tries' : 'try' ) . ' did not finish, likely a time or memory limit on the server' . ( $n >= 3 ? ' (stopped trying)' : '' );
+	}
+	return 'not built yet: it is built on the next admin page load';
+}
+
+add_action( 'admin_notices', function () {
+	if ( ! current_user_can( 'manage_options' ) || ! isset( $_GET['page'] ) || ! in_array( $_GET['page'], array( 'djdigi-theme', 'djdigi-theme-photos' ), true ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read only, which screen this is
+		return;
+	}
+	$rows = djdt_get( 'hero_photos' );
+	if ( ! is_array( $rows ) || ! $rows ) {
+		return;
+	}
+	$lines = array();
+	$ok    = true;
+	foreach ( $rows as $row ) {
+		$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+		if ( $id > 0 ) {
+			$st      = djdt_halftone_set_status( $id );
+			$ok      = $ok && 0 === strpos( $st, 'ready' );
+			$lines[] = '<li>' . esc_html( get_the_title( $id ) . ' (#' . $id . '): ' . $st ) . '</li>';
+		}
+	}
+	echo '<div class="notice ' . ( $ok ? 'notice-success' : 'notice-warning' ) . '"><p><strong>Hero photo sizes</strong> (the smaller copies the homepage serves):</p><ul style="list-style:disc;margin-left:20px">' . implode( '', $lines ) . '</ul></div>'; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped above
+} );
 
 /** One resized copy for the set: Imagick Lanczos when available, GD otherwise. */
 function djdt_halftone_resize( $gd, $path, $w, $h ) {
@@ -1702,25 +1783,33 @@ add_action( 'admin_init', function () {
 	if ( ! is_array( $rows ) ) {
 		return;
 	}
+	// v1.16.5: photos already baked with this recipe but with no current
+	// responsive set (every photo, the first time v1.16.5 runs) get one now:
+	// a resize and an encode each, a few seconds, so several per admin page
+	// load, stopping after about 20 seconds. Nothing for Mark to do.
+	// v1.16.6: this runs FIRST now. In v1.16.5 it came after the one rebake
+	// per load below, which returned early, so a single photo whose bake
+	// kept failing (or kept needing a rebake) stopped every set from ever
+	// being built.
+	$t0 = microtime( true );
+	foreach ( $rows as $row ) {
+		$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+		if ( $id > 0 && (int) get_post_meta( $id, '_djdt_bake_ver', true ) === DJDT_HALFTONE_RECIPE && ! djdt_halftone_set( $id ) && get_post_meta( $id, '_djdt_halftone_file', true ) && djdt_halftone_set_due( $id ) ) {
+			djdt_halftone_set_build( $id );
+			if ( microtime( true ) - $t0 > 20 ) {
+				return;
+			}
+		}
+	}
+	// Then at most one rebake (slow: every pixel), only with time to spare.
+	if ( microtime( true ) - $t0 > 5 ) {
+		return;
+	}
 	foreach ( $rows as $row ) {
 		$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
 		if ( $id > 0 && (int) get_post_meta( $id, '_djdt_bake_ver', true ) !== DJDT_HALFTONE_RECIPE ) {
 			djdt_ensure_halftone( $id );
 			return;
-		}
-	}
-	// v1.16.5: photos already baked with this recipe but with no current
-	// responsive set (every photo, the first time v1.16.5 runs) get one now:
-	// a resize and an encode each, a few seconds, so several per admin page
-	// load, stopping after about 20 seconds. Nothing for Mark to do.
-	$t0 = microtime( true );
-	foreach ( $rows as $row ) {
-		$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
-		if ( $id > 0 && ! djdt_halftone_set( $id ) && get_post_meta( $id, '_djdt_halftone_file', true ) ) {
-			djdt_halftone_set_build( $id );
-			if ( microtime( true ) - $t0 > 20 ) {
-				return;
-			}
 		}
 	}
 } );

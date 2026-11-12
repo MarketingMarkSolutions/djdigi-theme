@@ -423,6 +423,41 @@ old logo never requested. The PHP string functions (autop strip, logo swap, titl
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
 
+## v1.16.6: hotfix, hero stuck black
+Found live on v1.16.5, logged out at 800 and 1280: `IndexSizeError ... The radius provided (-0.5) is
+negative` in `drawBall()` (the outline ring, `r - .5`) from `pillFrame()`. The pill ball's radius comes
+from the header logo's rendered width (`slot(mini)`); that `<img>` is `height: 36px; width: auto`, so
+with no width/height attributes on the tag and the SVG not loaded yet it is exactly 0 wide. Before
+v1.16.5 the logo had usually loaded by the first frame; v1.16.5's lighter, preloaded hero photo starts
+the intro sooner. The exception skipped the `requestAnimationFrame` at the end of `frame()`, so the
+shared loop died and the hero stayed under its black overlay.
+- `drawBall()` draws nothing and returns 0 below r = 1; the ring's radius is clamped to 0 or more.
+- `pillFrame()` skips the frame (pill ball hidden) until the radius is valid, and tries again next frame.
+- `frame()` books the next frame first; the pill ball and the hero (`heroFrame()`) each run in their own
+  try/catch, and each distinct error is logged once (`report()`), so one bad draw cannot stop the hero.
+- `slot()`: a box with height but no width gets its width from the image's ratio (natural size, or the
+  night logo's 1517 x 1798 before it loads). site.css: `.fusion-logo img { aspect-ratio: auto 1517 /
+  1798 }`, the same fallback in CSS, so the logo is about 30px wide from the first frame either way.
+- Why the live tag has no size is not confirmed (the site's firewall blocks this machine).
+  `djdt_swap_header_logos()` only replaces width/height attributes that are already on the tag.
+
+**Hero photo sizes, still the 1MB file live after v1.16.5.** Could not check live. Found in the code:
+`admin_init` did one slow rebake per load first and returned, so one photo needing a rebake (or whose
+bake kept failing) stopped every responsive set from being built. Sets now come first (only photos
+already baked with the current recipe), then at most one rebake if under 5 seconds were used. A set
+build also records why it failed (`_djdt_set_error`), stamps a try before starting (`_djdt_set_try`,
+`_djdt_set_tries`: a run the server kills shows as "did not finish"), waits an hour after a failure,
+and stops after three unfinished runs (`djdt_halftone_set_due()`). DigiMark > Theme Settings and Hero
+Photos show one line per photo (`djdt_halftone_set_status()`): ready (widths, WebP or not, Imagick or
+GD) or why not. Page caches can also keep serving v1.16.4's HTML: purge after updating.
+
+**Verified** (the Home v2 snapshot harness, outside requests blocked): v1.16.5 with a header logo tag
+with no size and the SVG 2s late reproduces the black hero and the error at 390, 800, 1280 and 1920.
+v1.16.6, same conditions and normal, at all four widths, with `?intro=1` and with the intro skipped:
+the overlay lifts, logo and slogan come in, the loop keeps running, the pill ball shows, no console
+errors (28 checks). v1.16.5's look checks still pass (27). PHP: the status lines for ready, never
+built, missing file and killed three times; sets built before the rebake. **Not verified live.**
+
 ## v1.16.5: lighter pinned tile, slogan, light over the logo, hero speed, faster intro
 Items 4 to 6 of Mark's combined v1.16.4 brief (items 1 to 3 shipped as v1.16.4), plus the pinned
 tile's "lighter background" that v1.16.4 missed (`.djd-cd--pinned .djd-cd__case`, the row's gradient).
@@ -2400,6 +2435,12 @@ reload. There is no code bug to chase here unless a fresh, uncached load still s
 count.
 
 ## Testing in the static harness
+**Block every request that is not to the local server, in every harness script** (Playwright:
+`context.route(/^https?:\/\/(?!localhost)/, r => r.abort())`). The saved Home v2 page still loads its
+fonts and icon fonts from djdigimark.com by absolute URL, so a script without the block quietly sends
+requests to the live site on every page load, which is what gets this machine's IP blocked (found in
+v1.16.5/v1.16.6: several timing scripts ran without it).
+
 Use Playwright (`page.setViewportSize`, or a mobile device preset), not headless Chrome's own
 `--screenshot` CLI flag. That flag has a hard floor around 500px regardless of the requested
 window size (confirmed against both new and legacy headless modes and a device-scale-factor

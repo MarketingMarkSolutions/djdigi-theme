@@ -202,9 +202,14 @@
 	// percent of the element's own rendered WIDTH (not height, even for Y),
 	// since the logo's aspect ratio is fixed and that is the one scale
 	// factor the reference itself uses throughout (its own slot()).
+	// v1.16.6: an <img> with no width/height attributes is 0 wide until it
+	// has loaded (its CSS is height 36px, width auto); then the width comes
+	// from its height and its own ratio (the night logo's, 1517 x 1798,
+	// before it loads), so the ball has a size from the first frame.
 	function slot(el) {
-		var r = el.getBoundingClientRect();
-		return { x: r.left + (BALL_X / 100) * r.width, y: r.top + (BALL_Y / 100) * r.width, r: (BALL_R / 100) * r.width, rect: r };
+		var r = el.getBoundingClientRect(), w = r.width;
+		if (w < 1 && r.height > 0) w = r.height * ((el.naturalWidth && el.naturalHeight) ? el.naturalWidth / el.naturalHeight : 1517 / 1798);
+		return { x: r.left + (BALL_X / 100) * w, y: r.top + (BALL_Y / 100) * w, r: (BALL_R / 100) * w, rect: r };
 	}
 
 	function makeSpecks() {
@@ -237,6 +242,12 @@
 	// v1.16.0: draws on canvas cv (2D context bx), shared by the hero ball
 	// and the pill ball; fl is that ball's own flash.
 	function drawBall(cv, bx, r, lx, ly, now, fl) {
+		// v1.16.6: no ball until it has a real size (a logo image with no
+		// width yet gives r = 0, and arc() throws on a negative radius).
+		if (!(r >= 1)) {
+			if (cv.width) { bx.setTransform(1, 0, 0, 1, 0, 0); bx.clearRect(0, 0, cv.width, cv.height); }
+			return 0;
+		}
 		var pad = 3, sz = Math.ceil(r * 2 + pad * 2), px = Math.round(sz * DPR);
 		if (cv.width !== px) { cv.width = px; cv.height = px; cv.style.width = sz + 'px'; cv.style.height = sz + 'px'; }
 		bx.setTransform(DPR, 0, 0, DPR, 0, 0); bx.clearRect(0, 0, sz, sz);
@@ -265,7 +276,7 @@
 			}
 		}
 		bx.restore();
-		bx.strokeStyle = 'rgba(241,236,226,.22)'; bx.lineWidth = 1; bx.beginPath(); bx.arc(c, c, r - .5, 0, 6.2832); bx.stroke();
+		bx.strokeStyle = 'rgba(241,236,226,.22)'; bx.lineWidth = 1; bx.beginPath(); bx.arc(c, c, Math.max(0, r - .5), 0, 6.2832); bx.stroke();
 		return sz;
 	}
 
@@ -407,6 +418,8 @@
 		if (!pc) return;
 		if (!placeLogo()) { pc.style.opacity = 0; return; }
 		var s = slot(mini);
+		// v1.16.6: no size yet (the logo not laid out): try again next frame.
+		if (!(s.r >= 1)) { pc.style.opacity = 0; return; }
 		var lx = (mouse.x - s.x) / Math.max(window.innerWidth, 1), ly = (mouse.y - s.y) / Math.max(window.innerHeight, 1);
 		if (mouse.x < -999) { lx = -.4; ly = -.5; }
 		var sz = drawBall(pc, px2, s.r, lx * 2, ly * 2, now, 0);
@@ -414,13 +427,29 @@
 		pc.style.opacity = 1;
 	}
 
+	// v1.16.6: the next frame is booked first and the pill ball and the
+	// hero each run in their own try/catch, so one bad draw can never stop
+	// the loop again (v1.16.5 live: an exception in the pill ball's draw
+	// skipped the requestAnimationFrame at the end, and the hero stayed
+	// black). Each distinct error is still reported once in the console.
+	var reported = {};
+	function report(where, e) {
+		var k = where + ':' + (e && e.message);
+		if (reported[k]) return;
+		reported[k] = 1;
+		if (window.console && console.error) console.error('djdigi-theme mirrorball, ' + where + ':', e);
+	}
 	function frame(now) {
 		if (!running) return;
+		requestAnimationFrame(frame);
 		var dt = Math.min(64, now - last); last = now;
 		var t = now - start;
 		rot += dt * .0002; flash = Math.max(0, flash - dt / 900);
-		pillFrame(now);
-		if (!hero) { requestAnimationFrame(frame); return; }
+		try { pillFrame(now); } catch (e) { report('pill ball', e); }
+		if (!hero) return;
+		try { heroFrame(now, t); } catch (e) { report('hero', e); }
+	}
+	function heroFrame(now, t) {
 		var hr = hero.getBoundingClientRect();
 
 		// v1.16.0: no docking. The hero ball stays in the hero logo's slot
@@ -521,7 +550,6 @@
 			}
 			logoFxEnd();
 		}
-		requestAnimationFrame(frame);
 	}
 
 	/**

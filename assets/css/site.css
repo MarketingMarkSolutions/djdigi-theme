@@ -900,6 +900,10 @@ body.djdigi-theme .fusion-logo img.fusion-standard-logo {
 body.djdigi-theme .fusion-logo img {
 	height: 36px !important;
 	width: auto !important;
+	/* v1.16.6: its own ratio once loaded, the night logo's until then, so
+	   it is never 0 wide while loading when the page's img tag has no
+	   width/height attributes (mirrorball.js sizes the pill ball from it). */
+	aspect-ratio: auto 1517 / 1798;
 	max-height: none !important;
 	/* Hidden only until mirrorball.js has moved it into the pill's slot
 	   (v1.16.0: then it shows at all times, on every page), so it never
