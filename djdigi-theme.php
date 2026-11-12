@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DJ DigiMark Theme
  * Description: Site styling, the inner page banner, Avada menu restyle, the Contact / Book me pop-up, the [djdigi_hero] homepage hero, [djdigi_player], [djdigi_events], [djdigi_videos], [djdigi_venues], [djdigi_story] and [djdigi_about] for djdigimark.com.
- * Version: 1.16.4
+ * Version: 1.16.5
  * Author: DJ DigiMark
  * Update URI: https://github.com/MarketingMarkSolutions/djdigi-theme
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DJDT_VERSION', '1.16.4' );
+define( 'DJDT_VERSION', '1.16.5' );
 define( 'DJDT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DJDT_URL', plugin_dir_url( __FILE__ ) );
 define( 'DJDT_OPTION', 'djdigi_theme_settings' );
@@ -1057,6 +1057,16 @@ define( 'DJDT_HALFTONE_MAX_DIM', 2000 );
 // comment above and djdt_halftone_render() below).
 define( 'DJDT_HALFTONE_RECIPE', 3 );
 
+// v1.16.5: the hero's responsive set. The halftone look itself is unchanged
+// (the recipe above still renders one file, up to 2000px, q90); every hero
+// photo also gets smaller copies resized from that file, as JPEG and WebP,
+// served with srcset (djdt_hero_photo_html()). Bump DJDT_HALFTONE_SET_VER
+// to rebuild every set (cheap: a resize and an encode, no per pixel render).
+define( 'DJDT_HALFTONE_SET_VER', 1 );
+define( 'DJDT_HALFTONE_SET_WIDTHS', array( 800, 1200, 1600, 2000 ) );
+define( 'DJDT_HALFTONE_SET_JPEG_Q', 74 );
+define( 'DJDT_HALFTONE_SET_WEBP_Q', 74 );
+
 /**
  * Returns the baked halftone URL for a hero photo attachment, generating
  * it first if it does not exist yet (a photo saved before this recipe
@@ -1152,6 +1162,7 @@ function djdt_ensure_halftone( $id ) {
 	if ( $old_rel && $old_rel !== $rel_file ) {
 		@unlink( trailingslashit( $upload_dir['basedir'] ) . $old_rel );
 	}
+	djdt_halftone_set_delete( $id );
 
 	delete_post_meta( $id, '_djdt_bake_error' );
 	update_post_meta( $id, '_djdt_halftone_file', $rel_file );
@@ -1159,7 +1170,139 @@ function djdt_ensure_halftone( $id ) {
 	// pass below can tell a correctly baked photo from one still waiting
 	// on a rebake, per photo, see the note there.
 	update_post_meta( $id, '_djdt_bake_ver', DJDT_HALFTONE_RECIPE );
+	djdt_halftone_set_build( $id );
 	return trailingslashit( $upload_dir['baseurl'] ) . $rel_file;
+}
+
+/**
+ * v1.16.5: the responsive set for one baked photo. Every width in
+ * DJDT_HALFTONE_SET_WIDTHS below the baked file's own width, plus that
+ * width itself, each as JPEG and (where GD can write it) WebP, named after
+ * the baked file ("...-v3-hash-1200.jpg"), so a new bake always means new
+ * URLs. Resized with Imagick's Lanczos filter when Imagick is there (the
+ * dots stay as crisp as the browser's own downscale of the big file, which
+ * is what visitors saw until now), GD's resample otherwise (a little
+ * softer). Saved in '_djdt_halftone_set'. Returns the set, or false.
+ */
+function djdt_halftone_set_build( $id ) {
+	$id         = (int) $id;
+	$upload_dir = wp_upload_dir();
+	$base_rel   = (string) get_post_meta( $id, '_djdt_halftone_file', true );
+	$base_abs   = trailingslashit( $upload_dir['basedir'] ) . $base_rel;
+	if ( '' === $base_rel || ! file_exists( $base_abs ) || ! function_exists( 'imagecreatefromjpeg' ) ) {
+		return false;
+	}
+	if ( function_exists( 'ini_set' ) ) {
+		@ini_set( 'memory_limit', '512M' );
+	}
+	if ( function_exists( 'set_time_limit' ) ) {
+		@set_time_limit( 120 );
+	}
+	$full = @imagecreatefromjpeg( $base_abs );
+	if ( ! $full ) {
+		return false;
+	}
+	$w      = imagesx( $full );
+	$h      = imagesy( $full );
+	$widths = array();
+	foreach ( DJDT_HALFTONE_SET_WIDTHS as $sw ) {
+		if ( $sw < $w ) {
+			$widths[] = $sw;
+		}
+	}
+	$widths[] = $w;
+	$webp     = function_exists( 'imagewebp' );
+	$stem     = preg_replace( '/\.jpg$/', '', $base_rel );
+	$items    = array();
+	foreach ( $widths as $sw ) {
+		$sh  = max( 1, (int) round( $h * $sw / $w ) );
+		$img = ( $sw === $w ) ? $full : djdt_halftone_resize( $full, $base_abs, $sw, $sh );
+		if ( ! $img ) {
+			continue;
+		}
+		$jpg_rel  = $stem . '-' . $sw . '.jpg';
+		$webp_rel = $webp ? $stem . '-' . $sw . '.webp' : '';
+		$ok       = imagejpeg( $img, trailingslashit( $upload_dir['basedir'] ) . $jpg_rel, DJDT_HALFTONE_SET_JPEG_Q );
+		if ( $ok && $webp_rel && ! @imagewebp( $img, trailingslashit( $upload_dir['basedir'] ) . $webp_rel, DJDT_HALFTONE_SET_WEBP_Q ) ) {
+			$webp_rel = '';
+		}
+		// The halftone's fine dots are hard on WebP: at the larger widths,
+		// where the dots are still crisp, its file can come out bigger than
+		// the JPEG. Then the WebP list just points at the JPEG for that width.
+		if ( $ok && $webp_rel ) {
+			clearstatcache();
+			$dir = trailingslashit( $upload_dir['basedir'] );
+			if ( filesize( $dir . $webp_rel ) >= filesize( $dir . $jpg_rel ) ) {
+				@unlink( $dir . $webp_rel );
+				$webp_rel = $jpg_rel;
+			}
+		}
+		if ( $img !== $full ) {
+			imagedestroy( $img );
+		}
+		if ( $ok ) {
+			$items[] = array( $sw, $jpg_rel, $webp_rel );
+		}
+	}
+	imagedestroy( $full );
+	if ( ! $items ) {
+		return false;
+	}
+	$set = array( 'ver' => DJDT_HALFTONE_SET_VER, 'base' => $base_rel, 'w' => $w, 'h' => $h, 'items' => $items );
+	update_post_meta( $id, '_djdt_halftone_set', $set );
+	return $set;
+}
+
+/** One resized copy for the set: Imagick Lanczos when available, GD otherwise. */
+function djdt_halftone_resize( $gd, $path, $w, $h ) {
+	if ( class_exists( 'Imagick' ) ) {
+		try {
+			$im = new Imagick( $path );
+			$im->resizeImage( $w, $h, Imagick::FILTER_LANCZOS, 1 );
+			$im->setImageFormat( 'png' );
+			$out = @imagecreatefromstring( $im->getImageBlob() );
+			$im->destroy();
+			if ( $out ) {
+				return $out;
+			}
+		} catch ( \Throwable $e ) {
+			// Falls through to GD.
+		}
+	}
+	$out = imagecreatetruecolor( $w, $h );
+	imagecopyresampled( $out, $gd, 0, 0, 0, 0, $w, $h, imagesx( $gd ), imagesy( $gd ) );
+	return $out;
+}
+
+/** The current set for a photo, or null: built by this version, from the file that is baked now, every file still there. */
+function djdt_halftone_set( $id ) {
+	$set  = get_post_meta( (int) $id, '_djdt_halftone_set', true );
+	$base = (string) get_post_meta( (int) $id, '_djdt_halftone_file', true );
+	if ( ! is_array( $set ) || empty( $set['items'] ) || DJDT_HALFTONE_SET_VER !== (int) ( $set['ver'] ?? 0 ) || $base !== ( $set['base'] ?? '' ) ) {
+		return null;
+	}
+	$dir = trailingslashit( wp_upload_dir()['basedir'] );
+	foreach ( $set['items'] as $it ) {
+		if ( ! file_exists( $dir . $it[1] ) ) {
+			return null;
+		}
+	}
+	return $set;
+}
+
+/** Deletes a photo's set files and its meta (before a rebake replaces them). */
+function djdt_halftone_set_delete( $id ) {
+	$set = get_post_meta( (int) $id, '_djdt_halftone_set', true );
+	if ( is_array( $set ) && ! empty( $set['items'] ) ) {
+		$dir = trailingslashit( wp_upload_dir()['basedir'] );
+		foreach ( $set['items'] as $it ) {
+			@unlink( $dir . $it[1] );
+			if ( ! empty( $it[2] ) && $it[2] !== $it[1] ) {
+				@unlink( $dir . $it[2] );
+			}
+		}
+	}
+	delete_post_meta( (int) $id, '_djdt_halftone_set' );
 }
 
 /**
@@ -1563,7 +1706,21 @@ add_action( 'admin_init', function () {
 		$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
 		if ( $id > 0 && (int) get_post_meta( $id, '_djdt_bake_ver', true ) !== DJDT_HALFTONE_RECIPE ) {
 			djdt_ensure_halftone( $id );
-			break;
+			return;
+		}
+	}
+	// v1.16.5: photos already baked with this recipe but with no current
+	// responsive set (every photo, the first time v1.16.5 runs) get one now:
+	// a resize and an encode each, a few seconds, so several per admin page
+	// load, stopping after about 20 seconds. Nothing for Mark to do.
+	$t0 = microtime( true );
+	foreach ( $rows as $row ) {
+		$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+		if ( $id > 0 && ! djdt_halftone_set( $id ) && get_post_meta( $id, '_djdt_halftone_file', true ) ) {
+			djdt_halftone_set_build( $id );
+			if ( microtime( true ) - $t0 > 20 ) {
+				return;
+			}
 		}
 	}
 } );
@@ -1914,6 +2071,7 @@ function djdt_hero_photos() {
 				continue;
 			}
 			$out[] = array(
+				'set' => $halftone ? djdt_halftone_set( $id ) : null,
 				'src' => $src,
 				// A baked halftone copy has no WordPress generated responsive
 				// sizes of its own, only the one file; it is already capped
@@ -1927,6 +2085,7 @@ function djdt_hero_photos() {
 	}
 	if ( empty( $out ) ) {
 		$out[] = array(
+			'set'    => null,
 			'src'    => DJDT_URL . 'assets/img/hero-photo-halftone.jpg',
 			'srcset' => '',
 			'x'      => 50,
@@ -1935,6 +2094,91 @@ function djdt_hero_photos() {
 	}
 	return $out;
 }
+
+/**
+ * v1.16.5: srcset and sizes for one hero photo's set. The photo covers a
+ * box the full width of the screen and max(540px, 68vh) tall (hero.css), so
+ * the width it needs is the larger of the screen width and that height
+ * times the photo's own aspect ratio (a square photo on a phone is drawn
+ * as wide as the hero is tall). A browser that cannot read max() in sizes
+ * drops the attribute and uses 100vw, a little smaller, never larger.
+ */
+function djdt_hero_photo_sources( $p ) {
+	$set = $p['set'];
+	if ( ! $set ) {
+		return null;
+	}
+	$dir  = trailingslashit( wp_upload_dir()['baseurl'] );
+	$jpg  = array();
+	$webp = array();
+	$mid  = '';
+	foreach ( $set['items'] as $it ) {
+		$jpg[] = $dir . $it[1] . ' ' . (int) $it[0] . 'w';
+		if ( ! empty( $it[2] ) ) {
+			$webp[] = $dir . $it[2] . ' ' . (int) $it[0] . 'w';
+		}
+		if ( '' === $mid || (int) $it[0] <= 1200 ) {
+			$mid = $dir . $it[1];
+		}
+	}
+	$ratio = round( $set['w'] / max( 1, $set['h'] ), 4 );
+	return array(
+		'src'   => $mid,
+		'jpg'   => implode( ', ', $jpg ),
+		'webp'  => count( $webp ) === count( $jpg ) ? implode( ', ', $webp ) : '',
+		'sizes' => 'max(100vw, calc(max(540px, 68vh) * ' . $ratio . '))',
+	);
+}
+
+/**
+ * One hero photo. The first is loaded right away with high priority (and
+ * preloaded from wp_head, djdt_hero_preload()); the others carry their
+ * URLs in data- attributes and mirrorball.js loads them once the first
+ * photo is showing, before the first swap (v1.16.5: all of them used to
+ * download at once, ahead of everything else on the page).
+ */
+function djdt_hero_photo_html( $p, $i ) {
+	$s     = djdt_hero_photo_sources( $p );
+	$first = 0 === $i;
+	$pre   = $first ? '' : 'data-';
+	$img   = '<img class="djd-hero__photo' . ( $first ? ' is-on' : '' ) . '"';
+	if ( $s ) {
+		$img .= ' ' . $pre . 'src="' . esc_url( $s['src'] ) . '" ' . $pre . 'srcset="' . esc_attr( $s['jpg'] ) . '" sizes="' . esc_attr( $s['sizes'] ) . '"';
+	} else {
+		$img .= ' ' . $pre . 'src="' . esc_url( $p['src'] ) . '"';
+		if ( ! empty( $p['srcset'] ) ) {
+			$img .= ' ' . $pre . 'srcset="' . esc_attr( $p['srcset'] ) . '" sizes="100vw"';
+		}
+	}
+	$img .= ' style="object-position: ' . esc_attr( $p['x'] ) . '% ' . esc_attr( $p['y'] ) . '%" alt="DJ DigiMark mixing under club lights"';
+	$img .= $first ? ' fetchpriority="high" decoding="async">' : ' decoding="async">';
+	if ( $s && $s['webp'] ) {
+		return '<picture><source type="image/webp" ' . $pre . 'srcset="' . esc_attr( $s['webp'] ) . '" sizes="' . esc_attr( $s['sizes'] ) . '">' . $img . '</picture>';
+	}
+	return $img;
+}
+
+/**
+ * v1.16.5: the first hero photo, preloaded at high priority from the top of
+ * <head>, so it starts before the stylesheets and scripts instead of after
+ * them. The same candidates and sizes as the <picture>, so the browser
+ * picks the same file and uses it once.
+ */
+function djdt_hero_preload() {
+	if ( ! djdt_is_hero_page() ) {
+		return;
+	}
+	$photos = djdt_hero_photos();
+	$s      = djdt_hero_photo_sources( $photos[0] );
+	if ( $s && $s['webp'] ) {
+		echo '<link rel="preload" as="image" type="image/webp" imagesrcset="' . esc_attr( $s['webp'] ) . '" imagesizes="' . esc_attr( $s['sizes'] ) . '" fetchpriority="high">' . "\n";
+	} elseif ( $s ) {
+		echo '<link rel="preload" as="image" imagesrcset="' . esc_attr( $s['jpg'] ) . '" imagesizes="' . esc_attr( $s['sizes'] ) . '" fetchpriority="high">' . "\n";
+	} else {
+		echo '<link rel="preload" as="image" href="' . esc_url( $photos[0]['src'] ) . '" fetchpriority="high">' . "\n";
+	}
+}
+add_action( 'wp_head', 'djdt_hero_preload', 1 );
 
 /* -------------------------------------------------------------------------
  * [djdigi_hero]
@@ -1995,14 +2239,7 @@ function djdt_hero_shortcode( $atts = array() ) {
 	<section class="djd-hero" aria-label="DJ DigiMark" data-photo-count="<?php echo (int) count( $photos ); ?>">
 		<div class="djd-hero__photos">
 			<?php foreach ( $photos as $i => $p ) : ?>
-				<img
-					class="djd-hero__photo<?php echo ( 0 === $i ) ? ' is-on' : ''; ?>"
-					src="<?php echo esc_url( $p['src'] ); ?>"
-					<?php if ( ! empty( $p['srcset'] ) ) : ?>srcset="<?php echo esc_attr( $p['srcset'] ); ?>" sizes="100vw"<?php endif; ?>
-					style="object-position: <?php echo esc_attr( $p['x'] ); ?>% <?php echo esc_attr( $p['y'] ); ?>%"
-					alt="DJ DigiMark mixing under club lights"
-					<?php echo ( 0 === $i ) ? 'fetchpriority="high"' : 'loading="lazy"'; ?>
-				>
+				<?php echo djdt_hero_photo_html( $p, $i ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?>
 			<?php endforeach; ?>
 		</div>
 
@@ -2029,7 +2266,7 @@ function djdt_hero_shortcode( $atts = array() ) {
 			typeset letters (v1.11.0). -->
 			<h1 class="djd-hero__sr-name">DJ DigiMark</h1>
 			<img class="djd-hero__logo" src="<?php echo esc_url( $logo_url ); ?>" alt="DJ DigiMark" width="1517" height="1798">
-			<p class="djd-hero__slogan">Bringing positive vibes to the dance <span class="djd-nowrap">floor <span class="djd-eq" role="img" aria-label="Rainbow flag and music"><span></span><span></span><span></span><span></span><span></span><span></span></span></span></p>
+			<p class="djd-hero__slogan">Bringing the positive vibes to the dance <span class="djd-nowrap">floor <span class="djd-eq" role="img" aria-label="Rainbow flag and music"><span></span><span></span><span></span><span></span><span></span><span></span></span></span></p>
 			<?php if ( $styles ) : ?>
 				<ul class="djd-hero__styles" aria-label="Music I play">
 					<?php foreach ( $styles as $style ) : ?>

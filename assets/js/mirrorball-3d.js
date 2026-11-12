@@ -148,23 +148,45 @@ export function createBall(canvas, opts) {
 	// an attached <img> three.js reads its laid out CSS size, not its
 	// pixel size, which uploads a broken texture (found in the harness: a
 	// black ball and "Offset overflows texture dimensions").
+	//
+	// v1.16.5: no second download. TextureLoader fetched the photo again
+	// (as a CORS request, which the browser keeps apart from the page's own
+	// <img> load, so it came over the network twice). Now the page's own
+	// loaded <img> is drawn into a canvas at its pixel size (capped at 1024
+	// wide, plenty for a reflection, and a much cheaper PMREM pass) and that
+	// canvas is the texture: a canvas has no CSS size problem. Only if that
+	// fails (a photo from another origin taints the canvas) does it fall
+	// back to loading the URL as before.
 	var pm = new THREE.PMREMGenerator(renderer);
-	var envRT = null, envWant = '';
+	var envRT = null, envWant = null;
+	function useTexture(tx, want) {
+		if (dead || want !== envWant) { tx.dispose(); return; }
+		tx.mapping = THREE.EquirectangularReflectionMapping;
+		tx.colorSpace = THREE.SRGBColorSpace;
+		var rt = pm.fromEquirectangular(tx);
+		if (envRT) envRT.dispose();
+		envRT = rt;
+		mat.envMap = rt.texture;
+		mat.needsUpdate = true;
+		tx.dispose();
+	}
 	function setEnv(img) {
-		var url = img && (img.currentSrc || img.src);
-		if (dead || !url) return;
-		envWant = url;
-		new THREE.TextureLoader().load(url, function (tx) {
-			if (dead || url !== envWant) { tx.dispose(); return; }
-			tx.mapping = THREE.EquirectangularReflectionMapping;
-			tx.colorSpace = THREE.SRGBColorSpace;
-			var rt = pm.fromEquirectangular(tx);
-			if (envRT) envRT.dispose();
-			envRT = rt;
-			mat.envMap = rt.texture;
-			mat.needsUpdate = true;
-			tx.dispose();
-		});
+		if (dead || !img) return;
+		if (!(img.complete && img.naturalWidth > 0)) {
+			img.addEventListener('load', function () { setEnv(img); }, { once: true });
+			return;
+		}
+		envWant = img;
+		try {
+			var w = Math.min(1024, img.naturalWidth), h = Math.max(1, Math.round(w * img.naturalHeight / img.naturalWidth));
+			var cv = document.createElement('canvas');
+			cv.width = w; cv.height = h;
+			cv.getContext('2d').drawImage(img, 0, 0, w, h);
+			useTexture(new THREE.CanvasTexture(cv), img);
+		} catch (e) {
+			var url = img.currentSrc || img.src;
+			if (url) new THREE.TextureLoader().load(url, function (tx) { useTexture(tx, img); });
+		}
 	}
 
 	var bufCss = 0, last = 0;

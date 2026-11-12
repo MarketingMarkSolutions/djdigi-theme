@@ -219,16 +219,32 @@
 	opacity: 0;
 	transform: scale(0.97);
 	transform-origin: left center;
-	transition: transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
+	/* v1.16.5: 0.63s, was 0.9s, with the 30% faster intro (mirrorball.js T). */
+	transition: transform 0.63s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 body.djd-seq-1 .djd-hero__logo { transform: none; }
+
+/* v1.16.5: light from the mirror ball over the logo. mirrorball.js makes
+   this canvas, sizes and moves it onto the logo's box every frame, draws
+   only the specks that reach the logo, and cuts them to the logo's own
+   shape, so they brighten the lettering (screen, like .djd-hero__fx) and
+   nothing around it. It sits right after the logo in the inner block, so
+   the slogan, styles line and button (after it) stay above it; it never
+   reaches them anyway. */
+.djd-hero__fx-logo {
+	position: absolute;
+	left: 0;
+	top: 0;
+	pointer-events: none;
+	mix-blend-mode: screen;
+}
 
 .djd-hero__slogan,
 .djd-hero__styles,
 .djd-hero__buttons {
 	opacity: 0;
 	transform: translate3d(0, 8px, 0);
-	transition: opacity 0.5s, transform 0.5s;
+	transition: opacity 0.35s, transform 0.35s; /* v1.16.5: was 0.5s */
 }
 body.djd-seq-3 .djd-hero__slogan,
 body.djd-seq-3 .djd-hero__styles,

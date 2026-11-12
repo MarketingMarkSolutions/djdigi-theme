@@ -163,6 +163,24 @@
 	var running = false, heroOnScreen = true;
 	var ang = 75 * Math.PI / 180, ca = Math.cos(ang), sa = Math.sin(ang), SP = 7;
 
+	// The intro timeline (v1.16.5: about 30% faster than v1.12.0's, Mark's
+	// numbers, same choreography). Every time in frame() and play() reads
+	// these, so the overlay, spotlight, wire, specks and logo stay in step.
+	var T = {
+		drop: 250,        // black until here, then the ball starts dropping (was 400)
+		land: 1550,       // the ball lands: flash and glow ring (was 2200)
+		burst: 1750,      // the specks burst out, photo swaps allowed from here (was 2500)
+		burstDur: 630,    // the burst's fly out (was 900)
+		overlay: 1700,    // the black overlay starts fading (was 2450)
+		overlayDur: 490,  // (was 700)
+		logo: 1800,       // the logo fades in, djd-seq-1 (was 2550)
+		logoDur: 420,     // (was 600)
+		wireOut: 2050,    // the wire starts fading (was 2900)
+		wireDur: 315,     // (was 450)
+		seq: [1800, 1975, 2150, 2360], // djd-seq-1..4: logo, -, slogan/styles/button, - (was 2550, 2800, 3050, 3350)
+		firstSwap: 5700   // the first photo change (was 6600, the same gap after the slogan)
+	};
+
 	function clamp(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 	function eOut(t) { return 1 - Math.pow(1 - t, 3); }
 	function eIO(t) { return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
@@ -170,7 +188,7 @@
 	// How much of the black intro overlay is left, 1 (full) down to 0: both
 	// the overlay itself and the spotlight (v1.12.0, "removed with it") read
 	// this one curve, so they always finish fading together.
-	function overlayFade(t) { return t < 2450 ? 1 : clamp(1 - (t - 2450) / 700); }
+	function overlayFade(t) { return t < T.overlay ? 1 : clamp(1 - (t - T.overlay) / T.overlayDur); }
 
 	function size() {
 		if (!hero) { W = window.innerWidth; H = window.innerHeight; return; }
@@ -186,7 +204,7 @@
 	// factor the reference itself uses throughout (its own slot()).
 	function slot(el) {
 		var r = el.getBoundingClientRect();
-		return { x: r.left + (BALL_X / 100) * r.width, y: r.top + (BALL_Y / 100) * r.width, r: (BALL_R / 100) * r.width };
+		return { x: r.left + (BALL_X / 100) * r.width, y: r.top + (BALL_Y / 100) * r.width, r: (BALL_R / 100) * r.width, rect: r };
 	}
 
 	function makeSpecks() {
@@ -251,20 +269,96 @@
 		return sz;
 	}
 
-	function cluster(x, y, R, al, col) {
+	// v1.16.5: draws on ctx (the photo's fx canvas, or the logo's, below),
+	// always in hero coordinates, so a speck crossing onto the logo keeps
+	// its exact dot grid on both canvases.
+	function clusterOn(cx, x, y, R, al, col, cap) {
 		if (al < .02 || R < 1) return;
-		var g = fc.createRadialGradient(x * DPR, y * DPR, 0, x * DPR, y * DPR, R * .9 * DPR);
-		g.addColorStop(0, 'rgba(' + col + ',' + Math.min(1, al * .45) + ')'); g.addColorStop(1, 'rgba(' + col + ',0)');
-		fc.fillStyle = g; fc.beginPath(); fc.arc(x * DPR, y * DPR, R * .9 * DPR, 0, 6.2832); fc.fill();
+		var g = cx.createRadialGradient(x * DPR, y * DPR, 0, x * DPR, y * DPR, R * .9 * DPR);
+		g.addColorStop(0, 'rgba(' + col + ',' + Math.min(cap, al * .45) + ')'); g.addColorStop(1, 'rgba(' + col + ',0)');
+		cx.fillStyle = g; cx.beginPath(); cx.arc(x * DPR, y * DPR, R * .9 * DPR, 0, 6.2832); cx.fill();
 		var u0 = x * ca + y * sa, v0 = -x * sa + y * ca, k = Math.ceil(R / SP), ub = Math.round(u0 / SP), vb = Math.round(v0 / SP);
-		fc.fillStyle = 'rgb(' + col + ')';
+		cx.fillStyle = 'rgb(' + col + ')';
 		for (var i = -k; i <= k; i++) for (var j = -k; j <= k; j++) {
 			var u = (ub + i) * SP, v = (vb + j) * SP, du = u - u0, dv = v - v0, d = Math.sqrt(du * du + dv * dv);
 			if (d > R) continue;
 			var f = 1 - d / R, px = u * ca - v * sa, py = u * sa + v * ca;
-			fc.globalAlpha = Math.min(1, al * f * 1.5); fc.beginPath(); fc.arc(px * DPR, py * DPR, (.5 + 1.7 * f) * DPR, 0, 6.2832); fc.fill();
+			cx.globalAlpha = Math.min(cap, al * f * 1.5); cx.beginPath(); cx.arc(px * DPR, py * DPR, (.5 + 1.7 * f) * DPR, 0, 6.2832); cx.fill();
 		}
-		fc.globalAlpha = 1;
+		cx.globalAlpha = 1;
+	}
+	// A speck of light: on the photo, and (v1.16.5) again on the logo when
+	// it reaches the logo's box. There it is 70% as bright (LOGO_AL) and no
+	// dot goes past 60% opacity (LOGO_CAP), so the cyan lettering never
+	// gets a hard white hot spot, even in the landing burst.
+	var LOGO_AL = .7, LOGO_CAP = .6;
+	function cluster(x, y, R, al, col) {
+		clusterOn(fc, x, y, R, al, col, 1);
+		if (lb && x + R > lb.x && x - R < lb.x + lb.w && y + R > lb.y && y - R < lb.y + lb.h) {
+			clusterOn(lc, x, y, R, al * LOGO_AL, col, LOGO_CAP);
+			lbUsed = true;
+		}
+	}
+
+	// v1.16.5: light over the logo. The specks canvas (.djd-hero__fx) sits
+	// under .djd-hero__inner, so it only lit the photo. This second canvas
+	// sits over the logo's box only, inside the inner block (above the logo,
+	// below nothing else: the slogan, styles line and button never overlap
+	// the logo), screen blended like the first. Each frame it gets just the
+	// specks that touch the logo's box (cluster() above, no extra specks),
+	// then is cut to the logo's own shape (destination-in with the logo
+	// image), so only the lettering and the ball brighten, never the
+	// transparent space around them.
+	var lfx = null, lc = null, lb = null, lbUsed = false, lbDrawn = false;
+	// The logo as a bitmap at the canvas's own size, made once per size:
+	// cutting with the <img> itself re-rasterized the SVG every frame,
+	// which measured as a real frame time cost.
+	var mask = null, maskKey = '', lfxT = '', lfxO = '';
+	if (hero && big && big.parentNode) {
+		lfx = document.createElement('canvas');
+		lfx.className = 'djd-hero__fx-logo';
+		lfx.setAttribute('aria-hidden', 'true');
+		big.parentNode.insertBefore(lfx, big.nextSibling);
+		lc = lfx.getContext('2d');
+	}
+	function clearLogoFx() {
+		if (lbDrawn) { lc.setTransform(1, 0, 0, 1, 0, 0); lc.clearRect(0, 0, lfx.width, lfx.height); lbDrawn = false; }
+	}
+	// Before the specks are drawn: the logo's box in hero coordinates, the
+	// canvas moved and sized onto it, set up for hero coordinates.
+	function logoFxBegin(hr, sb) {
+		lb = null; lbUsed = false;
+		if (!lc) return;
+		var op = big.style.opacity;
+		if (!(big.complete && big.naturalWidth) || op === '0') { clearLogoFx(); return; }
+		var r = sb.rect, pr = lfx.parentNode.getBoundingClientRect();
+		if (r.width < 2 || r.height < 2) return;
+		var w = Math.round(r.width * DPR), h = Math.round(r.height * DPR);
+		if (lfx.width !== w || lfx.height !== h) { lfx.width = w; lfx.height = h; lfx.style.width = r.width + 'px'; lfx.style.height = r.height + 'px'; lbDrawn = false; }
+		var tf = 'translate(' + (r.left - pr.left).toFixed(1) + 'px,' + (r.top - pr.top).toFixed(1) + 'px)';
+		if (tf !== lfxT) { lfx.style.transform = tf; lfxT = tf; }
+		if (op !== lfxO) { lfx.style.opacity = op; lfxO = op; }
+		lb = { x: r.left - hr.left, y: r.top - hr.top, w: r.width, h: r.height };
+		clearLogoFx();
+		lc.setTransform(1, 0, 0, 1, -lb.x * DPR, -lb.y * DPR);
+	}
+	// After: keep only what falls on the logo's own pixels.
+	function logoFxEnd() {
+		if (!lb || !lbUsed) return;
+		var key = lfx.width + 'x' + lfx.height + ' ' + big.currentSrc;
+		if (key !== maskKey) {
+			mask = mask || document.createElement('canvas');
+			mask.width = lfx.width; mask.height = lfx.height;
+			var mx = mask.getContext('2d');
+			mx.clearRect(0, 0, mask.width, mask.height);
+			mx.drawImage(big, 0, 0, mask.width, mask.height);
+			maskKey = key;
+		}
+		lc.setTransform(1, 0, 0, 1, 0, 0);
+		lc.globalCompositeOperation = 'destination-in';
+		lc.drawImage(mask, 0, 0);
+		lc.globalCompositeOperation = 'source-over';
+		lbDrawn = true;
 	}
 
 	// A plain soft radial glow, no halftone dots (unlike cluster()): used for
@@ -334,39 +428,40 @@
 		// its entrance fade (the same 600ms window as the djd-seq-1
 		// transform transition, hero.css).
 		var sb = slot(big);
-		big.style.opacity = t < 2550 ? 0 : clamp((t - 2550) / 600);
+		big.style.opacity = t < T.logo ? 0 : clamp((t - T.logo) / T.logoDur);
 
 		var tx = sb.x, ty = sb.y, tr = sb.r, by = ty;
-		if (t < 2200) {
-			var y0 = -tr * 2.2, dp = clamp((t - 400) / 1800);
+		if (t < T.land) {
+			var y0 = -tr * 2.2, dp = clamp((t - T.drop) / (T.land - T.drop));
 			by = y0 + (ty - y0) * eBack(dp, 0.9);
 		} else {
 			by = ty;
 			if (!landed) { landed = true; flash = 1; ring = { t0: now }; }
 		}
-		paintBall(tx, by, tr, now, t >= 400 && heroOnScreen);
-		var wa = t < 400 ? 0 : t < 2900 ? 1 : clamp(1 - (t - 2900) / 450);
+		paintBall(tx, by, tr, now, t >= T.drop && heroOnScreen);
+		var wa = t < T.drop ? 0 : t < T.wireOut ? 1 : clamp(1 - (t - T.wireOut) / T.wireDur);
 		wire.style.opacity = wa; wire.style.left = tx + 'px'; wire.style.height = Math.max(0, by - tr) + 'px';
 		dark.style.opacity = overlayFade(t);
 
 		if (heroOnScreen) {
 			fc.clearRect(0, 0, fx.width, fx.height);
+			logoFxBegin(hr, sb);
 			var ox = tx - hr.left, oy = by - hr.top, mx = mouse.x - hr.left, my = mouse.y - hr.top;
 
 			// Spotlight: a soft pool of light above the black overlay,
 			// following the ball, v1.12.0. 12% alpha through the drop,
-			// swelling to 20% during the hang (2200 to 2500), then fading
+			// swelling to 20% during the hang (T.land to T.burst), then fading
 			// out together with the overlay itself (overlayFade above).
-			if (t >= 400) {
-				var spotBase = t < 2200 ? 0.12 : (t < 2500 ? 0.12 + 0.08 * clamp((t - 2200) / 300) : 0.20);
+			if (t >= T.drop) {
+				var spotBase = t < T.land ? 0.12 : (t < T.burst ? 0.12 + 0.08 * clamp((t - T.land) / (T.burst - T.land)) : 0.20);
 				softGlow(ox, oy, tr * 3, spotBase * overlayFade(t));
 			}
 
-			if (t >= 2500) {
+			if (t >= T.burst) {
 				// Burst: specks start oversized and overbright, easing down
-				// to their normal size/alpha over the same 900ms they fly
+				// to their normal size/alpha over the same time they fly
 				// out over (v1.12.0, was flat from the start).
-				var bp = eOut(clamp((t - 2500) / 900));
+				var bp = eOut(clamp((t - T.burst) / T.burstDur));
 				var sizeMul = 1 + 0.6 * (1 - bp), alphaMul = 1 + 1 * (1 - bp);
 				for (var i = 0; i < specks.length; i++) {
 					var s = specks[i], ph = s.lon + rot, z = Math.cos(ph), zf = (z + 1) / 2, Rx = Math.max(ox, W - ox) * 1.05;
@@ -393,13 +488,20 @@
 				}
 			}
 
-			if (!trans && t > 2500 && now > nextAt && imgs.length > 1) {
+			if (!trans && t > T.burst && now > nextAt && imgs.length > 1) {
 				var to = (cur + 1) % imgs.length;
-				trans = { t0: now, from: cur, to: to };
-				imgs[to].classList.add('is-next');
-				imgs[to].style.clipPath = 'circle(0px at ' + ox + 'px ' + oy + 'px)';
-				flash = 1;
-				if (ball3d) ball3d.setEnv(imgs[to]);
+				if (!photoLoaded(imgs[to])) {
+					// v1.16.5: the next photo loads after the first is
+					// showing (loadRest() below); the swap waits for it.
+					loadRest();
+					nextAt = now + 500;
+				} else {
+					trans = { t0: now, from: cur, to: to };
+					imgs[to].classList.add('is-next');
+					imgs[to].style.clipPath = 'circle(0px at ' + ox + 'px ' + oy + 'px)';
+					flash = 1;
+					if (ball3d) ball3d.setEnv(imgs[to]);
+				}
 			}
 			if (trans) {
 				var k = clamp((now - trans.t0) / 1300), R = eIO(k) * Math.hypot(W + Math.abs(ox), H + Math.abs(oy));
@@ -417,6 +519,7 @@
 					cur = trans.to; trans = null; nextAt = now + 6000;
 				}
 			}
+			logoFxEnd();
 		}
 		requestAnimationFrame(frame);
 	}
@@ -449,11 +552,35 @@
 			return;
 		}
 		start = nowStart;
-		nextAt = nowStart + 6600;
-		var steps = [2550, 2800, 3050, 3350];
+		nextAt = nowStart + T.firstSwap;
 		seq.forEach(function (c, i) {
-			timers.push(setTimeout(function () { document.body.classList.add(c); }, steps[i]));
+			timers.push(setTimeout(function () { document.body.classList.add(c); }, T.seq[i]));
 		});
+	}
+
+	// v1.16.5: the other hero photos (data-src / data-srcset from PHP,
+	// djdt_hero_photo_html()) are only requested once the first one has
+	// loaded, so the first photo, and the rest of the page, are not
+	// competing with three more full screen photos for the connection.
+	function photoLoaded(img) { return !!img && !img.hasAttribute('data-src') && img.complete && img.naturalWidth > 0; }
+	var restLoaded = false;
+	function loadRest() {
+		if (restLoaded) return;
+		restLoaded = true;
+		imgs.forEach(function (img) {
+			if (!img.hasAttribute('data-src')) return;
+			var pic = img.parentNode && img.parentNode.tagName === 'PICTURE' ? img.parentNode : null;
+			if (pic) Array.prototype.forEach.call(pic.querySelectorAll('source[data-srcset]'), function (s) { s.srcset = s.getAttribute('data-srcset'); s.removeAttribute('data-srcset'); });
+			if (img.hasAttribute('data-srcset')) { img.srcset = img.getAttribute('data-srcset'); img.removeAttribute('data-srcset'); }
+			img.src = img.getAttribute('data-src');
+			img.removeAttribute('data-src');
+		});
+	}
+	function afterFirstPhoto() {
+		var f = imgs[cur];
+		if (!f || photoLoaded(f)) { loadRest(); return; }
+		f.addEventListener('load', loadRest, { once: true });
+		f.addEventListener('error', loadRest, { once: true });
 	}
 
 	function startLoop() {
@@ -514,6 +641,8 @@
 		startLoop();
 		return;
 	}
+
+	afterFirstPhoto();
 
 	// Nothing to time when the intro is skipped: start right away.
 	if (skipIntro) {

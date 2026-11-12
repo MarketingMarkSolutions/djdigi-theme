@@ -423,6 +423,80 @@ old logo never requested. The PHP string functions (autop strip, logo swap, titl
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
 
+## v1.16.5: lighter pinned tile, slogan, light over the logo, hero speed, faster intro
+Items 4 to 6 of Mark's combined v1.16.4 brief (items 1 to 3 shipped as v1.16.4), plus the pinned
+tile's "lighter background" that v1.16.4 missed (`.djd-cd--pinned .djd-cd__case`, the row's gradient).
+
+**Slogan.** "Bringing the positive vibes to the dance floor", `.djd-nowrap` and the EQ mark unchanged.
+One line at 1280; at 375/390 it wraps with "floor" and the mark together.
+
+**Light over the logo (mirrorball.js, hero.css).** A second canvas, `.djd-hero__fx-logo`, made by
+mirrorball.js right after `.djd-hero__logo` inside `.djd-hero__inner`, moved and sized onto the logo's
+box every frame, `mix-blend-mode: screen`, no pointer events. `cluster()` draws each speck on the photo
+canvas as before and, only when it touches the logo's box, again on this one (same hero coordinates, so
+the dot grid lines up as a speck crosses over). No extra specks. Then `destination-in` with a bitmap of
+the logo cuts it to the logo's own pixels. Over the logo a speck is 70% as bright (`LOGO_AL`) and no dot
+passes 60% (`LOGO_CAP`); overlaps add up to at most about 85% where visible. Follows the logo's opacity,
+so nothing shows before the logo does; works with the intro skip and on phones. The slogan, styles line
+and button come after it in the DOM and never overlap the logo box.
+- **The logo bitmap is cached per size** (`mask`, `maskKey`). Cutting with the SVG `<img>` itself
+  re-rasterized the SVG every frame: measured in the harness as 30 to 43ms frames instead of 29.
+- **Frame cost, headed Chromium, real GPU (the "Measuring smoothness" method):** 1920, 1280 and 390x3,
+  avg 6.1ms and p95 6.2ms for both v1.16.4 and v1.16.5 (blank page 6.06). v1.16.4 also had a 72ms long
+  task at every photo change (PMREM of the full 2000px env texture), gone now (see below). Three runs
+  showed a 1s rAF gap repeated, the hidden window throttle; not reproducible, visibility and focus
+  logged visible in the reruns.
+
+**Hero photos (djdigi-theme.php).** The halftone pixel recipe is unchanged (`DJDT_HALFTONE_RECIPE` stays
+3, so banners and existing bakes stay valid). New: a responsive set per photo, `djdt_halftone_set_build()`,
+resized from the baked file (Imagick Lanczos, GD fallback, which is a little softer) to 800/1200/1600/2000
+(widths under the bake's own width, plus its width), JPEG q74 and WebP q74, named
+`<baked name>-<width>.jpg|webp`, saved in `_djdt_halftone_set`. Where the WebP comes out bigger (the
+2000 width: the fine dots are hard on WebP) the WebP list points at that width's JPEG.
+`djdt_halftone_set()` only returns a set built by this `DJDT_HALFTONE_SET_VER` from the file baked now.
+Built after every bake, and on `admin_init` for photos that have none (every photo, the first admin page
+load after the update; about 20s budget per load). No set: the old single file, as before.
+- **Side by side:** today's 2000 q90 file shown at 1200 versus the new 1200 files: no visible softening
+  with the Lanczos resize. GD's resize alone was visibly softer, hence Imagick first.
+- **Markup:** `djdt_hero_photo_html()`, a `<picture>` (WebP source, JPEG img), `sizes =
+  max(100vw, calc(max(540px, 68vh) * aspect))`: the photo covers the full width and the hero's height.
+  Photo 1: real src/srcset, `fetchpriority="high"`, plus `djdt_hero_preload()` (wp_head 1, after
+  Avada's viewport meta, which matters: before it, a phone picks for a 980px layout). Others: data-src /
+  data-srcset; mirrorball.js `loadRest()` sets them once photo 1 has loaded, and a swap waits for the
+  next photo (`photoLoaded()`, 500ms retries). Chrome picks 1600 for a 390 3x phone (its geometric mean
+  rule), 1200 for 2x, 1600 for 1280 1x, 2000 for 1280 2x.
+- **Env map (mirrorball-3d.js):** drawn from the loaded `<img>` into a canvas (max 1024 wide) and used as
+  a CanvasTexture. TextureLoader's CORS request was a second download of the photo. Falls back to the URL
+  if the canvas is tainted (photo from another origin).
+
+**Event photos (djdt-events.php).** `djdt_events_photo_url()`: the smallest generated size at least
+768 wide, else the largest, never the original. `get_the_post_thumbnail_url( 'medium_large' )` falls back
+to the full file when that size is missing, the likely way the 778KB midnight-sun-sf.png got on the
+homepage (not confirmed live: the site's firewall answered 403 to this machine's single request).
+
+**Intro, 30% faster (mirrorball.js `T`, hero.css).** Drop 250 to 1550, burst 1750, overlay fade 1700
+(490ms), logo 1800 (420ms fade), slogan/styles/button 2150, wire out 2050, first swap 5700. Logo scale
+transition 0.63s, slogan fade 0.35s. The 15 minute skip is unchanged.
+
+**Cloudflare.** Nothing in the plugin sets headers on uploads: the halftone files are plain files the
+web server sends. DYNAMIC means Cloudflare chose not to cache them; see the release notes for what to
+check (Cache Rules or Page Rules bypassing /wp-content or logged-in cookies, Development Mode, origin
+Cache-Control or Set-Cookie on images).
+
+**Measured** (Home v2 snapshot harness, four test photos baked by the real PHP from crops of the bundled
+hero photo, about 2MB each at 2000 q90, about twice the live files; v1.16.4 versus v1.16.5):
+| | first photo | all four | first photo shown |
+|---|---|---|---|
+| 390 3x, 4G | 3941KB (twice) to 305KB | 12451KB to 1413KB | 12.5s to 4.4s |
+| 390 2x, 4G | 3941KB to 80KB | 12451KB to 390KB | 12.4s to 4.1s |
+| 1280 1x, cable | 3941KB to 305KB | 12451KB to 1413KB | 2.7s to 1.5s |
+| 1280 2x, cable | 3941KB to 601KB | 12451KB to 2596KB | 2.6s to 1.5s |
+Ball drop to logo: about 2.2 to 2.5s before, 1.6 to 1.7s now (2.27s in one noisy phone run); when the
+intro starts depends on the page's own scripts loading (mirrorball.js is in the footer), which is why
+the logo appears at about 8.5s on the 4G phone even though the photo is up at 4.4s. **Not verified:**
+the live photos' real file sizes, Imagick on the live host (GD is the fallback), WebP on the live
+host's GD, a real phone, the Cloudflare cause.
+
 ## v1.16.4: the residency is a pinned regular event, eject buttons
 From Mark's brief. Supersedes the residency display in "v1.15.1" (the weekday CD and the featured card).
 
@@ -2284,7 +2358,7 @@ fonts and the venues/genre bullets below are unaffected and still current.**
 - Pride EQ: a shared sine wave drives all 6 bars (`djd-eq-wave`), each with its own `animation-delay` so the motion rolls left to right through the colors, plus a small separate drift animation for a fabric feel, rather than each bar bouncing independently.
 
 ## Hero copy (approved)
-- Slogan: "Bringing positive vibes to the dance floor" + pride-colored EQ bars (rainbow flag and music in one mark).
+- Slogan: "Bringing the positive vibes to the dance floor" + pride-colored EQ bars (rainbow flag and music in one mark).
 - Venues section heading, editable in Settings, default: "Where I've played".
 - Genre list (under the venues card, see "Venues" above) comes from
   settings. Default: House, EDM, Top 40 Remixes, "70s · 80s · 90s · 00s Dance" (one grouped item),

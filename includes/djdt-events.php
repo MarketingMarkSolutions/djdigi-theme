@@ -1169,7 +1169,7 @@ function djdt_events_item( $occ, $res = null ) {
 		'logo'        => $venue ? $venue['logo'] : '',
 		'time_line'   => $time_line,
 		'when'        => djdt_events_when_tag( $display ),
-		'img'         => get_the_post_thumbnail_url( $post->ID, 'medium_large' ),
+		'img'         => djdt_events_photo_url( $post->ID ),
 		'label'       => sprintf( 'Show details for %s, %s', $venue_name, $display->format( 'M j' ) ),
 		'share_title' => sprintf( 'DJ DigiMark at %s, %s %s, %s', $venue_name, $display->format( 'D' ), $display->format( 'M j' ), $time_line ),
 		'day_num'     => $display->format( 'j' ),
@@ -1382,6 +1382,48 @@ function djdt_events_render_card( $occ, $i, $res = null ) {
 function djdt_events_eject_svg( $size ) {
 	$ink = esc_attr( djdt_events_ink_on_cyan() );
 	return '<svg class="djd-eject" width="' . (int) $size . '" height="' . (int) $size . '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5 L20 14 H4 Z" fill="' . $ink . '"/><rect x="4" y="16.5" width="16" height="3" rx="1" fill="' . $ink . '"/></svg>';
+}
+
+/**
+ * v1.16.5: the event photo for the tiles and rows, the smallest generated
+ * size at least 768px wide (else the largest one), never the original
+ * upload. get_the_post_thumbnail_url( 'medium_large' ) falls back to the
+ * full file when that one size is missing (an image size turned off, or a
+ * file uploaded while it was), which is how the full 778KB
+ * midnight-sun-sf.png reached the homepage. A tile is at most 333px wide,
+ * so 768 covers it on a 2x screen.
+ */
+function djdt_events_photo_url( $post_id ) {
+	$thumb = (int) get_post_thumbnail_id( $post_id );
+	if ( $thumb <= 0 ) {
+		return false;
+	}
+	$meta = wp_get_attachment_metadata( $thumb );
+	if ( is_array( $meta ) && ! empty( $meta['sizes'] ) && is_array( $meta['sizes'] ) ) {
+		$best      = '';
+		$best_w    = 0;
+		$largest   = '';
+		$largest_w = 0;
+		foreach ( $meta['sizes'] as $name => $sz ) {
+			$w = isset( $sz['width'] ) ? (int) $sz['width'] : 0;
+			if ( $w >= 768 && ( 0 === $best_w || $w < $best_w ) ) {
+				$best   = $name;
+				$best_w = $w;
+			}
+			if ( $w > $largest_w ) {
+				$largest   = $name;
+				$largest_w = $w;
+			}
+		}
+		$name = '' !== $best ? $best : $largest;
+		if ( '' !== $name ) {
+			$url = wp_get_attachment_image_url( $thumb, $name );
+			if ( $url ) {
+				return $url;
+			}
+		}
+	}
+	return get_the_post_thumbnail_url( $post_id, 'medium_large' );
 }
 
 function djdt_events_ink_on_cyan() {
