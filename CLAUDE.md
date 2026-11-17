@@ -47,7 +47,7 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 
 ## Files
 - `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo halftone baking (Imagick assisted decode, GD for every pixel operation, see "Smoothness" below), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]` (`djdt_hero_shortcode()`) and the "Latest live set" player section it outputs right after itself (`djdt_player_section()`, v1.6.0, no separate shortcode), `[djdigi_venues]`. `require_once`s `includes/djdt-events.php` and (v1.11.0) `includes/djdt-logo.php` near the top, see below.
-- `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. v1.15.1: residencies (recurring events shown once) and the `?djdt_ics=` series download, see "v1.15.1" below. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
+- `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. v1.15.1: residencies and the `?djdt_ics=` series download, see "v1.15.1" below; v1.17.0: every date is its own CD, residency is a checkbox on the event, see "v1.17.0" below. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
 - `includes/djdt-inner.php` (v1.15.0): inner pages. The title banner (`djdt_banner_html()`, put before `<main id="main">` by the same output buffer as the logo swap), its "Banner title" / "Hide banner" fields (a "DigiMark banner" box on pages and posts), the featured image bake queue (`djdt_bake_banner` cron), and the leading emoji strip on content headings (`djdt_strip_heading_emoji()`). See "v1.15.0" below.
 - `includes/djdt-story.php`, `includes/djdt-about.php`, `includes/djdt-contact.php` (v1.16.0): the Story timeline, the About page and the sitewide Contact / Book me pop-up, each with its own CSS and JS in assets. See "v1.16.0" below.
 - `includes/djdt-videos.php` (v1.14.0): `[djdigi_videos]`, the 4 newest remix videos through djdigi-library's own `[djdigi_newest]` renderer, styled by `assets/css/videos.css`. See "v1.14.0" below.
@@ -422,6 +422,50 @@ hidden, show on scroll up, focus keeps it shown, no horizontal scroll, no errors
 old logo never requested. The PHP string functions (autop strip, logo swap, title split) were
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
+
+## v1.17.0: every date shows, residency is a manual switch
+From Mark's brief. Supersedes the grouping in "v1.15.1" and "v1.16.4": nothing is grouped by event
+any more. Found live: Badlands had 3 hand picked dates, the "3+ upcoming dates" rule turned it into a
+residency, and its December dates vanished.
+
+**Every date is its own item.** `djdt_events_items()` turns every upcoming occurrence into
+`array( 'occ', 'res' )`, in date order, on both the events page and the homepage row. Each CD and phone
+row shows its own date, countdown, time and Google Calendar link. `djdt_events_split()` and
+`djdt_events_has_repeat_rule()` are gone.
+
+**Residency is a checkbox.** MEC's event edit screen (post type `mec-events`) has a "DigiMark" box at
+the top of the right sidebar (`add_meta_box( ..., 'side', 'high' )`, so above MEC's own sidebar boxes)
+with one checkbox, "Residency", saved as post meta `_djdt_residency` (nonce `djdt_residency_nonce`,
+`save_post_mec-events`, skips autosaves and revisions, needs `edit_post`). Only ticked events are
+residencies (`djdt_events_is_residency()`); a MEC repeat rule or many dates alone mean nothing now.
+Every date of a ticked event gets the pin label ("Friday Residency", `djdt_events_recurrence()`'s
+`weekday` over all its upcoming dates; plain "Residency" when the weekdays differ) and the pinned look
+(`.djd-cd--pinned`, `.djd-row--pinned` / `.djd-row__pin`, CSS unchanged).
+
+**Homepage cap.** `djdt_events_row_items()` (limit > 0): the next 2 dates of each residency are taken
+first, then the other dates fill the rest in date order up to the limit, and the result is shown in date
+order. So a residency is always on the homepage, and with one residency and `limit="5"` the row is its
+next 2 Fridays plus the next 3 other dates. If residencies alone have more dates than the limit, the
+earliest win. JSON-LD lists what the row shows; the events page lists every date.
+
+**Removed residency-only CD.** The v1.15.1 weekday / "Weekly" cover, "Starts" / "Next" corner tag and
+disc recurrence text had already gone from the markup in v1.16.4; the stale comments describing them
+are updated. The whole series .ics was not put back as a disc action: the disc's bottom block is sized
+for three pills clear of the hub (v1.10.0 / v1.14.3 checks), and a fourth would need a new layout. The
+`?djdt_ics=` endpoint still works for links already shared; nothing on the site links to it.
+
+**Verified.** PHP 8.2 (php-wasm) with WordPress, `$wpdb` (mec_dates rows) and MEC stubbed, clock Nov 16
+2026, 31 checks (scratchpad `t117/`): the real save handler (ticked saves, bad nonce ignored, unticked
+deletes) and the box's checked state; Badlands, 3 custom dates, not ticked: 3 plain CDs (Nov 19, Dec 5,
+Dec 18) with their own countdowns; an event with a weekly MEC rule, not ticked: plain dates; Midnight Sun
+ticked, every Friday Nov 6 to Jan 29 with Dec 25 in `mec_not_in_days`: 10 pinned "Friday Residency" CDs,
+past Fridays and Dec 25 missing, each with its own calendar link; a ticked event on a Saturday and a
+Thursday: "Residency"; the page in date order (18 CDs, JSON-LD sorted); phone rows match the CDs one for
+one (venue, date, countdown, pin); homepage limit 5, 9 and 3 (at most 2 per residency, others fill in
+date order, earliest residency dates win at 3); no "Weekly", "Starts", "Next" or `djdt_ics` in either
+output. **Not verified:** the box on the live MEC edit screen (MEC's own sidebar boxes and their order),
+real MEC data, the look of many pinned tiles in a row (same CSS as v1.16.5's single pinned tile).
+**After updating, Mark must tick "Residency" on Midnight Sun**, or its dates show with no pin label.
 
 ## v1.16.6: hotfix, hero stuck black
 Found live on v1.16.5, logged out at 800 and 1280: `IndexSizeError ... The radius provided (-0.5) is

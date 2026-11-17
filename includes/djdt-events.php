@@ -702,67 +702,117 @@ function djdt_events_format_single_time( $dt, $omit_meridiem ) {
 }
 
 /* -------------------------------------------------------------------------
- * Residencies (v1.15.1)
+ * Residencies (v1.15.1, v1.17.0)
  *
- * A recurring event (Midnight Sun, every Friday) used to show as one CD per
- * date. Upcoming occurrences are grouped by event post now: a post whose
- * dates come from a real MEC repeat rule (any repeat type except
- * custom_days, which is a hand picked list of dates), or failing that any
- * post with 3 or more upcoming dates, is a residency. Its dates leave the
- * normal CD list and it shows once: as a featured card on the events page,
- * and as one CD at the start of the homepage row.
+ * v1.17.0, Mark's brief: a residency is a manual switch now, the
+ * "Residency" checkbox on MEC's event edit screen (a "DigiMark" box in the
+ * right sidebar, below), saved as the post meta _djdt_residency. Both
+ * automatic rules are gone (a MEC repeat rule, and 3+ upcoming dates: that
+ * one turned Badlands' three hand picked dates into a "residency" and hid
+ * its December dates). Nothing is grouped any more either: every upcoming
+ * date of every event is its own CD and phone row, in date order. A
+ * residency's dates just carry the pinned label ("Friday Residency"), and
+ * the homepage row shows at most its next 2 (djdt_events_row_items()).
  * ---------------------------------------------------------------------- */
 
-/** True if the post's dates come from a MEC repeat rule (not custom_days). */
-function djdt_events_has_repeat_rule( $post ) {
-	$mec_date = get_post_meta( $post->ID, 'mec_date', true );
-	$repeat   = ( is_array( $mec_date ) && isset( $mec_date['repeat'] ) && is_array( $mec_date['repeat'] ) ) ? $mec_date['repeat'] : array();
-	if ( empty( $repeat['status'] ) ) {
-		return false;
+define( 'DJDT_EVENTS_RESIDENCY_META', '_djdt_residency' );
+
+/** True if Mark ticked "Residency" on this event. */
+function djdt_events_is_residency( $post ) {
+	return (bool) get_post_meta( $post->ID, DJDT_EVENTS_RESIDENCY_META, true );
+}
+
+add_action( 'add_meta_boxes', function () {
+	add_meta_box( 'djdt-residency', 'DigiMark', 'djdt_events_residency_meta_box', DJDT_EVENTS_MEC_POST_TYPE, 'side', 'high' );
+} );
+
+function djdt_events_residency_meta_box( $post ) {
+	wp_nonce_field( 'djdt_residency_save', 'djdt_residency_nonce' );
+	?>
+	<p>
+		<label><input type="checkbox" name="djdt_residency" value="1" <?php checked( djdt_events_is_residency( $post ) ); ?>> <strong>Residency</strong></label>
+	</p>
+	<p class="description">Tick for a regular night (like Midnight Sun). Every date still shows on its own, with a "Friday Residency" label, and the homepage shows only its next 2 dates.</p>
+	<?php
+}
+
+add_action( 'save_post_' . DJDT_EVENTS_MEC_POST_TYPE, function ( $post_id ) {
+	if ( ! isset( $_POST['djdt_residency_nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['djdt_residency_nonce'] ) ), 'djdt_residency_save' ) ) {
+		return;
 	}
-	$type = isset( $repeat['type'] ) ? (string) $repeat['type'] : (string) get_post_meta( $post->ID, 'mec_repeat_type', true );
-	return 'custom_days' !== $type;
+	if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) || ! current_user_can( 'edit_post', $post_id ) ) {
+		return;
+	}
+	if ( ! empty( $_POST['djdt_residency'] ) ) {
+		update_post_meta( $post_id, DJDT_EVENTS_RESIDENCY_META, 1 );
+	} else {
+		delete_post_meta( $post_id, DJDT_EVENTS_RESIDENCY_META );
+	}
+} );
+
+/**
+ * Every upcoming occurrence as a list item, in date order: array( 'occ' =>
+ * occurrence, 'res' => residency or null ). A residency array (ticked
+ * events only, every date of one event shares it): post, occs (all its
+ * upcoming occurrences, sorted, MEC's excluded days already gone), rule
+ * (djdt_events_recurrence(), for the weekday in the pin label).
+ */
+function djdt_events_items( $upcoming ) {
+	$res_by_post = array();
+	foreach ( $upcoming as $occ ) {
+		if ( djdt_events_is_residency( $occ['post'] ) ) {
+			$res_by_post[ $occ['post']->ID ][] = $occ;
+		}
+	}
+	foreach ( $res_by_post as $post_id => $occs ) {
+		$res_by_post[ $post_id ] = array(
+			'post' => $occs[0]['post'],
+			'occs' => $occs,
+			'rule' => djdt_events_recurrence( $occs[0]['post'], $occs ),
+		);
+	}
+	$items = array();
+	foreach ( $upcoming as $occ ) {
+		$id      = $occ['post']->ID;
+		$items[] = array( 'occ' => $occ, 'res' => isset( $res_by_post[ $id ] ) ? $res_by_post[ $id ] : null );
+	}
+	return $items;
 }
 
 /**
- * Splits upcoming occurrences into residencies and one off occurrences.
- * Returns array( 'residencies' => array of residency arrays, sorted by next
- * date, 'singles' => occurrences, sorted by start ). A residency array:
- * post, occs (its upcoming occurrences, sorted, MEC's excluded days
- * already gone), next (the first of them, the date it shows), rule (from
- * djdt_events_recurrence()). A series with no upcoming date left is simply
- * not in $upcoming, so it drops out like any past event.
+ * The homepage row ([djdigi_events limit="N"]): the next 2 dates of each
+ * residency first, then the other dates in date order fill the rest, up to
+ * $limit; what is chosen shows in date order. If the residencies alone
+ * have more than $limit dates, the earliest of them win.
  */
-function djdt_events_split( $upcoming ) {
-	$by_post = array();
-	foreach ( $upcoming as $occ ) {
-		$by_post[ $occ['post']->ID ][] = $occ;
-	}
-	$residencies = array();
-	$res_ids     = array();
-	foreach ( $by_post as $post_id => $occs ) {
-		$post = $occs[0]['post'];
-		if ( ! djdt_events_has_repeat_rule( $post ) && count( $occs ) < 3 ) {
+function djdt_events_row_items( $items, $limit ) {
+	$per_res = array();
+	$keep    = array();
+	foreach ( $items as $i => $item ) {
+		if ( ! $item['res'] || count( $keep ) >= $limit ) {
 			continue;
 		}
-		$residencies[]       = array(
-			'post' => $post,
-			'occs' => $occs,
-			'next' => $occs[0],
-			'rule' => djdt_events_recurrence( $post, $occs ),
-		);
-		$res_ids[ $post_id ] = true;
-	}
-	usort( $residencies, function ( $a, $b ) {
-		return $a['next']['start'] <=> $b['next']['start'];
-	} );
-	$singles = array();
-	foreach ( $upcoming as $occ ) {
-		if ( empty( $res_ids[ $occ['post']->ID ] ) ) {
-			$singles[] = $occ;
+		$id             = $item['occ']['post']->ID;
+		$per_res[ $id ] = isset( $per_res[ $id ] ) ? $per_res[ $id ] + 1 : 1;
+		if ( $per_res[ $id ] <= 2 ) {
+			$keep[ $i ] = true;
 		}
 	}
-	return array( 'residencies' => $residencies, 'singles' => $singles );
+	foreach ( $items as $i => $item ) {
+		if ( count( $keep ) >= $limit ) {
+			break;
+		}
+		if ( ! $item['res'] ) {
+			$keep[ $i ] = true;
+		}
+	}
+	$out = array();
+	foreach ( $items as $i => $item ) {
+		if ( isset( $keep[ $i ] ) ) {
+			$out[] = $item;
+		}
+	}
+	return $out;
 }
 
 /**
@@ -775,7 +825,8 @@ function djdt_events_split( $upcoming ) {
  *   'interval' => 7 (days between dates, when every gap is a whole multiple
  *                 of one base interval of 1 or 7 days, else 0: no RRULE),
  *   'weekday'  => 'Friday' when every date falls on that one weekday, else ''
- *                 (v1.16.4, the pinned "Friday Residency" label),
+ *                 (v1.16.4, the pinned "Friday Residency" label; '' gives
+ *                 plain "Residency"),
  * ).
  * The base interval is the smallest gap; a longer gap (a skipped week)
  * becomes an EXDATE in the .ics. With a single upcoming date, MEC's own
@@ -840,8 +891,8 @@ function djdt_events_recurrence( $post, $occs ) {
 
 /**
  * The .ics series endpoint below. v1.16.4: nothing on the site links to it
- * any more (the residency's "Add to calendar" is the next date, like any
- * other event); kept so links already shared keep working.
+ * any more (each CD's "Add to calendar" is its own date); kept so links
+ * already shared keep working.
  */
 function djdt_events_ics_url( $post_id ) {
 	return add_query_arg( 'djdt_ics', (int) $post_id, home_url( '/' ) );
@@ -1022,12 +1073,11 @@ function djdt_events_shortcode( $atts ) {
 	$limit  = (int) $atts['limit'];
 	$is_row = $limit > 0;
 
-	// v1.15.1: residencies are grouped out of the date list (see
-	// "Residencies" above). v1.16.4: on both the homepage and the events
-	// page each residency is one pinned item first, showing its next real
-	// date, then the one off dates by date (the homepage up to the limit).
+	// v1.17.0: every upcoming date is its own item, in date order (see
+	// "Residencies" above). The homepage row caps each residency at its
+	// next 2 dates; the events page shows everything.
 	$upcoming = djdt_events_get_upcoming_occurrences();
-	$split    = djdt_events_split( $upcoming );
+	$items    = djdt_events_items( $upcoming );
 
 	wp_enqueue_style( 'djdt-events' );
 	wp_enqueue_script( 'djdt-events' );
@@ -1036,26 +1086,14 @@ function djdt_events_shortcode( $atts ) {
 	if ( empty( $upcoming ) ) {
 		djdt_events_render_empty_state();
 	} elseif ( $is_row ) {
-		$items = array_slice( djdt_events_items( $split ), 0, $limit );
+		$items = djdt_events_row_items( $items, $limit );
 		djdt_events_render_grid( $items, true );
 		djdt_events_render_json_ld( wp_list_pluck( $items, 'occ' ) );
 	} else {
-		djdt_events_render_page( djdt_events_items( $split ) );
+		djdt_events_render_page( $items );
 		djdt_events_render_json_ld( $upcoming );
 	}
 	return ob_get_clean();
-}
-
-/** $split (djdt_events_split()) as one list: residencies first (pinned), then the one off dates. */
-function djdt_events_items( $split ) {
-	$items = array();
-	foreach ( $split['residencies'] as $res ) {
-		$items[] = array( 'occ' => $res['next'], 'res' => $res );
-	}
-	foreach ( $split['singles'] as $occ ) {
-		$items[] = array( 'occ' => $occ, 'res' => null );
-	}
-	return $items;
 }
 
 function djdt_events_render_empty_state() {
@@ -1067,7 +1105,7 @@ function djdt_events_render_empty_state() {
 	<?php
 }
 
-/** $items: array( 'occ' => occurrence, 'res' => residency or null ), see djdt_events_shortcode(). */
+/** $items: array( 'occ' => occurrence, 'res' => residency or null ), see djdt_events_items(). */
 function djdt_events_render_grid( $items, $is_row ) {
 	?>
 	<div class="djd-events">
@@ -1090,8 +1128,8 @@ function djdt_events_render_grid( $items, $is_row ) {
 /**
  * The events page (no limit): every item as a CD in a 4/3/2/1 column grid
  * (events.css, .djd-events__track--page), rows on phones. v1.16.4: the
- * v1.15.1 featured residency card and the "More dates" heading are gone;
- * the residency is the first item, pinned, like on the homepage.
+ * v1.15.1 featured residency card and the "More dates" heading are gone.
+ * v1.17.0: every date of everything, in date order, residency dates pinned.
  */
 function djdt_events_render_page( $items ) {
 	?>
@@ -1150,10 +1188,11 @@ function djdt_events_maps_search_url( $address ) {
 /**
  * Everything one event shows, shared by the CD tile (djdt_events_render_card())
  * and the phone row (djdt_events_render_row(), v1.16.3), so both always say
- * the same thing. v1.16.4: a residency ($res, djdt_events_split()) shows
- * its next real date like any other event (the date, the countdown, a
- * Google Calendar link for that date); it only adds the pinned label,
- * "Friday Residency" (the weekday from djdt_events_recurrence()).
+ * the same thing. A residency date ($res, djdt_events_items(), v1.17.0:
+ * every date of a ticked event) shows its own date like any other event
+ * (the date, the countdown, a Google Calendar link for that date); it only
+ * adds the pinned label, "Friday Residency" (the weekday from
+ * djdt_events_recurrence()), or "Residency" when the weekdays differ.
  */
 function djdt_events_item( $occ, $res = null ) {
 	$post       = $occ['post'];
@@ -1285,11 +1324,9 @@ function djdt_events_render_row( $occ, $res = null ) {
  * it, keeping the disc's own markup here unchanged, no new element.
  */
 /**
- * v1.15.1: $res (a residency, djdt_events_split()) makes this the
- * residency's one CD in the homepage row: the weekday ("FRI") and its
- * label ("Weekly") in place of the date, "Starts Nov 13" / "Next Nov 20"
- * in the corner, and on the disc the recurrence, the starts/next line and
- * an "Add to calendar" that downloads the whole series (.ics).
+ * $res (a residency date, djdt_events_items()) only adds the pin label and
+ * the pinned look (v1.16.4); the v1.15.1 weekday / "Weekly" cover and the
+ * series .ics on the disc are gone, every CD shows its own date.
  * Both images carry skip-lazy / data-no-lazy (v1.15.1, found live: covers
  * on the events page stayed empty): Avada's own lazy loader rewrites
  * images in the content to a placeholder, and some covers never got their

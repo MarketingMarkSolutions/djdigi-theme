@@ -43,6 +43,12 @@ CSS and JS are versioned by file date, so new uploads bust the browser and Cloud
 
 == Changelog ==
 
+= 1.17.0 =
+* Events: every upcoming date shows as its own CD and phone row, in date order, with its own date, countdown and Add to calendar. Events with several dates (like Badlands) no longer hide their later dates.
+* Residency is now a checkbox ("Residency", in the DigiMark box on the event's edit screen). Only ticked events count; a repeat rule or many dates alone no longer make an event a residency.
+* Each date of a residency carries the "Friday Residency" label ("Residency" if its dates fall on different weekdays). The homepage row shows at most the next 2 dates of each residency, then fills with the other dates.
+* After updating: tick "Residency" on Midnight Sun.
+
 = 1.1.0 =
 * Header never shows Avada's background image over the hero or the paper background, on any page.
 * The real header height is measured at runtime instead of a fixed guess.
