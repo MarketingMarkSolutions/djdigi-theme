@@ -43,6 +43,10 @@ CSS and JS are versioned by file date, so new uploads bust the browser and Cloud
 
 == Changelog ==
 
+= 1.18.0 =
+* Events page: dates are grouped by month ("November", "December", "January 2027") with one compact row per date on every screen size. Click or tap a row for the address, Add to calendar, Directions and Share. The homepage keeps its CDs.
+* An event with its own name (like "GGBA Holiday Party") shows that name first and the venue under it, on the CDs, the rows, Add to calendar ("GGBA Holiday Party at SF LGBT Center") and Share ("DJ DigiMark at GGBA Holiday Party, SF LGBT Center, ..."). Venue nights (Badlands, Midnight Sun) look the same as before.
+
 = 1.17.0 =
 * Events: every upcoming date shows as its own CD and phone row, in date order, with its own date, countdown and Add to calendar. Events with several dates (like Badlands) no longer hide their later dates.
 * Residency is now a checkbox ("Residency", in the DigiMark box on the event's edit screen). Only ticked events count; a repeat rule or many dates alone no longer make an event a residency.

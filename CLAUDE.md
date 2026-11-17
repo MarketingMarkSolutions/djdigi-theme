@@ -47,7 +47,7 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 
 ## Files
 - `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo halftone baking (Imagick assisted decode, GD for every pixel operation, see "Smoothness" below), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]` (`djdt_hero_shortcode()`) and the "Latest live set" player section it outputs right after itself (`djdt_player_section()`, v1.6.0, no separate shortcode), `[djdigi_venues]`. `require_once`s `includes/djdt-events.php` and (v1.11.0) `includes/djdt-logo.php` near the top, see below.
-- `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. v1.15.1: residencies and the `?djdt_ics=` series download, see "v1.15.1" below; v1.17.0: every date is its own CD, residency is a checkbox on the event, see "v1.17.0" below. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
+- `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. v1.15.1: residencies and the `?djdt_ics=` series download, see "v1.15.1" below; v1.17.0: every date is its own CD, residency is a checkbox on the event, see "v1.17.0" below; v1.18.0: the events page is a month by month list of rows, and events with their own title show it, see "v1.18.0" below. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
 - `includes/djdt-inner.php` (v1.15.0): inner pages. The title banner (`djdt_banner_html()`, put before `<main id="main">` by the same output buffer as the logo swap), its "Banner title" / "Hide banner" fields (a "DigiMark banner" box on pages and posts), the featured image bake queue (`djdt_bake_banner` cron), and the leading emoji strip on content headings (`djdt_strip_heading_emoji()`). See "v1.15.0" below.
 - `includes/djdt-story.php`, `includes/djdt-about.php`, `includes/djdt-contact.php` (v1.16.0): the Story timeline, the About page and the sitewide Contact / Book me pop-up, each with its own CSS and JS in assets. See "v1.16.0" below.
 - `includes/djdt-videos.php` (v1.14.0): `[djdigi_videos]`, the 4 newest remix videos through djdigi-library's own `[djdigi_newest]` renderer, styled by `assets/css/videos.css`. See "v1.14.0" below.
@@ -422,6 +422,67 @@ hidden, show on scroll up, focus keeps it shown, no horizontal scroll, no errors
 old logo never requested. The PHP string functions (autop strip, logo swap, title split) were
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
+
+## v1.18.0: events page by month, event titles on cards
+From Mark's brief; the events page was previewed (static page built from this code's real output)
+and approved before building. Supersedes the events page grid in "v1.15.1" / "v1.16.4" / "v1.17.0".
+v1.17.0's rules (every date its own item, the Residency checkbox, 2 per residency on the homepage) are
+unchanged.
+
+**Events page ([djdigi_events], no limit): months and rows.** `djdt_events_render_page()` groups the
+items by display month (the before 6 AM rule) into `section.djd-events__month`, each with an
+`h2.djd-events__month-head` ("November"; the year in cyan, `.djd-events__month-year`, only for months
+in a later year than the first month listed, "January 2027") and the v1.16.3 rows
+(`djdt_events_render_rows()`). No CDs on this page any more; the v1.15.1 `.djd-events__track--page`
+grid CSS is gone. Headings are Saira Extra Condensed 800 like every other heading (the brief said Big
+Shoulders Display, which the site dropped in v1.1.0; Mark confirmed Saira).
+- events.css, "the events page list": rows show at every width there; at most 1100px wide. From 768px
+  the row widens: grid 124 | 64 | 1fr | auto | 44, an 84px case and 80px disc, a 46px date, 26px main
+  line, and a new right hand column `.djd-row__side` (aria-hidden) with the pin (`.djd-row__side-pin`)
+  and the countdown (`.djd-row__side-when`); the in-text countdown and the pin above the row are hidden
+  there, so every row is the same height. The open panel lines up under the text column (margin-left
+  236px) with the address and pills on one line. Under 768px it is exactly the phone row.
+- The homepage row keeps its CDs, and its phone rows (under 768px) never show the side column.
+- The row's main line (`.djd-row__venue`) now wraps to 2 lines (line clamp) instead of one, so a title
+  like "GGBA Holiday Party" is not cut short on a phone; it affects the homepage phone rows too.
+
+**Event titles (`djdt_events_names()`).** The post title and the venue name are compared lowercase,
+with a leading "The" and everything but letters and digits dropped (`djdt_events_name_key()`). Equal,
+or one containing the other, is a venue night: the venue is the one name, as before ("DJ DigiMark at
+The Cafe" and "The Cafe", "Q-Bar" and "QBar"). Otherwise the title is the main line and the venue the
+second line (cyan): `djdt_events_item()` 'venue_name' is now the main line and 'sub' the venue ('' on
+a venue night). Both names are entity decoded plain text, escaped on output.
+- CD case: `.djd-cd__case-venue` (main), then for a titled event the venue logo (smaller,
+  `.djd-cd__case-logo--sub`, the logo stays with the venue) and `.djd-cd__case-sub`. Disc:
+  `.djd-cd__disc-sub` under the title. Rows: `.djd-row__sub` above the time.
+- Google Calendar and the .ics series: "GGBA Holiday Party at SF LGBT Center"; venue nights keep
+  "DJ DigiMark at Badlands".
+- Share always names him (Mark's call): "DJ DigiMark at GGBA Holiday Party, SF LGBT Center, Fri Dec 11,
+  6 to 10 PM"; venue nights unchanged, "DJ DigiMark at Badlands, Thu Nov 19, 9 PM to 2 AM".
+- aria labels: "Show details for GGBA Holiday Party at SF LGBT Center, Dec 11" on the CD; rows start
+  with "GGBA Holiday Party, SF LGBT Center, ...".
+- JSON-LD already used the post title as `name` and the venue as `location`; unchanged.
+
+**Verified.**
+- PHP 8.2 (php-wasm), the brief's data (Badlands Nov 19 and Dec 19, Midnight Sun ticked every Friday
+  Nov 20 to Jan 15 with Dec 25 excluded, "DJ DigiMark at QBar" Dec 5, "GGBA Holiday Party" at SF LGBT
+  Center Dec 11), clock Nov 16 2026, 26 checks (scratchpad `prev118/test118.cjs`): month heads
+  November / December / January 2027, each row under its month, rows and JSON-LD in date order, no CDs
+  on the page, pins only on Midnight Sun (both copies), every row with address, calendar, directions and
+  share; GGBA title and venue on the events row, the homepage CD (case and disc) and its phone row,
+  share, calendar title, aria labels and JSON-LD; Badlands, Midnight Sun and QBar venue only, with both
+  share formats exact; 7 name rule cases. The v1.17.0 suite (31 checks) still passes with the page read
+  as rows.
+- Playwright on a page built from the plugin's own events.css, site.css and events.js with that output,
+  at 1920, 1280, 768, 767, 390 and 375 (94 checks): 12 rows, no horizontal scroll, nothing spilling out
+  of a row, plain rows one height, countdown and pin on the right from 768 and in the row below it,
+  month heads Saira 800 uppercase, rows at most 1100px, open and close by click and by Enter / Space,
+  aria-expanded and aria-controls, the panel's three links (the calendar link with the GGBA title),
+  Share's text, Tab skipping a closed panel, no page errors; the homepage row CDs from 768 and rows on
+  the phone.
+- **Not verified:** real MEC data and real event photos, real venue logos on a titled event (none of the
+  test venues has one), Avada's own styles on the live page (the harness only had the plugin's CSS), a
+  real phone, the live share sheet (navigator.share was stubbed).
 
 ## v1.17.0: every date shows, residency is a manual switch
 From Mark's brief. Supersedes the grouping in "v1.15.1" and "v1.16.4": nothing is grouped by event

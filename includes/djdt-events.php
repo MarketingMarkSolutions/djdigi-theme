@@ -675,6 +675,38 @@ function djdt_events_venue_logo_url( $location_id ) {
 	return preg_match( '#^https?://#i', $raw ) ? $raw : '';
 }
 
+/**
+ * v1.18.0: what an event is called. The post title and the venue name are
+ * compared lowercase, with punctuation and a leading "The" ignored; equal,
+ * or one containing the other ("DJ DigiMark at The Cafe" and "The Cafe"),
+ * is a venue night and the venue is the one name shown, as before.
+ * Otherwise the event's own title leads ("GGBA Holiday Party") and the
+ * venue is the second line. Returns array( 'main', 'sub' (the venue, or ''
+ * on a venue night), 'venue', 'calendar' (the Google Calendar / .ics title:
+ * "GGBA Holiday Party at SF LGBT Center", or "DJ DigiMark at Badlands") ).
+ * Both names are plain text, entities decoded; escape on output.
+ */
+function djdt_events_names( $post, $venue ) {
+	$title = trim( wp_strip_all_tags( html_entity_decode( get_the_title( $post ), ENT_QUOTES, 'UTF-8' ) ) );
+	$place = $venue ? trim( html_entity_decode( $venue['name'], ENT_QUOTES, 'UTF-8' ) ) : '';
+	if ( '' === $place ) {
+		return array( 'main' => $title, 'sub' => '', 'venue' => $title, 'calendar' => 'DJ DigiMark at ' . $title );
+	}
+	$a = djdt_events_name_key( $title );
+	$b = djdt_events_name_key( $place );
+	if ( '' === $a || '' === $b || false !== strpos( $a, $b ) || false !== strpos( $b, $a ) ) {
+		return array( 'main' => $place, 'sub' => '', 'venue' => $place, 'calendar' => 'DJ DigiMark at ' . $place );
+	}
+	return array( 'main' => $title, 'sub' => $place, 'venue' => $place, 'calendar' => $title . ' at ' . $place );
+}
+
+/** "The Lookout!" -> "lookout": lowercase, a leading "the" dropped, letters and digits only. */
+function djdt_events_name_key( $name ) {
+	$name = function_exists( 'mb_strtolower' ) ? mb_strtolower( $name, 'UTF-8' ) : strtolower( $name );
+	$name = preg_replace( '/^\s*the\s+/u', '', $name );
+	return (string) preg_replace( '/[^\p{L}\p{N}]+/u', '', $name );
+}
+
 /* ----- Date/time formatting --------------------------------------------- */
 
 function djdt_events_format_time_range( $start, $end ) {
@@ -963,7 +995,7 @@ function djdt_events_build_ics( $post, $occs ) {
 	$tzid    = $tz->getName();
 	$named   = (bool) preg_match( '#^[A-Za-z]+/#', $tzid ) || 'UTC' === $tzid;
 	$venue   = djdt_events_get_venue( $post->ID );
-	$name    = $venue ? $venue['name'] : get_the_title( $post );
+	$names   = djdt_events_names( $post, $venue );
 	$address = $venue ? $venue['address'] : '';
 	$host    = wp_parse_url( home_url(), PHP_URL_HOST );
 	$utc     = new DateTimeZone( 'UTC' );
@@ -974,14 +1006,14 @@ function djdt_events_build_ics( $post, $occs ) {
 		return $named ? ';TZID=' . $tzid . ':' . $d->format( 'Ymd\THis' ) : ':' . $d->setTimezone( $utc )->format( 'Ymd\THis\Z' );
 	};
 	$common = array(
-		'SUMMARY:' . djdt_events_ics_text( 'DJ DigiMark at ' . $name ),
+		'SUMMARY:' . djdt_events_ics_text( $names['calendar'] ),
 		'URL:' . djdt_events_page_url(),
 	);
 	if ( $address ) {
 		$common[] = 'LOCATION:' . djdt_events_ics_text( $address );
 	}
 
-	$lines = array( 'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//DJ DigiMark//djdigi-theme//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:' . djdt_events_ics_text( 'DJ DigiMark at ' . $name ) );
+	$lines = array( 'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//DJ DigiMark//djdigi-theme//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:' . djdt_events_ics_text( $names['calendar'] ) );
 	if ( $named && 'UTC' !== $tzid ) {
 		$lines = array_merge( $lines, djdt_events_ics_vtimezone( $tz, $occs[0]['start'] ) );
 	}
@@ -1126,20 +1158,33 @@ function djdt_events_render_grid( $items, $is_row ) {
 }
 
 /**
- * The events page (no limit): every item as a CD in a 4/3/2/1 column grid
- * (events.css, .djd-events__track--page), rows on phones. v1.16.4: the
- * v1.15.1 featured residency card and the "More dates" heading are gone.
- * v1.17.0: every date of everything, in date order, residency dates pinned.
+ * The events page (no limit). v1.18.0: a month by month list, one compact
+ * row per date at every width (the v1.16.3 phone row, widened from 768px
+ * in events.css, "The events page list"), under a header per month
+ * ("November"; the year is added once the list reaches a year after its
+ * first month's, "January 2027"). Replaces v1.15.1's 4/3/2/1 column grid of
+ * CDs; the homepage row keeps its CDs.
  */
 function djdt_events_render_page( $items ) {
+	$months = array();
+	foreach ( $items as $item ) {
+		$months[ djdt_events_display_date( $item['occ'] )->format( 'Y-m' ) ][] = $item;
+	}
+	$first_year = (int) substr( (string) array_key_first( $months ), 0, 4 );
 	?>
 	<div class="djd-events djd-events--page">
-		<div class="djd-events__track djd-events__track--page">
-			<?php foreach ( $items as $i => $item ) : ?>
-				<?php djdt_events_render_card( $item['occ'], $i, $item['res'] ); ?>
-			<?php endforeach; ?>
-		</div>
-		<?php djdt_events_render_rows( $items ); ?>
+		<?php foreach ( $months as $ym => $month_items ) : ?>
+			<?php
+			$month = DateTimeImmutable::createFromFormat( '!Y-m', $ym, wp_timezone() );
+			$year  = (int) $month->format( 'Y' );
+			?>
+			<section class="djd-events__month" aria-labelledby="djd-month-<?php echo esc_attr( $ym ); ?>">
+				<h2 class="djd-events__month-head" id="djd-month-<?php echo esc_attr( $ym ); ?>">
+					<?php echo esc_html( $month->format( 'F' ) ); ?><?php if ( $year !== $first_year ) : ?> <span class="djd-events__month-year"><?php echo esc_html( $year ); ?></span><?php endif; ?>
+				</h2>
+				<?php djdt_events_render_rows( $month_items ); ?>
+			</section>
+		<?php endforeach; ?>
 	</div>
 	<?php
 }
@@ -1162,11 +1207,12 @@ function djdt_events_when_tag( $display ) {
 	return 'In ' . $days . ' days';
 }
 
-function djdt_events_calendar_url( $venue_name, $start, $end, $address ) {
+/** $title: djdt_events_names()'s 'calendar' ("GGBA Holiday Party at SF LGBT Center"). */
+function djdt_events_calendar_url( $title, $start, $end, $address ) {
 	$utc_start = $start->setTimezone( new DateTimeZone( 'UTC' ) )->format( 'Ymd\THis\Z' );
 	$utc_end   = $end->setTimezone( new DateTimeZone( 'UTC' ) )->format( 'Ymd\THis\Z' );
 	$url       = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
-		. '&text=' . rawurlencode( 'DJ DigiMark at ' . $venue_name )
+		. '&text=' . rawurlencode( $title )
 		. '&dates=' . $utc_start . '/' . $utc_end;
 	if ( $address ) {
 		$url .= '&location=' . rawurlencode( $address );
@@ -1197,29 +1243,34 @@ function djdt_events_maps_search_url( $address ) {
 function djdt_events_item( $occ, $res = null ) {
 	$post       = $occ['post'];
 	$venue      = djdt_events_get_venue( $post->ID );
-	$venue_name = $venue ? $venue['name'] : get_the_title( $post );
+	$names      = djdt_events_names( $post, $venue );
+	$venue_name = $names['main'];
 	$display    = djdt_events_display_date( $occ );
 	$time_line  = djdt_events_format_time_range( $occ['start'], $occ['end'] );
 	$address    = $venue ? $venue['address'] : '';
 	$d          = array(
 		'post'        => $post,
 		'venue_name'  => $venue_name,
+		'sub'         => $names['sub'],
+		'name_line'   => $names['sub'] ? $venue_name . ', ' . $names['sub'] : $venue_name,
 		'address'     => $address,
 		'logo'        => $venue ? $venue['logo'] : '',
 		'time_line'   => $time_line,
 		'when'        => djdt_events_when_tag( $display ),
 		'img'         => djdt_events_photo_url( $post->ID ),
-		'label'       => sprintf( 'Show details for %s, %s', $venue_name, $display->format( 'M j' ) ),
-		'share_title' => sprintf( 'DJ DigiMark at %s, %s %s, %s', $venue_name, $display->format( 'D' ), $display->format( 'M j' ), $time_line ),
+		'label'       => sprintf( 'Show details for %s, %s', $names['sub'] ? $venue_name . ' at ' . $names['sub'] : $venue_name, $display->format( 'M j' ) ),
+		// Share always says it is DJ DigiMark: "DJ DigiMark at GGBA Holiday Party, SF LGBT Center, Fri Dec 11, ..." or "DJ DigiMark at Badlands, Thu Nov 19, ...".
+		'share_title' => sprintf( 'DJ DigiMark at %s, %s %s, %s', $names['sub'] ? $venue_name . ', ' . $names['sub'] : $venue_name, $display->format( 'D' ), $display->format( 'M j' ), $time_line ),
 		'day_num'     => $display->format( 'j' ),
 		'day_label'   => $display->format( 'D' ) . ' · ' . $display->format( 'M' ),
 		'disc_when'   => $display->format( 'D M j' ) . ' · ' . $time_line,
-		'cal_url'     => djdt_events_calendar_url( $venue_name, $occ['start'], $occ['end'], $address ),
+		'cal_url'     => djdt_events_calendar_url( $names['calendar'], $occ['start'], $occ['end'], $address ),
+		'month'       => $display->format( 'Y-m' ),
 		'pin'         => '',
 	);
 	if ( $res ) {
 		$d['pin']   = trim( $res['rule']['weekday'] . ' Residency' );
-		$d['label'] = sprintf( 'Show details for %s, %s, %s', $venue_name, $d['pin'], $display->format( 'M j' ) );
+		$d['label'] = sprintf( 'Show details for %s, %s, %s', $names['sub'] ? $venue_name . ' at ' . $names['sub'] : $venue_name, $d['pin'], $display->format( 'M j' ) );
 	}
 	return $d;
 }
@@ -1249,7 +1300,7 @@ function djdt_events_render_row( $occ, $res = null ) {
 	$d     = djdt_events_item( $occ, $res );
 	$id    = 'djd-row-' . $n;
 	$style = $d['img'] ? ' style="--djd-row-img: url(\'' . esc_url( $d['img'] ) . '\');"' : '';
-	$label = $d['venue_name'] . ', ' . ( $d['pin'] ? $d['pin'] . ', ' : '' ) . $d['disc_when'] . ', ' . $d['when'];
+	$label = $d['name_line'] . ', ' . ( $d['pin'] ? $d['pin'] . ', ' : '' ) . $d['disc_when'] . ', ' . $d['when'];
 	?>
 	<div class="djd-row<?php echo $res ? ' djd-row--pinned' : ''; ?>">
 		<?php if ( $d['pin'] ) : ?>
@@ -1267,7 +1318,17 @@ function djdt_events_render_row( $occ, $res = null ) {
 			<span class="djd-row__text" aria-hidden="true">
 				<span class="djd-row__when"><?php echo esc_html( $d['when'] ); ?></span>
 				<span class="djd-row__venue"><?php echo esc_html( $d['venue_name'] ); ?></span>
+				<?php if ( $d['sub'] ) : ?>
+					<span class="djd-row__sub"><?php echo esc_html( $d['sub'] ); ?></span>
+				<?php endif; ?>
 				<span class="djd-row__time"><?php echo esc_html( $d['time_line'] ); ?></span>
+			</span>
+			<?php // v1.18.0: the widened rows (events page, 768px and up) show the pin and the countdown here, on the right, so every row is the same height. ?>
+			<span class="djd-row__side" aria-hidden="true">
+				<?php if ( $d['pin'] ) : ?>
+					<span class="djd-row__side-pin"><?php echo esc_html( $d['pin'] ); ?></span>
+				<?php endif; ?>
+				<span class="djd-row__side-when"><?php echo esc_html( $d['when'] ); ?></span>
 			</span>
 			<span class="djd-row__toggle" aria-hidden="true"><?php echo djdt_events_eject_svg( 16 ); // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
 		</button>
@@ -1363,10 +1424,17 @@ function djdt_events_render_card( $occ, $i, $res = null ) {
 					<?php if ( $d['pin'] ) : ?>
 						<span class="djd-cd__pin"><?php echo esc_html( $d['pin'] ); ?></span>
 					<?php endif; ?>
-					<?php if ( $logo ) : ?>
+					<?php if ( $logo && ! $d['sub'] ) : ?>
 						<img class="djd-cd__case-logo skip-lazy" src="<?php echo esc_url( $logo ); ?>" alt="" data-no-lazy="1" loading="lazy" decoding="async">
 					<?php endif; ?>
 					<div class="djd-cd__case-venue"><?php echo esc_html( $venue_name ); ?></div>
+					<?php if ( $d['sub'] ) : ?>
+						<?php // v1.18.0: an event with its own title; the venue (and its logo) is the second line. ?>
+						<?php if ( $logo ) : ?>
+							<img class="djd-cd__case-logo djd-cd__case-logo--sub skip-lazy" src="<?php echo esc_url( $logo ); ?>" alt="" data-no-lazy="1" loading="lazy" decoding="async">
+						<?php endif; ?>
+						<div class="djd-cd__case-sub"><?php echo esc_html( $d['sub'] ); ?></div>
+					<?php endif; ?>
 					<div class="djd-cd__case-time"><?php echo esc_html( $time_line ); ?></div>
 				</div>
 			</div>
@@ -1385,6 +1453,9 @@ function djdt_events_render_card( $occ, $i, $res = null ) {
 			<div class="djd-cd__disc-text">
 				<div class="djd-cd__disc-top">
 					<div class="djd-cd__disc-venue"><?php echo esc_html( $venue_name ); ?></div>
+					<?php if ( $d['sub'] ) : ?>
+						<div class="djd-cd__disc-sub"><?php echo esc_html( $d['sub'] ); ?></div>
+					<?php endif; ?>
 					<div class="djd-cd__disc-when"><?php echo esc_html( $disc_when ); ?></div>
 					<?php if ( $address ) : ?>
 						<a class="djd-cd__disc-address" href="<?php echo esc_url( djdt_events_maps_search_url( $address ) ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $address ); ?></a>

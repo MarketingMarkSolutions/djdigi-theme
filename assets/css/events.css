@@ -186,6 +186,22 @@
 	text-transform: uppercase;
 	line-height: 1;
 }
+/* v1.18.0: an event with its own title: the title is .djd-cd__case-venue,
+   the venue this second line (with its logo above it, smaller). */
+.djd-cd__case-sub {
+	margin-top: 3px;
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: 16px;
+	line-height: 1.05;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	color: var(--djd-cyan);
+}
+.djd-cd__case-logo--sub {
+	max-height: 30px;
+	margin: 6px 0 2px;
+}
 .djd-cd__case-time {
 	font-size: 13px;
 	font-weight: 600;
@@ -348,6 +364,15 @@
 	line-height: 1;
 	color: var(--djd-paper);
 	text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65);
+}
+.djd-cd__disc-sub {
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: 4.2cqi;
+	line-height: 1;
+	text-transform: uppercase;
+	color: var(--djd-cyan);
+	text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
 }
 .djd-cd__disc-when {
 	font-family: var(--djd-sans);
@@ -529,13 +554,6 @@
 /* =======================================================================
    v1.15.1: residencies and the events page grid
    ====================================================================== */
-
-/* The events page grid (no limit): 4 across from 1280px, 3 from 900px,
-   2 from 600px, 1 below. The homepage row keeps its auto-fill track. */
-.djd-events__track--page { grid-template-columns: 1fr; }
-@media (min-width: 600px) { .djd-events__track--page { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 900px) { .djd-events__track--page { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (min-width: 1280px) { .djd-events__track--page { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
 /* The events page sits under the inner page banner, not after another
    section: a short top gap. v1.16.4: the featured residency card and the
@@ -721,17 +739,37 @@ body.djdigi-theme .djd-row__head:focus-visible { outline: 3px solid #24a9e0 !imp
 	text-overflow: ellipsis;
 }
 .djd-row__venue {
-	display: block;
+	display: -webkit-box;
 	max-width: 100%;
 	font-family: var(--djd-display);
 	font-weight: 800;
 	font-size: 18px;
 	line-height: 1.05;
 	text-transform: uppercase;
+	/* v1.18.0: up to two lines, so an event title ("GGBA Holiday Party")
+	   is not cut short on a phone; ellipsis only past that. */
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	overflow: hidden;
+	overflow-wrap: anywhere;
+	color: #f1ece2;
+}
+/* v1.18.0: the venue under an event's own title. */
+.djd-row__sub {
+	display: block;
+	max-width: 100%;
+	margin-top: 2px;
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: 14px;
+	line-height: 1.1;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	color: #f1ece2;
+	color: #24a9e0;
 }
 .djd-row__time {
 	display: block;
@@ -836,4 +874,84 @@ body.djdigi-theme .djd-row__pill:focus-visible { outline: 3px solid #24a9e0; out
 	letter-spacing: 0.14em;
 	text-transform: uppercase;
 	color: #24a9e0;
+}
+
+/* =======================================================================
+   v1.18.0: the events page list ([djdigi_events], no limit)
+   A header per month, then one row per date at every width: the phone row
+   above, widened from 768px (a bigger mini CD and date, the countdown tag
+   in its own column on the right, the panel lined up under the text). At
+   most 1100px wide so a row stays one glance. The homepage row keeps its
+   CDs and only shows rows under 768px, as before.
+   ====================================================================== */
+.djd-events--page .djd-events__rows { display: grid; gap: 10px; }
+.djd-events--page > .djd-events__month { max-width: 1100px; }
+.djd-events__month + .djd-events__month { margin-top: 44px; }
+body.djdigi-theme .djd-events__month-head {
+	margin: 0 0 16px !important;
+	padding: 0 !important;
+	font-family: var(--djd-display) !important;
+	font-weight: 800 !important;
+	font-size: clamp(30px, 3vw, 42px) !important;
+	line-height: 1 !important;
+	letter-spacing: 0.01em !important;
+	text-transform: uppercase !important;
+	color: #f1ece2 !important;
+}
+.djd-events__month-year { color: #24a9e0; }
+
+/* The countdown tag's right hand copy: only the widened rows show it. */
+.djd-row__side { display: none; }
+
+@media (min-width: 768px) {
+	body.djdigi-theme .djd-events--page .djd-row__head {
+		grid-template-columns: 124px 64px minmax(0, 1fr) auto 44px;
+		gap: 18px;
+		padding: 12px 16px 12px 12px !important;
+	}
+	.djd-events--page .djd-row__cd { width: 124px; height: 84px; }
+	.djd-events--page .djd-row__case { width: 84px; height: 84px; border-radius: 7px; }
+	.djd-events--page .djd-row__slide { left: 36px; top: 2px; width: 80px; height: 80px; }
+	.djd-events--page .djd-row.is-open .djd-row__slide { transform: translateX(12px); }
+	.djd-events--page .djd-row__day { font-size: 46px; }
+	.djd-events--page .djd-row__daylabel { font-size: 13px; }
+	.djd-events--page .djd-row__text .djd-row__when { display: none; }
+	.djd-events--page .djd-row__venue { font-size: 26px; }
+	.djd-events--page .djd-row__sub { font-size: 17px; margin-top: 3px; }
+	.djd-events--page .djd-row__time { font-size: 14px; margin-top: 5px; }
+	.djd-events--page .djd-row__side {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+	}
+	.djd-events--page .djd-row__side-pin {
+		font-family: var(--djd-display);
+		font-weight: 800;
+		font-size: 13px;
+		line-height: 1.1;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		white-space: nowrap;
+		color: #24a9e0;
+	}
+	.djd-events--page .djd-row__side-when {
+		padding: 5px 11px;
+		border-radius: 999px;
+		background: #24a9e0;
+		color: #06121a;
+		font: 700 12px/1.1 var(--djd-sans);
+		white-space: nowrap;
+	}
+	/* The pin moves into the side column; the pinned row's 1px padding stays. */
+	.djd-events--page .djd-row > .djd-row__pin { display: none; }
+	.djd-events--page .djd-row__toggle { width: 44px; height: 44px; }
+	/* The panel's content starts under the text column: 12 + 124 + 18 + 64 + 18. */
+	.djd-events--page .djd-row__panel-body {
+		margin: 0 16px 0 236px;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 12px 20px;
+	}
+	.djd-events--page .djd-row__pills { margin-top: 0; }
 }
