@@ -648,32 +648,14 @@ function djdt_events_get_venue( $post_id ) {
 		'tel'     => (string) get_term_meta( $location_id, 'tel', true ),
 		'lat'     => get_term_meta( $location_id, 'latitude', true ),
 		'lng'     => get_term_meta( $location_id, 'longitude', true ),
-		'logo'    => djdt_events_venue_logo_url( $location_id ),
 	);
 }
 
-/**
- * v1.9.2: the venue logo on the case front (The Edge, term 494, confirmed
- * live to have one set). MEC's own 'thumbnail' term meta on mec_location:
- * read live as an attachment ID on every location checked, handled here as
- * either an attachment ID (the normal case, resolved through WordPress so
- * it benefits from a generated size) or, defensively, an already-absolute
- * URL, since MEC's schema for this field was never directly confirmed
- * beyond the one location Mark pointed at. '' (no extra markup at all,
- * djdt_events_render_card()) when the location has no thumbnail set.
+/*
+ * v1.19.0: the venue logo (MEC's 'thumbnail' location term meta, shown on
+ * the case front since v1.9.2) is no longer shown or read, Mark's call.
+ * The logos stay set in MEC.
  */
-function djdt_events_venue_logo_url( $location_id ) {
-	$raw = get_term_meta( $location_id, 'thumbnail', true );
-	if ( '' === $raw || null === $raw ) {
-		return '';
-	}
-	if ( is_numeric( $raw ) ) {
-		$url = wp_get_attachment_image_url( (int) $raw, 'medium' );
-		return $url ? $url : '';
-	}
-	$raw = (string) $raw;
-	return preg_match( '#^https?://#i', $raw ) ? $raw : '';
-}
 
 /**
  * v1.18.0: what an event is called. The post title and the venue name are
@@ -1139,15 +1121,23 @@ function djdt_events_render_empty_state() {
 
 /** $items: array( 'occ' => occurrence, 'res' => residency or null ), see djdt_events_items(). */
 function djdt_events_render_grid( $items, $is_row ) {
+	static $grid = 0;
+	$grid++;
+	$track = 'djd-events-track-' . $grid;
 	?>
 	<div class="djd-events">
 		<?php if ( $is_row ) : ?>
 			<h2 class="djd-section-heading"><?php echo djdt_heading_html( 'Upcoming events' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?></h2>
 		<?php endif; ?>
-		<div class="djd-events__track">
-			<?php foreach ( $items as $i => $item ) : ?>
-				<?php djdt_events_render_card( $item['occ'], $i, $item['res'] ); ?>
-			<?php endforeach; ?>
+		<?php // v1.19.0: 4 CDs in view on desktop (3 under 1100px), one row, the rest reached by scrolling (arrows, keyboard, swipe), events.css "The homepage row" and events.js. ?>
+		<div class="djd-events__scroller">
+			<button type="button" class="djd-events__arrow djd-events__arrow--prev" aria-label="Previous events" aria-controls="<?php echo esc_attr( $track ); ?>" hidden><?php echo djdt_events_arrow_svg( 'prev' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></button>
+			<div class="djd-events__track" id="<?php echo esc_attr( $track ); ?>" role="region" aria-label="Upcoming events" tabindex="-1">
+				<?php foreach ( $items as $i => $item ) : ?>
+					<?php djdt_events_render_card( $item['occ'], $i, $item['res'] ); ?>
+				<?php endforeach; ?>
+			</div>
+			<button type="button" class="djd-events__arrow djd-events__arrow--next" aria-label="Next events" aria-controls="<?php echo esc_attr( $track ); ?>" hidden><?php echo djdt_events_arrow_svg( 'next' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></button>
 		</div>
 		<?php djdt_events_render_rows( $items ); ?>
 		<?php if ( $is_row ) : ?>
@@ -1244,23 +1234,26 @@ function djdt_events_item( $occ, $res = null ) {
 	$post       = $occ['post'];
 	$venue      = djdt_events_get_venue( $post->ID );
 	$names      = djdt_events_names( $post, $venue );
-	$venue_name = $names['main'];
+	// v1.19.0: the venue is always the big line, the event's own title (if
+	// it has one, djdt_events_names()) the small one under it. Share, the
+	// calendar title, the aria labels and JSON-LD still lead with the title.
+	$venue_name = $names['venue'];
+	$title      = $names['sub'] ? $names['main'] : '';
 	$display    = djdt_events_display_date( $occ );
 	$time_line  = djdt_events_format_time_range( $occ['start'], $occ['end'] );
 	$address    = $venue ? $venue['address'] : '';
 	$d          = array(
 		'post'        => $post,
 		'venue_name'  => $venue_name,
-		'sub'         => $names['sub'],
-		'name_line'   => $names['sub'] ? $venue_name . ', ' . $names['sub'] : $venue_name,
+		'sub'         => $title,
+		'name_line'   => $title ? $title . ', ' . $venue_name : $venue_name,
 		'address'     => $address,
-		'logo'        => $venue ? $venue['logo'] : '',
 		'time_line'   => $time_line,
 		'when'        => djdt_events_when_tag( $display ),
 		'img'         => djdt_events_photo_url( $post->ID ),
-		'label'       => sprintf( 'Show details for %s, %s', $names['sub'] ? $venue_name . ' at ' . $names['sub'] : $venue_name, $display->format( 'M j' ) ),
+		'label'       => sprintf( 'Show details for %s, %s', $title ? $title . ' at ' . $venue_name : $venue_name, $display->format( 'M j' ) ),
 		// Share always says it is DJ DigiMark: "DJ DigiMark at GGBA Holiday Party, SF LGBT Center, Fri Dec 11, ..." or "DJ DigiMark at Badlands, Thu Nov 19, ...".
-		'share_title' => sprintf( 'DJ DigiMark at %s, %s %s, %s', $names['sub'] ? $venue_name . ', ' . $names['sub'] : $venue_name, $display->format( 'D' ), $display->format( 'M j' ), $time_line ),
+		'share_title' => sprintf( 'DJ DigiMark at %s, %s %s, %s', $title ? $title . ', ' . $venue_name : $venue_name, $display->format( 'D' ), $display->format( 'M j' ), $time_line ),
 		'day_num'     => $display->format( 'j' ),
 		'day_label'   => $display->format( 'D' ) . ' · ' . $display->format( 'M' ),
 		'disc_when'   => $display->format( 'D M j' ) . ' · ' . $time_line,
@@ -1270,9 +1263,25 @@ function djdt_events_item( $occ, $res = null ) {
 	);
 	if ( $res ) {
 		$d['pin']   = trim( $res['rule']['weekday'] . ' Residency' );
-		$d['label'] = sprintf( 'Show details for %s, %s, %s', $names['sub'] ? $venue_name . ' at ' . $names['sub'] : $venue_name, $d['pin'], $display->format( 'M j' ) );
+		$d['label'] = sprintf( 'Show details for %s, %s, %s', $title ? $title . ' at ' . $venue_name : $venue_name, $d['pin'], $display->format( 'M j' ) );
 	}
 	return $d;
+}
+
+/**
+ * v1.19.0: the stamps at the top of a CD and in a row, the residency label
+ * ("Friday Residency", ticked events only) next to the countdown ("In 3
+ * days"), one style everywhere (events.css, "Stamps"). "Tonight" gets
+ * djd-tag--tonight (orange). Uppercase is CSS only, so screen readers get
+ * the words as written.
+ */
+function djdt_events_tags_html( $d, $class = '' ) {
+	$out = '<span class="djd-tags' . ( $class ? ' ' . esc_attr( $class ) : '' ) . '">';
+	if ( $d['pin'] ) {
+		$out .= '<span class="djd-tag djd-tag--res">' . esc_html( $d['pin'] ) . '</span>';
+	}
+	$out .= '<span class="djd-tag djd-tag--when' . ( 'Tonight' === $d['when'] ? ' djd-tag--tonight' : '' ) . '">' . esc_html( $d['when'] ) . '</span>';
+	return $out . '</span>';
 }
 
 /**
@@ -1303,9 +1312,6 @@ function djdt_events_render_row( $occ, $res = null ) {
 	$label = $d['name_line'] . ', ' . ( $d['pin'] ? $d['pin'] . ', ' : '' ) . $d['disc_when'] . ', ' . $d['when'];
 	?>
 	<div class="djd-row<?php echo $res ? ' djd-row--pinned' : ''; ?>">
-		<?php if ( $d['pin'] ) : ?>
-			<span class="djd-row__pin" aria-hidden="true"><?php echo esc_html( $d['pin'] ); ?></span>
-		<?php endif; ?>
 		<button type="button" class="djd-row__head" aria-expanded="false" aria-controls="<?php echo esc_attr( $id ); ?>" aria-label="<?php echo esc_attr( $label ); ?>">
 			<span class="djd-row__cd" aria-hidden="true"<?php echo $style; // phpcs:ignore WordPress.Security.EscapeOutput ?>>
 				<span class="djd-row__slide"><span class="djd-row__disc"></span></span>
@@ -1316,20 +1322,15 @@ function djdt_events_render_row( $occ, $res = null ) {
 				<span class="djd-row__daylabel"><?php echo esc_html( $d['day_label'] ); ?></span>
 			</span>
 			<span class="djd-row__text" aria-hidden="true">
-				<span class="djd-row__when"><?php echo esc_html( $d['when'] ); ?></span>
+				<?php echo djdt_events_tags_html( $d, 'djd-row__tags' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 				<span class="djd-row__venue"><?php echo esc_html( $d['venue_name'] ); ?></span>
 				<?php if ( $d['sub'] ) : ?>
 					<span class="djd-row__sub"><?php echo esc_html( $d['sub'] ); ?></span>
 				<?php endif; ?>
 				<span class="djd-row__time"><?php echo esc_html( $d['time_line'] ); ?></span>
 			</span>
-			<?php // v1.18.0: the widened rows (events page, 768px and up) show the pin and the countdown here, on the right, so every row is the same height. ?>
-			<span class="djd-row__side" aria-hidden="true">
-				<?php if ( $d['pin'] ) : ?>
-					<span class="djd-row__side-pin"><?php echo esc_html( $d['pin'] ); ?></span>
-				<?php endif; ?>
-				<span class="djd-row__side-when"><?php echo esc_html( $d['when'] ); ?></span>
-			</span>
+			<?php // v1.18.0: the widened rows (events page, 768px and up) show the tags here, on the right, so every row is the same height. ?>
+			<span class="djd-row__side" aria-hidden="true"><?php echo djdt_events_tags_html( $d ); // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
 			<span class="djd-row__toggle" aria-hidden="true"><?php echo djdt_events_eject_svg( 16 ); // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
 		</button>
 		<div class="djd-row__panel" id="<?php echo esc_attr( $id ); ?>">
@@ -1371,10 +1372,8 @@ function djdt_events_render_row( $occ, $res = null ) {
  * order), so events.css now forces every disc text color with !important,
  * the same pattern already used for the footer dock (djdigi-theme.php,
  * .djd-dock__btn). The disc's own text also now sizes off the disc itself
- * (container-type: inline-size, cqi units) instead of the viewport. Also
- * added here: the venue's own logo, from MEC's own 'thumbnail' location
- * term meta, above the venue name on the case front when that location
- * has one set.
+ * (container-type: inline-size, cqi units) instead of the viewport. (The
+ * venue logo added here in v1.9.2 was removed in v1.19.0.)
  *
  * v1.10.0: the v1.9.2 solid plate behind the disc's text (.djd-cd__disc-
  * plate, a flat dark circle) is gone; .djd-cd__disc-face's own layered
@@ -1388,7 +1387,7 @@ function djdt_events_render_row( $occ, $res = null ) {
  * $res (a residency date, djdt_events_items()) only adds the pin label and
  * the pinned look (v1.16.4); the v1.15.1 weekday / "Weekly" cover and the
  * series .ics on the disc are gone, every CD shows its own date.
- * Both images carry skip-lazy / data-no-lazy (v1.15.1, found live: covers
+ * The cover photo carries skip-lazy / data-no-lazy (v1.15.1, found live: covers
  * on the events page stayed empty): Avada's own lazy loader rewrites
  * images in the content to a placeholder, and some covers never got their
  * photo back. The browser's own loading="lazy" still defers them until
@@ -1397,10 +1396,8 @@ function djdt_events_render_row( $occ, $res = null ) {
 function djdt_events_render_card( $occ, $i, $res = null ) {
 	$d           = djdt_events_item( $occ, $res );
 	$address     = $d['address'];
-	$logo        = $d['logo'];
 	$venue_name  = $d['venue_name'];
 	$time_line   = $d['time_line'];
-	$when        = $d['when'];
 	$img         = $d['img'];
 	$play_label  = $d['label'];
 	$glow_dur    = array( '2.6s', '2.9s', '3.2s' )[ $i % 3 ];
@@ -1420,25 +1417,16 @@ function djdt_events_render_card( $occ, $i, $res = null ) {
 				<div class="djd-cd__case-date" aria-hidden="true">
 					<span class="djd-cd__case-day-num"><?php echo esc_html( $day_num ); ?></span><span class="djd-cd__case-day-label"><?php echo esc_html( $day_label ); ?></span>
 				</div>
-				<div>
-					<?php if ( $d['pin'] ) : ?>
-						<span class="djd-cd__pin"><?php echo esc_html( $d['pin'] ); ?></span>
-					<?php endif; ?>
-					<?php if ( $logo && ! $d['sub'] ) : ?>
-						<img class="djd-cd__case-logo skip-lazy" src="<?php echo esc_url( $logo ); ?>" alt="" data-no-lazy="1" loading="lazy" decoding="async">
-					<?php endif; ?>
+				<?php // v1.19.0: the text block sits at the bottom of every case, so the time lines up with the eject button on every CD; with an event title the venue sits higher. ?>
+				<div class="djd-cd__case-text">
 					<div class="djd-cd__case-venue"><?php echo esc_html( $venue_name ); ?></div>
 					<?php if ( $d['sub'] ) : ?>
-						<?php // v1.18.0: an event with its own title; the venue (and its logo) is the second line. ?>
-						<?php if ( $logo ) : ?>
-							<img class="djd-cd__case-logo djd-cd__case-logo--sub skip-lazy" src="<?php echo esc_url( $logo ); ?>" alt="" data-no-lazy="1" loading="lazy" decoding="async">
-						<?php endif; ?>
 						<div class="djd-cd__case-sub"><?php echo esc_html( $d['sub'] ); ?></div>
 					<?php endif; ?>
 					<div class="djd-cd__case-time"><?php echo esc_html( $time_line ); ?></div>
 				</div>
 			</div>
-			<span class="djd-cd__case-when"><?php echo esc_html( $when ); ?></span>
+			<?php echo djdt_events_tags_html( $d, 'djd-cd__tags' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 			<button
 				type="button"
 				class="djd-cd__play"
@@ -1482,6 +1470,12 @@ function djdt_events_render_card( $occ, $i, $res = null ) {
  * --djd-night and used only against the cyan background, never reused as
  * a general night color elsewhere.
  */
+/** v1.19.0: the homepage row's scroll arrows, a chevron pointing $dir ('prev' or 'next'). */
+function djdt_events_arrow_svg( $dir ) {
+	$d = 'prev' === $dir ? 'M15 5 L8 12 L15 19' : 'M9 5 L16 12 L9 19';
+	return '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="' . $d . '" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+
 /**
  * v1.16.4: the eject symbol (a triangle up over a short bar) on the tile's
  * round button and the phone row's toggle, in place of the play triangle.

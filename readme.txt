@@ -43,6 +43,13 @@ CSS and JS are versioned by file date, so new uploads bust the browser and Cloud
 
 == Changelog ==
 
+= 1.19.0 =
+* Events: the venue is always the big name; an event's own title (like "90's Dance Party") is the smaller blue line under it. Long names wrap instead of being cut.
+* Venue logos no longer show on the cards (they stay set in the calendar).
+* Homepage: one row of CDs, 4 across on desktop (3 on smaller screens), with arrows to scroll to the rest. Swipe and keyboard work too. The shortcode's limit is the total number of CDs.
+* The time and eject button line up at the bottom of every CD.
+* New stamps at the top of each card: the countdown in cream, "Friday Residency" in cyan, and "Tonight" in orange.
+
 = 1.18.0 =
 * Events page: dates are grouped by month ("November", "December", "January 2027") with one compact row per date on every screen size. Click or tap a row for the address, Add to calendar, Directions and Share. The homepage keeps its CDs.
 * An event with its own name (like "GGBA Holiday Party") shows that name first and the venue under it, on the CDs, the rows, Add to calendar ("GGBA Holiday Party at SF LGBT Center") and Share ("DJ DigiMark at GGBA Holiday Party, SF LGBT Center, ..."). Venue nights (Badlands, Midnight Sun) look the same as before.

@@ -47,7 +47,7 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 
 ## Files
 - `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo halftone baking (Imagick assisted decode, GD for every pixel operation, see "Smoothness" below), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]` (`djdt_hero_shortcode()`) and the "Latest live set" player section it outputs right after itself (`djdt_player_section()`, v1.6.0, no separate shortcode), `[djdigi_venues]`. `require_once`s `includes/djdt-events.php` and (v1.11.0) `includes/djdt-logo.php` near the top, see below.
-- `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. v1.15.1: residencies and the `?djdt_ics=` series download, see "v1.15.1" below; v1.17.0: every date is its own CD, residency is a checkbox on the event, see "v1.17.0" below; v1.18.0: the events page is a month by month list of rows, and events with their own title show it, see "v1.18.0" below. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
+- `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. v1.15.1: residencies and the `?djdt_ics=` series download, see "v1.15.1" below; v1.17.0: every date is its own CD, residency is a checkbox on the event, see "v1.17.0" below; v1.18.0: the events page is a month by month list of rows, and events with their own title show it, see "v1.18.0" below; v1.19.0: venue big and title small, no venue logos, the homepage row scrolls with arrows, stamps, see "v1.19.0" below. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
 - `includes/djdt-inner.php` (v1.15.0): inner pages. The title banner (`djdt_banner_html()`, put before `<main id="main">` by the same output buffer as the logo swap), its "Banner title" / "Hide banner" fields (a "DigiMark banner" box on pages and posts), the featured image bake queue (`djdt_bake_banner` cron), and the leading emoji strip on content headings (`djdt_strip_heading_emoji()`). See "v1.15.0" below.
 - `includes/djdt-story.php`, `includes/djdt-about.php`, `includes/djdt-contact.php` (v1.16.0): the Story timeline, the About page and the sitewide Contact / Book me pop-up, each with its own CSS and JS in assets. See "v1.16.0" below.
 - `includes/djdt-videos.php` (v1.14.0): `[djdigi_videos]`, the 4 newest remix videos through djdigi-library's own `[djdigi_newest]` renderer, styled by `assets/css/videos.css`. See "v1.14.0" below.
@@ -422,6 +422,86 @@ hidden, show on scroll up, focus keeps it shown, no horizontal scroll, no errors
 old logo never requested. The PHP string functions (autop strip, logo swap, title split) were
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
+
+## v1.19.0: venue big, homepage row scrolls, stamps
+From Mark's brief, previewed twice (a scratch copy rendered by the real PHP) and approved with his
+decisions: stamp style C with his colors, no reserved title space, the homepage limit set by him in
+the page content (`[djdigi_events limit="8"]`, not code). Supersedes the card text and pin/countdown
+parts of "v1.18.0" and the homepage track of "v1.15.1". v1.17.0 and v1.18.0 rules otherwise unchanged
+(every date its own item, Residency checkbox, 2 per residency on the homepage, events page months).
+
+**Venue big, event title small.** `djdt_events_item()`: 'venue_name' is always the venue
+(`djdt_events_names()`'s 'venue'), 'sub' is the event's own title when it has one (the v1.18.0 rule),
+else ''. CD case, disc and rows: venue, then the title in small cyan (`.djd-cd__case-sub`,
+`.djd-cd__disc-sub`, `.djd-row__sub`), then the time. Everything wraps, nothing is cut: the row's venue
+lost its v1.18.0 line clamp, its title and time lost their ellipsis. Share, the calendar title, the
+aria labels and JSON-LD still lead with the title exactly as in v1.18.0.
+
+**No venue logos.** The case logo markup, its CSS and the `djdt_events_venue_logo_url()` lookup are
+gone; `djdt_events_get_venue()` has no 'logo' key and never reads the `thumbnail` term meta. The logos
+stay set in MEC.
+
+**Homepage row (limit > 0): one scrolling row.** `.djd-events__scroller` (a size container, so
+`100cqw` is its width) holds the two arrows and `.djd-events__track` (role region, labeled, a unique
+id per shortcode). 4 CDs in view, 3 under 1100px; `--djd-row-cd` is a CD's width. The track scrolls
+on x with `scroll-snap-type: x mandatory`, snap at each CD's start, no scrollbar. A scroller clips
+both axes, and an opening disc flies up to about 58% of a CD above it and lands 6.5% wider than the
+case, so the track has padding (`--djd-row-lift` = 72% of a CD above, 24px each side, 40px below)
+taken back by negative margins: same layout, nothing cut (measured every frame of the open at 1920,
+1280, 1099 and 800: at least 32px clear above, 14px at the sides, 30px below; 62% was 6px short).
+The padding above overlies the heading, which has nothing to click.
+- Arrows (`.djd-events__arrow--prev/--next`, `aria-label` "Previous events" / "Next events",
+  `aria-controls` the track): paper circles half over the gutter, centered on the CDs, printed
+  `hidden`; events.js shows each only when there is somewhere to go, scrolls by the CDs in view
+  (smooth, then the snap), and moves focus to the other arrow if the one just used hides.
+- Keyboard: the arrows are buttons; tabbing to a CD's eject scrolls it into view. Touch: native swipe.
+- The date number scales with the CD in this row, `min(84px, CD width x 0.32)`: 84px from the 1280
+  layout up, about 68px on the 213px CDs at 768, where a three line title otherwise pushed the time
+  3px below the eject.
+- Under 768px the scroller is hidden and the rows show, as before. "See all dates" stays.
+- The `limit` is the total number of CDs. Home v2 had `limit="5"` (per the v1.14.0 notes); Mark is
+  changing it to 8 himself.
+
+**Text at the bottom.** The case is a flex column, date on top and `.djd-cd__case-text` at the
+bottom (padding-right 50px, clear of the eject), so the time and the eject button line up on every
+CD. No space is kept for a title (Mark's call after the preview: a v1.19.0 draft gave every CD the
+tallest title's height, which left a gap on venue nights); a CD with a title has its venue higher.
+
+**Stamps.** `djdt_events_tags_html()` prints `.djd-tags` with the residency stamp (`.djd-tag--res`,
+"Friday Residency", ticked events only) and the countdown (`.djd-tag--when`, plus `.djd-tag--tonight`
+for "Tonight"). Same stamps everywhere: top right of the CD (`.djd-cd__tags`, residency above the
+countdown), the phone row's text column (`.djd-row__tags`, replacing the pill and the pin above the
+row) and the wide events page row's right column (15px there). Style C from the preview (A, printed
+label, and B, sticker, were not picked): square, 1.5px outline in the ink color (Chrome draws 1px on a
+1x screen), the ink as the text, Saira 800 13px uppercase .08em. Inks: cream #f1ece2 countdown, cyan
+#24a9e0 residency, International Orange #f04e23 for "Tonight" only. Fill: night at 60%, "Tonight" at
+82%. Measured against the brightest pixel behind each stamp over the brightest stand-in photo:
+cream 11.6:1, cyan 5.1:1, orange 4.0:1 at 65% fill and 4.8:1 at 82% (13px text needs 4.5:1).
+The old `.djd-cd__pin`, `.djd-cd__case-when`, `.djd-row__pin`, `.djd-row__when` and side pin/when
+markup and CSS are gone.
+
+**Verified.**
+- PHP 8.2 (php-wasm) on the preview data (clock Fri Nov 20 2026 noon: Midnight Sun ticked, tonight;
+  The Lookout tomorrow; "DJ DigiMark at QBar"; "GGBA: Toast of the Season Holiday Party" at SF LGBT
+  Center; "90's Dance Party" at Badlands; every venue given a logo), 41 checks
+  (scratchpad `prev119/test119.cjs`): the big line is always the venue on the page rows, homepage
+  CDs and homepage rows, titles small under it, none on venue nights, disc matches, text order; share,
+  calendar, aria and JSON-LD exactly as v1.18.0; only the cover image on a CD, no logo markup, the
+  logo meta never read; limit as the total, unique track ids, arrow labels / aria-controls / hidden;
+  residency stamps only on the ticked event, the tonight class only on "Tonight"; months and order.
+  The v1.17.0 suite (31) still passes, read through the new stamps.
+- Playwright on a page built from the plugin's own events.css, site.css and events.js, at 1920, 1280,
+  1100, 1099, 800, 768, 767, 390 and 375 (176 checks, `prev119/browse119.cjs`): no horizontal page
+  scroll; 4 CDs in view from 1100, 3 below, one row; time and eject line up on every CD, venue nights
+  level, titled venues higher, no gap; text clear of the eject; stamps at the top clear of the date;
+  the date never overlapping the text; no logo images; next arrow scrolls and snaps, prev appears,
+  next hides at the end, Enter and Space on the arrows, back to the start, tabbing to an off screen
+  CD scrolls it in, a CD opens and closes; every stamp's ink, fill, outline and font; rows never cut,
+  stamps in the text on phones and on the right on wide events page rows; no page errors. A touch
+  swipe (real touch events) scrolls two CDs and snaps.
+- **Not verified:** the live site (blocked from this machine), real event photos (stand-ins cropped
+  from the hero photo), Avada's own styles around the row, a real phone or trackpad, Safari's scroll
+  snapping.
 
 ## v1.18.0: events page by month, event titles on cards
 From Mark's brief; the events page was previewed (static page built from this code's real output)

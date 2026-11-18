@@ -84,16 +84,83 @@
 .djd-events__empty a:hover { text-decoration: underline; }
 
 /* ---------------------------------------------------------------------
-   The track: one grid everywhere, homepage row and the Events page alike.
-   34px of top padding so the first row's peeking discs have room above
-   them; the row gap (also 34px) gives the same room between rows.
+   The homepage row (v1.19.0): one row of CDs, 4 in view (3 under 1100px),
+   the rest reached by scrolling: the arrows (events.js), the keyboard (Tab
+   scrolls a CD's button into view) or a swipe. Snaps to whole CDs.
+   A scroller clips on both axes, and an opening disc flies up to about 58%
+   of a CD's height above it and lands 6.5% wider than the case on every
+   side, so the track carries that much padding (above: --djd-row-lift,
+   72% of a CD; 24px at the sides; 40px below) and takes it back with
+   negative margins: the page layout is the same as with no padding, and
+   the disc is never cut. The padding above lies over the heading, which
+   has nothing to click. The scroller is the size container: 100cqw is
+   its width, so a CD is (100cqw - the gaps) / 4.
    ------------------------------------------------------------------ */
+.djd-events__scroller {
+	position: relative;
+	container-type: inline-size;
+	--djd-row-n: 4;
+	--djd-row-gap: 26px;
+	--djd-row-cd: calc((100cqw - (var(--djd-row-n) - 1) * var(--djd-row-gap)) / var(--djd-row-n));
+	--djd-row-lift: calc(var(--djd-row-cd) * 0.72);
+	margin-top: 34px;
+}
+@media (max-width: 1099px) {
+	.djd-events__scroller { --djd-row-n: 3; }
+}
 .djd-events__track {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-	gap: 34px 26px;
-	padding-top: 34px;
+	grid-auto-flow: column;
+	grid-auto-columns: var(--djd-row-cd);
+	gap: var(--djd-row-gap);
+	overflow-x: auto;
+	overflow-y: hidden;
+	overscroll-behavior-x: contain;
+	scroll-snap-type: x mandatory;
+	scroll-behavior: smooth;
+	scroll-padding-inline: 24px;
+	scrollbar-width: none;
+	padding: var(--djd-row-lift) 24px 40px;
+	margin: calc(var(--djd-row-lift) * -1) -24px -40px;
 }
+.djd-events__track::-webkit-scrollbar { display: none; }
+.djd-events__track:focus { outline: none; }
+.djd-events__track > .djd-cd { scroll-snap-align: start; }
+
+/* The arrows: the eject button's paper circle, half over the gutter, on
+   the middle of the CDs. Hidden (the hidden attribute, events.js) when
+   there is nowhere to go that way. */
+body.djdigi-theme .djd-events__arrow {
+	position: absolute;
+	top: calc(var(--djd-row-cd) / 2 - 24px);
+	z-index: 8;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 48px;
+	height: 48px;
+	min-width: 0;
+	min-height: 0;
+	margin: 0 !important;
+	padding: 0 !important;
+	border: 0 !important;
+	border-radius: 50% !important;
+	background: #f1ece2 !important;
+	color: #0b0820 !important;
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5) !important;
+	cursor: pointer;
+	transition: background-color 0.2s ease, transform 0.2s ease;
+}
+body.djdigi-theme .djd-events__arrow[hidden] { display: none !important; }
+body.djdigi-theme .djd-events__arrow--prev { left: -24px; }
+body.djdigi-theme .djd-events__arrow--next { right: -24px; }
+body.djdigi-theme .djd-events__arrow:hover,
+body.djdigi-theme .djd-events__arrow:focus-visible {
+	background: #24a9e0 !important;
+	transform: scale(1.06);
+}
+body.djdigi-theme .djd-events__arrow:focus-visible { outline: 3px solid #f1ece2; outline-offset: 3px; }
+.djd-events__arrow svg { display: block; pointer-events: none; }
 
 /* "See all dates": the shared .djd-seeall pill in site.css (v1.14.3). */
 
@@ -172,13 +239,16 @@
 .djd-cd__case-day-label {
 	font-size: 19px;
 }
-.djd-cd__case-logo {
-	display: block;
-	max-height: 44px;
-	max-width: 60%;
-	object-fit: contain;
-	margin-bottom: 6px;
+/* v1.19.0: in the homepage row the date number scales with the CD (84px
+   from about 263px wide, the 1280 layout and up; about 68px on the 213px
+   CDs at 768), so a three line event title still fits under it. */
+.djd-events__scroller .djd-cd__case-day-num {
+	font-size: min(84px, calc(var(--djd-row-cd) * 0.32));
 }
+/* v1.19.0: the text block at the bottom of the case (the case is a flex
+   column, space-between: the date on top, this at the bottom), clear of the
+   eject button on the right. */
+.djd-cd__case-text { padding-right: 50px; }
 .djd-cd__case-venue {
 	font-family: var(--djd-display);
 	font-weight: 800;
@@ -186,37 +256,26 @@
 	text-transform: uppercase;
 	line-height: 1;
 }
-/* v1.18.0: an event with its own title: the title is .djd-cd__case-venue,
-   the venue this second line (with its logo above it, smaller). */
+/* v1.19.0: the event's own title, small, under the venue, wrapping (never
+   cut). No space is kept for it on other CDs (Mark's call): the time and
+   the eject button line up on every CD, the venue sits higher on one with
+   a title. */
 .djd-cd__case-sub {
-	margin-top: 3px;
+	padding-top: 3px;
 	font-family: var(--djd-display);
 	font-weight: 800;
 	font-size: 16px;
 	line-height: 1.05;
 	letter-spacing: 0.02em;
 	text-transform: uppercase;
+	overflow-wrap: anywhere;
 	color: var(--djd-cyan);
-}
-.djd-cd__case-logo--sub {
-	max-height: 30px;
-	margin: 6px 0 2px;
 }
 .djd-cd__case-time {
 	font-size: 13px;
 	font-weight: 600;
 	opacity: 0.85;
 	margin-top: 4px;
-}
-.djd-cd__case-when {
-	position: absolute;
-	top: 16px;
-	right: 16px;
-	font: 700 11px var(--djd-sans);
-	background: var(--djd-cyan);
-	color: #06121a;
-	border-radius: 999px;
-	padding: 4px 9px;
 }
 
 /* ----- The play button, glow behind it -------------------------------- */
@@ -581,17 +640,6 @@
 	box-shadow: inset 0 0 0 1.5px #24a9e0;
 	pointer-events: none;
 }
-.djd-cd__pin {
-	display: block;
-	margin-bottom: 6px;
-	font-family: var(--djd-display);
-	font-weight: 800;
-	font-size: 12px;
-	line-height: 1.1;
-	letter-spacing: 0.14em;
-	text-transform: uppercase;
-	color: #24a9e0;
-}
 
 /* =======================================================================
    v1.16.3: phones get compact rows, not CD tiles (Mark's approved mockup)
@@ -604,7 +652,7 @@
    ====================================================================== */
 .djd-events__rows { display: none; }
 @media (max-width: 767px) {
-	.djd-events .djd-events__track { display: none; }
+	.djd-events .djd-events__scroller { display: none; }
 	.djd-events .djd-events__rows { display: grid; gap: 10px; }
 }
 
@@ -726,36 +774,21 @@ body.djdigi-theme .djd-row__head:focus-visible { outline: 3px solid #24a9e0 !imp
 	align-items: flex-start;
 	min-width: 0;
 }
-.djd-row__when {
-	max-width: 100%;
-	margin-bottom: 5px;
-	padding: 3px 8px;
-	border-radius: 999px;
-	background: #24a9e0;
-	color: #06121a;
-	font: 700 11px/1.1 var(--djd-sans);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
 .djd-row__venue {
-	display: -webkit-box;
+	display: block;
 	max-width: 100%;
 	font-family: var(--djd-display);
 	font-weight: 800;
 	font-size: 18px;
 	line-height: 1.05;
 	text-transform: uppercase;
-	/* v1.18.0: up to two lines, so an event title ("GGBA Holiday Party")
-	   is not cut short on a phone; ellipsis only past that. */
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 2;
-	line-clamp: 2;
-	overflow: hidden;
+	/* v1.19.0: wraps, never cut. */
 	overflow-wrap: anywhere;
 	color: #f1ece2;
 }
-/* v1.18.0: the venue under an event's own title. */
+/* v1.19.0: the tags line at the top of the text column. */
+.djd-row__tags { margin-bottom: 6px; }
+/* v1.19.0: the event's own title under the venue, small, wrapping. */
 .djd-row__sub {
 	display: block;
 	max-width: 100%;
@@ -766,9 +799,7 @@ body.djdigi-theme .djd-row__head:focus-visible { outline: 3px solid #24a9e0 !imp
 	line-height: 1.1;
 	letter-spacing: 0.02em;
 	text-transform: uppercase;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	overflow-wrap: anywhere;
 	color: #24a9e0;
 }
 .djd-row__time {
@@ -776,9 +807,8 @@ body.djdigi-theme .djd-row__head:focus-visible { outline: 3px solid #24a9e0 !imp
 	max-width: 100%;
 	margin-top: 3px;
 	font: 600 13px/1.25 var(--djd-sans);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	/* v1.19.0: wraps like the venue and title, never cut. */
+	overflow-wrap: anywhere;
 	color: rgba(241, 236, 226, 0.68);
 }
 
@@ -864,17 +894,6 @@ body.djdigi-theme .djd-row__pill:focus-visible { outline: 3px solid #24a9e0; out
 	background: linear-gradient(180deg, rgba(36, 169, 224, 0.14), rgba(36, 169, 224, 0.05)), #1b1038;
 	box-shadow: inset 0 0 0 1.5px #24a9e0, 0 0 18px rgba(36, 169, 224, 0.18);
 }
-.djd-row__pin {
-	display: block;
-	padding: 8px 12px 0;
-	font-family: var(--djd-display);
-	font-weight: 800;
-	font-size: 12px;
-	line-height: 1.1;
-	letter-spacing: 0.14em;
-	text-transform: uppercase;
-	color: #24a9e0;
-}
 
 /* =======================================================================
    v1.18.0: the events page list ([djdigi_events], no limit)
@@ -915,35 +934,13 @@ body.djdigi-theme .djd-events__month-head {
 	.djd-events--page .djd-row.is-open .djd-row__slide { transform: translateX(12px); }
 	.djd-events--page .djd-row__day { font-size: 46px; }
 	.djd-events--page .djd-row__daylabel { font-size: 13px; }
-	.djd-events--page .djd-row__text .djd-row__when { display: none; }
+	.djd-events--page .djd-row__text .djd-row__tags { display: none; }
 	.djd-events--page .djd-row__venue { font-size: 26px; }
 	.djd-events--page .djd-row__sub { font-size: 17px; margin-top: 3px; }
 	.djd-events--page .djd-row__time { font-size: 14px; margin-top: 5px; }
-	.djd-events--page .djd-row__side {
-		display: flex;
-		align-items: center;
-		gap: 14px;
-	}
-	.djd-events--page .djd-row__side-pin {
-		font-family: var(--djd-display);
-		font-weight: 800;
-		font-size: 13px;
-		line-height: 1.1;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
-		white-space: nowrap;
-		color: #24a9e0;
-	}
-	.djd-events--page .djd-row__side-when {
-		padding: 5px 11px;
-		border-radius: 999px;
-		background: #24a9e0;
-		color: #06121a;
-		font: 700 12px/1.1 var(--djd-sans);
-		white-space: nowrap;
-	}
-	/* The pin moves into the side column; the pinned row's 1px padding stays. */
-	.djd-events--page .djd-row > .djd-row__pin { display: none; }
+	.djd-events--page .djd-row__side { display: block; }
+	.djd-events--page .djd-row__side .djd-tags { justify-content: flex-end; }
+	.djd-events--page .djd-row__side .djd-tag { font-size: 15px; padding: 5px 8px 4px; }
 	.djd-events--page .djd-row__toggle { width: 44px; height: 44px; }
 	/* The panel's content starts under the text column: 12 + 124 + 18 + 64 + 18. */
 	.djd-events--page .djd-row__panel-body {
@@ -955,3 +952,55 @@ body.djdigi-theme .djd-events__month-head {
 	}
 	.djd-events--page .djd-row__pills { margin-top: 0; }
 }
+
+/* =======================================================================
+   v1.19.0: stamps, the countdown ("In 3 days") and the residency label
+   ("Friday Residency"), one style on the CDs, the events page rows and the
+   phone rows (djdt_events_tags_html()). Mark picked the rubber stamp from
+   three in the preview: a thin square ink outline, the ink as the text,
+   Saira, uppercase. Cream for the countdown, cyan for the residency, and
+   International Orange (the site's accent for small markers) for "Tonight"
+   only, so the gig happening today stands out. The fill is the night color
+   at 60%, see-through on purpose so it reads as a stamp, not a block.
+   Measured against the brightest pixel behind each stamp over the
+   brightest stand-in photo (CLAUDE.md "v1.19.0"): cream and cyan pass
+   4.5:1 at 13px with 55%; orange needs more, so "Tonight" alone gets 82%
+   (4.8:1; 65% gave 4.0).
+   ====================================================================== */
+.djd-tags {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 8px;
+}
+.djd-tag {
+	display: inline-block;
+	padding: 3px 6px 2px;
+	border: 1.5px solid currentColor;
+	border-radius: 0;
+	background: rgba(11, 8, 32, 0.6);
+	font-family: var(--djd-display);
+	font-weight: 800;
+	font-size: 13px;
+	line-height: 1;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	color: #f1ece2;
+}
+.djd-tag--res { color: #24a9e0; }
+.djd-tag--tonight { color: #f04e23; background: rgba(11, 8, 32, 0.82); }
+
+/* On the CD: top right, the residency above the countdown, right aligned. */
+.djd-cd__tags {
+	position: absolute;
+	top: 16px;
+	right: 16px;
+	z-index: 4;
+	flex-direction: column;
+	align-items: flex-end;
+	max-width: calc(100% - 120px);
+}
+
+/* Phone rows: a touch smaller. */
+.djd-row__tags .djd-tag { font-size: 12px; padding: 3px 5px 2px; }

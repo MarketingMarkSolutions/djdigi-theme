@@ -125,6 +125,51 @@
 		}
 	} );
 
+	// v1.19.0: the homepage row scrolls sideways (events.css, "The homepage
+	// row"). The arrows move it by the CDs in view; snapping lands on whole
+	// CDs. Each arrow is hidden when there is nowhere to go that way, and
+	// focus moves to the other one if the one just used disappears.
+	document.querySelectorAll( '.djd-events__scroller' ).forEach( function ( box ) {
+		var track = box.querySelector( '.djd-events__track' );
+		var prev = box.querySelector( '.djd-events__arrow--prev' );
+		var next = box.querySelector( '.djd-events__arrow--next' );
+		if ( ! track || ! prev || ! next ) {
+			return;
+		}
+		function update() {
+			var max = track.scrollWidth - track.clientWidth;
+			var hadFocus = document.activeElement;
+			prev.hidden = track.scrollLeft <= 2;
+			next.hidden = track.scrollLeft >= max - 2;
+			if ( hadFocus === prev && prev.hidden && ! next.hidden ) {
+				next.focus( { preventScroll: true } );
+			} else if ( hadFocus === next && next.hidden && ! prev.hidden ) {
+				prev.focus( { preventScroll: true } );
+			}
+		}
+		function page( dir ) {
+			var cd = track.querySelector( '.djd-cd' );
+			var gap = parseFloat( getComputedStyle( track ).columnGap ) || 0;
+			var step = cd ? cd.getBoundingClientRect().width + gap : track.clientWidth;
+			var n = Math.max( 1, Math.round( ( track.clientWidth - 48 + gap ) / step ) );
+			track.scrollBy( { left: dir * n * step, behavior: 'smooth' } );
+		}
+		prev.addEventListener( 'click', function () { page( -1 ); } );
+		next.addEventListener( 'click', function () { page( 1 ); } );
+		var ticking = false;
+		track.addEventListener( 'scroll', function () {
+			if ( ! ticking ) {
+				ticking = true;
+				requestAnimationFrame( function () {
+					ticking = false;
+					update();
+				} );
+			}
+		}, { passive: true } );
+		window.addEventListener( 'resize', update );
+		update();
+	} );
+
 	// v1.16.3: the phone rows (events.css shows them under 768px). The
 	// header button opens and closes its own row; each row is independent.
 	document.querySelectorAll( '.djd-row' ).forEach( function ( row ) {
