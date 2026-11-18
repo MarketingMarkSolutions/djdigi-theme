@@ -84,7 +84,7 @@
 .djd-events__empty a:hover { text-decoration: underline; }
 
 /* ---------------------------------------------------------------------
-   The homepage row (v1.19.0): one row of CDs, 4 in view (3 under 1100px),
+   The homepage row (v1.19.0): one row of CDs, about 280px each (v1.19.2),
    the rest reached by scrolling: the arrows (events.js), the keyboard (Tab
    scrolls a CD's button into view) or a swipe. Snaps to whole CDs.
    A scroller clips on both axes, and an opening disc flies up to about 58%
@@ -94,20 +94,39 @@
    negative margins: the page layout is the same as with no padding, and
    the disc is never cut. The padding above lies over the heading, which
    has nothing to click. The scroller is the size container: 100cqw is
-   its width, so a CD is (100cqw - the gaps) / 4.
+   its width, so a CD is (100cqw - the gaps) / n.
+
+   v1.19.2: the CDs no longer grow with the screen (4 across made them about
+   440px on a wide monitor). n is the count whose CD comes out closest to
+   280px: each step below is the width where n CDs are as far above 280px as
+   n + 1 would be below it, (width + gap) = 2 (280px + gap) n (n + 1) / (2n + 1),
+   except 3, moved down to 680px so the 768 tablet keeps v1.19.0's 3 across.
+   The row always ends on a whole CD, 213 to 323px wide: 8 across at 2560, 6 at
+   2000 and 1920, 4 at 1440 and 1280, 3 at 1100 to 768. The
+   variables sit on the scroller's children, not the scroller: a container
+   query can't style its own container, and an unregistered custom property
+   takes the var() values of the element it is declared on.
    ------------------------------------------------------------------ */
 .djd-events__scroller {
 	position: relative;
-	container-type: inline-size;
-	--djd-row-n: 4;
+	container: djd-row / inline-size;
+	margin-top: 34px;
+}
+.djd-events__scroller > * {
+	--djd-row-n: 1;
 	--djd-row-gap: 26px;
 	--djd-row-cd: calc((100cqw - (var(--djd-row-n) - 1) * var(--djd-row-gap)) / var(--djd-row-n));
 	--djd-row-lift: calc(var(--djd-row-cd) * 0.72);
-	margin-top: 34px;
 }
-@media (max-width: 1099px) {
-	.djd-events__scroller { --djd-row-n: 3; }
-}
+@container djd-row (min-width: 382px) { .djd-events__scroller > * { --djd-row-n: 2; } }
+@container djd-row (min-width: 680px) { .djd-events__scroller > * { --djd-row-n: 3; } }
+@container djd-row (min-width: 1023px) { .djd-events__scroller > * { --djd-row-n: 4; } }
+@container djd-row (min-width: 1334px) { .djd-events__scroller > * { --djd-row-n: 5; } }
+@container djd-row (min-width: 1643px) { .djd-events__scroller > * { --djd-row-n: 6; } }
+@container djd-row (min-width: 1951px) { .djd-events__scroller > * { --djd-row-n: 7; } }
+@container djd-row (min-width: 2259px) { .djd-events__scroller > * { --djd-row-n: 8; } }
+@container djd-row (min-width: 2566px) { .djd-events__scroller > * { --djd-row-n: 9; } }
+@container djd-row (min-width: 2873px) { .djd-events__scroller > * { --djd-row-n: 10; } }
 .djd-events__track {
 	display: grid;
 	grid-auto-flow: column;
@@ -240,8 +259,8 @@ body.djdigi-theme .djd-events__arrow:focus-visible { outline: 3px solid #f1ece2;
 	font-size: 19px;
 }
 /* v1.19.0: in the homepage row the date number scales with the CD (84px
-   from about 263px wide, the 1280 layout and up; about 68px on the 213px
-   CDs at 768), so a three line event title still fits under it. */
+   from about 263px wide; about 68px on the 213px CDs at 768), so a three
+   line event title still fits under it. */
 .djd-events__scroller .djd-cd__case-day-num {
 	font-size: min(84px, calc(var(--djd-row-cd) * 0.32));
 }

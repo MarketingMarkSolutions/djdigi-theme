@@ -43,6 +43,10 @@ CSS and JS are versioned by file date, so new uploads bust the browser and Cloud
 
 == Changelog ==
 
+= 1.19.2 =
+* Homepage: the CDs in the events row stay about 280px wide on every screen instead of growing with it. Wider screens show more of them (6 across at about 2000px, 4 on a laptop, 3 on a tablet), always ending on a whole CD; if every CD fits, no arrows.
+* Phones and the events page are unchanged.
+
 = 1.19.1 =
 * Safety caps on every loop in the events code (dates read, calendar file lines, skipped dates, time zone rules): far above any real calendar, and if one is ever reached the page still shows and one line goes to the error log.
 * Fixed: a calendar download (.ics) with broken text in it could loop until the server ran out of memory.

@@ -47,7 +47,7 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 
 ## Files
 - `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo halftone baking (Imagick assisted decode, GD for every pixel operation, see "Smoothness" below), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]` (`djdt_hero_shortcode()`) and the "Latest live set" player section it outputs right after itself (`djdt_player_section()`, v1.6.0, no separate shortcode), `[djdigi_venues]`. `require_once`s `includes/djdt-events.php` and (v1.11.0) `includes/djdt-logo.php` near the top, see below.
-- `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. v1.15.1: residencies and the `?djdt_ics=` series download, see "v1.15.1" below; v1.17.0: every date is its own CD, residency is a checkbox on the event, see "v1.17.0" below; v1.18.0: the events page is a month by month list of rows, and events with their own title show it, see "v1.18.0" below; v1.19.0: venue big and title small, no venue logos, the homepage row scrolls with arrows, stamps, see "v1.19.0" below; v1.19.1: safety caps on every loop, see "v1.19.1" below. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
+- `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. v1.15.1: residencies and the `?djdt_ics=` series download, see "v1.15.1" below; v1.17.0: every date is its own CD, residency is a checkbox on the event, see "v1.17.0" below; v1.18.0: the events page is a month by month list of rows, and events with their own title show it, see "v1.18.0" below; v1.19.0: venue big and title small, no venue logos, the homepage row scrolls with arrows, stamps, see "v1.19.0" below; v1.19.1: safety caps on every loop, see "v1.19.1" below; v1.19.2: homepage row CDs about 280px, more across on wider screens, see "v1.19.2" below. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
 - `includes/djdt-inner.php` (v1.15.0): inner pages. The title banner (`djdt_banner_html()`, put before `<main id="main">` by the same output buffer as the logo swap), its "Banner title" / "Hide banner" fields (a "DigiMark banner" box on pages and posts), the featured image bake queue (`djdt_bake_banner` cron), and the leading emoji strip on content headings (`djdt_strip_heading_emoji()`). See "v1.15.0" below.
 - `includes/djdt-story.php`, `includes/djdt-about.php`, `includes/djdt-contact.php` (v1.16.0): the Story timeline, the About page and the sitewide Contact / Book me pop-up, each with its own CSS and JS in assets. See "v1.16.0" below.
 - `includes/djdt-videos.php` (v1.14.0): `[djdigi_videos]`, the 4 newest remix videos through djdigi-library's own `[djdigi_newest]` renderer, styled by `assets/css/videos.css`. See "v1.14.0" below.
@@ -422,6 +422,42 @@ hidden, show on scroll up, focus keeps it shown, no horizontal scroll, no errors
 old logo never requested. The PHP string functions (autop strip, logo swap, title split) were
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
+
+## v1.19.2: homepage row CDs about 280px
+Mark's brief: with 4 across at any width, a CD was about 440px on a wide monitor. Previewed with
+screenshots (2000, 1440, 1280, 1024, a disc open, phone 390) and approved, "Option 1": each width
+picks the number of CDs whose width comes out closest to 280px and they share the row evenly, so
+the row always ends on a whole CD (Option 2, exactly 280px with a part CD under the next arrow, was
+not picked). CSS only (events.css, "The homepage row"); the PHP, the JS, the phone rows and the
+events page are unchanged, and so is everything from v1.19.0 and v1.19.1.
+- The scroller is a named container (`container: djd-row / inline-size`). `--djd-row-n`,
+  `--djd-row-gap`, `--djd-row-cd` and `--djd-row-lift` moved from the scroller onto its children
+  (`.djd-events__scroller > *`): a container query can't style its own container, and an
+  unregistered custom property substitutes var() on the element that declares it, so `--djd-row-cd`
+  has to be declared where `--djd-row-n` changes.
+- `@container djd-row (min-width: ...)` steps set n: 2 at 382px, 3 at 680, 4 at 1023, 5 at 1334,
+  6 at 1643, 7 at 1951, 8 at 2259, 9 at 2566, 10 at 2873. Each is the container width where n CDs
+  are as far above 280px as n + 1 would be below, (width + 26) = 612 n (n + 1) / (2n + 1),
+  except 3, moved down from 708 to 680 so the 768 tablet keeps v1.19.0's 3 across (213px) rather
+  than 2 at 333px. The 1099px media query (3 across) is gone.
+- Measured: 2560 8 across (all 8 fit, no arrows), 2000 6 at 278px, 1920 6, 1440 4 at 305px, 1280
+  4 at 269px, 1100 and 1024 3 (290px at 1024), 800 and 768 3 (222 and 213px). A CD is 213 to 323px,
+  inside the sizes v1.19.0 was tested at, so the text, stamps, eject button and disc kept their
+  sizes (the date number still scales, `min(84px, CD x 0.32)`; the disc and the lift are relative).
+- events.js was already size agnostic: it pages by the CDs in view and hides each arrow when there
+  is nowhere to go, so with every CD in view neither shows.
+
+**Verified.** Playwright on the preview (scratchpad `prev1192/`, data.php with four more events so
+the homepage has 8 CDs), 267 checks (`browse.cjs`) at 2560, 2000, 1920, 1440, 1280, 1100, 1024,
+800, 768, 767, 390 and 375: no horizontal page scroll; one row of equal CDs 212 to 324px; the
+expected number in view and the row ending on a whole CD; no arrows when every CD fits; otherwise
+next scrolls a screenful and snaps, prev appears, next hides at the end, Enter and Space, back to
+the start, tabbing to an off screen CD scrolls it in; a CD opens and closes; time and eject aligned,
+text clear of the eject and the date; stamp colors and fill; phone rows unchanged; a touch swipe
+snaps. Open disc clearance every frame (`peak.cjs`): at least 31px above (768) and 17px at the
+sides. PHP 41 and v1.17.0 31 still pass, and the v1.19.1 caps and timing are unchanged.
+**Not verified:** the live site, real event photos, Avada's own styles around the row, a real
+tablet, phone or trackpad, Safari (container queries since Safari 16).
 
 ## v1.19.1: events safety caps, after the v1.19.0 update outage
 **What happened.** Mark updated v1.18.0 to v1.19.0 with the WordPress Update button (Nov 17 2026,
