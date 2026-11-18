@@ -47,7 +47,7 @@ attached `djdigi-theme.zip`. Do not edit files in `vendor/`.
 
 ## Files
 - `djdigi-theme.php`: the three DigiMark admin screens (Theme Settings, Hero Photos, Venues, see "Admin: three screens" below), asset loading (filemtime versions, Cloudflare-safe), the late header-background wp_head `<style>` block, the hero photo halftone baking (Imagick assisted decode, GD for every pixel operation, see "Smoothness" below), body classes, Mixcloud API (cached 6h in transient `djdt_mix`), the inline waveform helper, `[djdigi_hero]` (`djdt_hero_shortcode()`) and the "Latest live set" player section it outputs right after itself (`djdt_player_section()`, v1.6.0, no separate shortcode), `[djdigi_venues]`. `require_once`s `includes/djdt-events.php` and (v1.11.0) `includes/djdt-logo.php` near the top, see below.
-- `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. v1.15.1: residencies and the `?djdt_ics=` series download, see "v1.15.1" below; v1.17.0: every date is its own CD, residency is a checkbox on the event, see "v1.17.0" below; v1.18.0: the events page is a month by month list of rows, and events with their own title show it, see "v1.18.0" below; v1.19.0: venue big and title small, no venue logos, the homepage row scrolls with arrows, stamps, see "v1.19.0" below. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
+- `includes/djdt-events.php` (v1.8.0): `[djdigi_events]`, upcoming sets read straight from Modern Events Calendar Lite's own data, no MEC front end involved. v1.15.1: residencies and the `?djdt_ics=` series download, see "v1.15.1" below; v1.17.0: every date is its own CD, residency is a checkbox on the event, see "v1.17.0" below; v1.18.0: the events page is a month by month list of rows, and events with their own title show it, see "v1.18.0" below; v1.19.0: venue big and title small, no venue logos, the homepage row scrolls with arrows, stamps, see "v1.19.0" below; v1.19.1: safety caps on every loop, see "v1.19.1" below. See "Events: moved here from djdigi-library" below for the full detail; this entry is just the file map.
 - `includes/djdt-inner.php` (v1.15.0): inner pages. The title banner (`djdt_banner_html()`, put before `<main id="main">` by the same output buffer as the logo swap), its "Banner title" / "Hide banner" fields (a "DigiMark banner" box on pages and posts), the featured image bake queue (`djdt_bake_banner` cron), and the leading emoji strip on content headings (`djdt_strip_heading_emoji()`). See "v1.15.0" below.
 - `includes/djdt-story.php`, `includes/djdt-about.php`, `includes/djdt-contact.php` (v1.16.0): the Story timeline, the About page and the sitewide Contact / Book me pop-up, each with its own CSS and JS in assets. See "v1.16.0" below.
 - `includes/djdt-videos.php` (v1.14.0): `[djdigi_videos]`, the 4 newest remix videos through djdigi-library's own `[djdigi_newest]` renderer, styled by `assets/css/videos.css`. See "v1.14.0" below.
@@ -422,6 +422,54 @@ hidden, show on scroll up, focus keeps it shown, no horizontal scroll, no errors
 old logo never requested. The PHP string functions (autop strip, logo swap, title split) were
 checked through a line for line Python port, since no PHP interpreter is available. **Not verified**
 against the live WordPress render: Avada's mobile menu JS and real builder markup only exist live.
+
+## v1.19.1: events safety caps, after the v1.19.0 update outage
+**What happened.** Mark updated v1.18.0 to v1.19.0 with the WordPress Update button (Nov 17 2026,
+about 10:19 PM Pacific). The update request itself got a Cloudflare 522 (origin not answering), then
+every page was 522 for over 40 minutes; renaming the plugin folder brought the server back, and
+v1.18.0 was restored by hand from the GitHub release zip. The v1.19.0 files were left on the server as
+`wp-content/plugins/djdigi-theme-off`.
+
+**What was found (no definite cause).** The v1.19.0 zip differs from v1.18.0 in five files only
+(version, events PHP, CSS, JS, readme); vendor and everything else byte identical. The v1.19.0 PHP
+adds no loop, hook, query or remote request and does one lookup fewer per event (the logo). A half
+installed plugin (either file old, events file missing or cut in half) fails at once with a fatal
+or parse error, it does not hang. Timed under PHP 8.2 on live shaped data, v1.19.0 rendered the same
+as v1.18.0 (about 20ms for the events page, 3ms for the homepage row). A 522 means Cloudflare could
+not connect at all (a slow page is a 524), and the update request itself got one, which points to the
+server or the update process rather than the plugin's code; not confirmed, the server logs and the
+`djdigi-theme-off` files were not seen. One real flaw turned up on the way, unrelated to the outage:
+`djdt_events_ics_fold()` looped until PHP ran out of memory on a line of broken UTF-8 (only on an
+.ics download).
+
+**The caps.** Every loop in the events module that is not a plain walk over a bounded array now
+stops at a constant, far above any real calendar, and logs one line per cap per request
+(`djdt_events_cap_hit()`, "djdigi-theme: events safety cap reached (...)"); the page still renders
+without what was past the cap, never a fatal or a blank page.
+- `DJDT_EVENTS_MAX_DATES` 5000: mec_dates rows read (the query is now `ORDER BY d.dstart DESC LIMIT
+  5001`, so past the cap only the oldest past dates drop), dates from the postmeta fallback in
+  total, dates in one event's `mec_in_days`, and entries searched for one row's time in
+  `djdt_events_wall_time_from_postmeta_time()`. Every other loop walks these dates, so it is
+  bounded by this too.
+- `DJDT_EVENTS_MAX_EXDATES` 1000: skipped dates in one .ics series; past it (or if a date step
+  fails) the series is written as one VEVENT per date instead of RRULE plus EXDATEs.
+- `DJDT_EVENTS_MAX_FOLDS` 10000: 75 byte pieces of one .ics line (about 750 KB), the rest dropped.
+  The fold also cuts at 75 when the UTF-8 walk back reaches 0, which fixes the endless loop.
+- `DJDT_EVENTS_MAX_TZ` 100: time zone transitions read for the VTIMEZONE (a real zone has about 4).
+
+**Verified** (scratchpad `inc522/`): `time.cjs` v1.18.0 against v1.19.1 on live shaped data (Midnight
+Sun ticked, Dec 25 skipped; Badlands 3 dates; "90's Dance Party"; GGBA; clock Nov 17 10:19 PM), three
+runs each: events page 18 to 22ms both, homepage limit 5 and 8 2 to 4ms both; with about 1,000
+residency dates the events page took 177 to 204ms on v1.18.0 and 205 to 236ms on v1.19.1, homepage
+11 to 17ms both. `caps.cjs` forces each cap once (6,188 mec_dates rows; postmeta 2 x 3,000; one
+`mec_in_days` of 6,000; a row's time looked up through 6,000 entries; a 1 MB .ics line and a broken
+UTF-8 one; a series with 1,099 skipped weeks; a zone with 500 transitions): each logs its one line,
+the page and homepage render (or the .ics is complete), and normal data still gives one RRULE, the
+right EXDATE and one STANDARD plus one DAYLIGHT. The v1.19.0 suites still pass (PHP 41, v1.17.0 31,
+browser 176); CSS and JS are unchanged from v1.19.0.
+**Not verified:** the cause of the outage; the live server, its logs and limits; the files left in
+`djdigi-theme-off`; the real WordPress updater. Mark installs v1.19.1 by hand (cPanel File Manager,
+the old folder kept as `djdigi-theme-118` to roll back to), not with the Update button.
 
 ## v1.19.0: venue big, homepage row scrolls, stamps
 From Mark's brief, previewed twice (a scratch copy rendered by the real PHP) and approved with his

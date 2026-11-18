@@ -51,6 +51,28 @@ if ( ! defined( 'ABSPATH' ) ) {
 define( 'DJDT_EVENTS_MEC_POST_TYPE', 'mec-events' );
 define( 'DJDT_EVENTS_MEC_TAXONOMY', 'mec_location' );
 
+/*
+ * v1.19.1: safety caps, after the v1.19.0 update outage (no loop here was
+ * found to run on, these are a safety net). Every loop in this module stops
+ * at one of these, far above any real calendar, and logs one line through
+ * djdt_events_cap_hit(); the page still renders, without what was past the cap.
+ */
+define( 'DJDT_EVENTS_MAX_DATES', 5000 );   // Dates read from MEC (mec_dates rows, or postmeta), and dates per event.
+define( 'DJDT_EVENTS_MAX_EXDATES', 1000 ); // Skipped dates in one .ics series; past it, one VEVENT per date instead.
+define( 'DJDT_EVENTS_MAX_FOLDS', 10000 );  // 75 byte pieces of one .ics line (about 750 KB).
+define( 'DJDT_EVENTS_MAX_TZ', 100 );       // Time zone transitions read for one .ics VTIMEZONE (a real zone has about 4).
+
+/** v1.19.1: one error_log line per cap per request, never more. */
+function djdt_events_cap_hit( $what ) {
+	static $seen = array();
+	if ( isset( $seen[ $what ] ) ) {
+		return;
+	}
+	$seen[ $what ] = true;
+	// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+	error_log( 'djdigi-theme: events safety cap reached (' . $what . '), the rest was skipped.' );
+}
+
 /* -------------------------------------------------------------------------
  * Shortcode + assets
  * ---------------------------------------------------------------------- */
@@ -352,11 +374,19 @@ function djdt_events_occurrences_from_mec_dates_table( &$had_unparsed_rows = fal
 		"SELECT d.post_id, d.dstart, d.dend, d.tstart, d.tend
 		FROM {$table} d
 		INNER JOIN {$wpdb->posts} p ON p.ID = d.post_id
-		WHERE p.post_type = %s AND p.post_status = 'publish'",
-		DJDT_EVENTS_MEC_POST_TYPE
+		WHERE p.post_type = %s AND p.post_status = 'publish'
+		ORDER BY d.dstart DESC
+		LIMIT %d",
+		DJDT_EVENTS_MEC_POST_TYPE,
+		DJDT_EVENTS_MAX_DATES + 1
 	) );
 	if ( ! is_array( $rows ) ) {
 		return null;
+	}
+	// v1.19.1 cap: newest first, so past the cap only the oldest past dates are left out.
+	if ( count( $rows ) > DJDT_EVENTS_MAX_DATES ) {
+		djdt_events_cap_hit( 'mec_dates rows' );
+		$rows = array_slice( $rows, 0, DJDT_EVENTS_MAX_DATES );
 	}
 
 	$posts_by_id = array();
@@ -468,7 +498,12 @@ function djdt_events_wall_time_from_timestamp( $timestamp, $date_str ) {
 function djdt_events_wall_time_from_postmeta_time( $date_str, $post, $which ) {
 	$in_days = get_post_meta( $post->ID, 'mec_in_days', true );
 	if ( is_array( $in_days ) ) {
+		$n = 0;
 		foreach ( $in_days as $entry ) {
+			if ( ++$n > DJDT_EVENTS_MAX_DATES ) {
+				djdt_events_cap_hit( 'mec_in_days time lookup' );
+				break;
+			}
 			$parts = explode( ':', (string) $entry );
 			if ( 4 !== count( $parts ) ) {
 				continue;
@@ -514,6 +549,10 @@ function djdt_events_occurrences_from_postmeta() {
 	$occurrences = array();
 	foreach ( $posts as $post ) {
 		foreach ( djdt_events_build_occurrences_for_post( $post ) as $occ ) {
+			if ( count( $occurrences ) >= DJDT_EVENTS_MAX_DATES ) {
+				djdt_events_cap_hit( 'postmeta dates' );
+				return $occurrences;
+			}
 			$occurrences[] = $occ;
 		}
 	}
@@ -540,6 +579,10 @@ function djdt_events_build_occurrences_for_post( $post ) {
 		$in_days = get_post_meta( $post->ID, 'mec_in_days', true );
 		if ( is_array( $in_days ) ) {
 			foreach ( $in_days as $entry ) {
+				if ( count( $occurrences ) >= DJDT_EVENTS_MAX_DATES ) {
+					djdt_events_cap_hit( 'mec_in_days dates' );
+					break;
+				}
 				$occ = djdt_events_parse_in_days_entry( (string) $entry, $post );
 				if ( $occ ) {
 					$occurrences[] = $occ;
@@ -958,13 +1001,26 @@ function djdt_events_ics_text( $s ) {
 	return str_replace( array( '\\', ';', ',', "\r\n", "\n" ), array( '\\\\', '\;', '\,', '\n', '\n' ), (string) $s );
 }
 
-/** Folds a content line at 75 octets per RFC 5545, without splitting a UTF-8 character. */
+/**
+ * Folds a content line at 75 octets per RFC 5545, without splitting a UTF-8 character.
+ * v1.19.1: a line whose first 76 bytes were all UTF-8 continuation bytes (broken text)
+ * backed $cut down to 0 and looped forever; it now cuts at 75 there. Capped at
+ * DJDT_EVENTS_MAX_FOLDS pieces, the rest of the line dropped.
+ */
 function djdt_events_ics_fold( $line ) {
 	$out = '';
+	$n   = 0;
 	while ( strlen( $line ) > 75 ) {
+		if ( ++$n > DJDT_EVENTS_MAX_FOLDS ) {
+			djdt_events_cap_hit( 'ics line folds' );
+			return rtrim( $out, "\r\n " );
+		}
 		$cut = 75;
 		while ( $cut > 0 && ( ord( $line[ $cut ] ) & 0xC0 ) === 0x80 ) {
 			$cut--;
+		}
+		if ( $cut <= 0 ) {
+			$cut = 75;
 		}
 		$out  .= substr( $line, 0, $cut ) . "\r\n ";
 		$line  = substr( $line, $cut );
@@ -1000,22 +1056,36 @@ function djdt_events_build_ics( $post, $occs ) {
 		$lines = array_merge( $lines, djdt_events_ics_vtimezone( $tz, $occs[0]['start'] ) );
 	}
 
+	// Skipped dates inside the series. v1.19.1: capped at DJDT_EVENTS_MAX_EXDATES; past
+	// it (or if a date step fails) the series is written as one VEVENT per date instead.
+	$exdates = array();
 	if ( $rule['interval'] > 0 ) {
+		$step = '+' . (int) $rule['interval'] . ' days';
+		for ( $i = 1; $i < count( $occs ) && false !== $exdates; $i++ ) {
+			$cursor = $occs[ $i - 1 ]['start']->modify( $step );
+			while ( $cursor && $cursor->format( 'Y-m-d' ) < $occs[ $i ]['start']->format( 'Y-m-d' ) ) {
+				if ( count( $exdates ) >= DJDT_EVENTS_MAX_EXDATES ) {
+					djdt_events_cap_hit( 'ics skipped dates' );
+					$exdates = false;
+					break;
+				}
+				$exdates[] = 'EXDATE' . $dt( $cursor );
+				$cursor    = $cursor->modify( $step );
+			}
+			if ( ! $cursor ) {
+				$exdates = false;
+			}
+		}
+	}
+
+	if ( $rule['interval'] > 0 && false !== $exdates ) {
 		$first = $occs[0];
 		$by    = strtoupper( substr( $first['start']->format( 'D' ), 0, 2 ) );
 		$rrule = 'RRULE:' . ( 1 === $rule['interval'] ? 'FREQ=DAILY' : 'FREQ=WEEKLY;INTERVAL=' . ( $rule['interval'] / 7 ) . ';BYDAY=' . $by );
 		if ( 'never' !== (string) get_post_meta( $post->ID, 'mec_repeat_end', true ) ) {
 			$rrule .= ';UNTIL=' . end( $occs )['start']->setTimezone( $utc )->format( 'Ymd\THis\Z' );
 		}
-		$event = array( 'BEGIN:VEVENT', 'UID:djdt-residency-' . $post->ID . '@' . $host, 'DTSTAMP:' . $stamp, 'DTSTART' . $dt( $first['start'] ), 'DTEND' . $dt( $first['end'] ), $rrule );
-		// Skipped dates inside the series.
-		for ( $i = 1; $i < count( $occs ); $i++ ) {
-			$cursor = $occs[ $i - 1 ]['start']->modify( '+' . $rule['interval'] . ' days' );
-			while ( $cursor->format( 'Y-m-d' ) < $occs[ $i ]['start']->format( 'Y-m-d' ) ) {
-				$event[] = 'EXDATE' . $dt( $cursor );
-				$cursor  = $cursor->modify( '+' . $rule['interval'] . ' days' );
-			}
-		}
+		$event = array_merge( array( 'BEGIN:VEVENT', 'UID:djdt-residency-' . $post->ID . '@' . $host, 'DTSTAMP:' . $stamp, 'DTSTART' . $dt( $first['start'] ), 'DTEND' . $dt( $first['end'] ), $rrule ), $exdates );
 		$lines = array_merge( $lines, $event, $common, array( 'END:VEVENT' ) );
 	} else {
 		foreach ( $occs as $occ ) {
@@ -1043,6 +1113,10 @@ function djdt_events_ics_vtimezone( $tz, $around ) {
 	};
 	$seen = array();
 	$prev = is_array( $trans ) && $trans ? $trans[0] : null;
+	if ( is_array( $trans ) && count( $trans ) > DJDT_EVENTS_MAX_TZ ) {
+		djdt_events_cap_hit( 'ics time zone transitions' );
+		$trans = array_slice( $trans, 0, DJDT_EVENTS_MAX_TZ );
+	}
 	if ( is_array( $trans ) ) {
 		for ( $i = 1; $i < count( $trans ); $i++ ) {
 			$t    = $trans[ $i ];

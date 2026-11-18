@@ -43,6 +43,11 @@ CSS and JS are versioned by file date, so new uploads bust the browser and Cloud
 
 == Changelog ==
 
+= 1.19.1 =
+* Safety caps on every loop in the events code (dates read, calendar file lines, skipped dates, time zone rules): far above any real calendar, and if one is ever reached the page still shows and one line goes to the error log.
+* Fixed: a calendar download (.ics) with broken text in it could loop until the server ran out of memory.
+* Everything from 1.19.0 is unchanged.
+
 = 1.19.0 =
 * Events: the venue is always the big name; an event's own title (like "90's Dance Party") is the smaller blue line under it. Long names wrap instead of being cut.
 * Venue logos no longer show on the cards (they stay set in the calendar).
